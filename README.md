@@ -83,7 +83,7 @@ We can print the space usage of the wavelet tree with
 ```rust
 use qwt::SpaceUsage;
 
-println( qwt.space_usage_bytes() );
+println!( qwt.space_usage_bytes() );
 ```
 
 The data structure supports three operations:
