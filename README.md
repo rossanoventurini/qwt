@@ -88,8 +88,8 @@ println!( qwt.space_usage_bytes() );
 
 The data structure supports three operations:
 - `get(i)` accesses the `i`-th symbols of the indexed sequence;
-- `rank(s, i)` counts the number of occurrences of symbol `s` up to position `i` excluded;
-- `select(s, i)` returns the position of the `i`-th occurrence of symbol `s`.
+- `rank(c, i)` counts the number of occurrences of symbol `c` up to position `i` excluded;
+- `select(c, i)` returns the position of the `i`-th occurrence of symbol `c`.
 
 Here is an example of the three operations.
 
