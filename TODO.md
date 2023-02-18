@@ -1,4 +1,3 @@
-
 ## TODO
 - Use a binary vector at the first level when log sigma is odd.
 - Fix too large capacity after deserialization.

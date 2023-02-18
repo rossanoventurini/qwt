@@ -6,6 +6,7 @@ authors = ["Rossano Venturini <rossano.venturini@unipi.it>"]
 readme = "README.md"
 description = "Rust implementation of Quad Wavelet Tree"
 license = "MIT"
+repository = "https://github.com/rossanoventurini/qwt"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
