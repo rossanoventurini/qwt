@@ -1,6 +1,5 @@
 use crate::utils::select_in_word;
 use crate::QVector;
-use core::arch::x86_64::_popcnt64; //_mm_prefetch
 
 use serde::{Deserialize, Serialize};
 
@@ -102,14 +101,13 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         let word_high = (word >> 64) as u64;
         let word_low = word as u64;
 
-        unsafe {
-            _popcnt64(match SYMBOL {
+        let r = match SYMBOL {
                 0 => (!word_high & !word_low) & mask,
                 1 => (!word_high & word_low) & mask,
                 2 => (word_high & !word_low) & mask,
                 _ => (word_high & word_low) & mask, // only 3 is possible here!
-            } as i64) as usize
-        }
+            };
+        r.count_ones() as usize
     }
 
     #[inline(always)]
@@ -137,7 +135,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
                 _ => word_high & word_low, // only 3 is possible here!
             };
 
-            cnt += unsafe { _popcnt64(word as i64) } as usize;
+            cnt += word.count_ones() as usize;
 
             if cnt >= i {
                 // previous word is the target
@@ -386,9 +384,6 @@ pub trait RSSupport {
 
     /// Shrinks to fit.
     fn shrink_to_fit(&mut self);
-
-    /// Prefetches the counters for the position `i`.
-    fn prefetch(&self, i: usize);
 
     /// Length of the indexed sequence.
     fn len(&self) -> usize;

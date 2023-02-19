@@ -6,8 +6,6 @@ use crate::utils::get_64byte_aligned_vector;
 use crate::QVector;
 use crate::SpaceUsage; // Traits
 
-use core::arch::x86_64::_mm_prefetch;
-
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -211,20 +209,6 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         self.occs[symbol as usize]
     }
 
-    /// Prefetches the counters for the specified position `i`.
-    ///
-    /// This is very useful for speeding up operations where
-    /// the compiler is not able to predict that a rank at a certain position
-    /// will be required soon. This happens, for example, for `get` operation on Wavelet
-    /// trees.  
-    #[inline(always)]
-    fn prefetch(&self, i: usize) {
-        unsafe {
-            let p = self.superblocks.as_ptr().add(Self::superblock_index(i));
-            _mm_prefetch(p as *const i8, core::arch::x86_64::_MM_HINT_NTA);
-        }
-    }
-
     /// Shrinks to fit
     fn shrink_to_fit(&mut self) {
         self.superblocks.shrink_to_fit();
@@ -315,40 +299,15 @@ impl SuperblockPlain {
         }
     }
 
-    // Returns the largest block id for `symbol` in this superblock
-    // such that its counter is smaller than `target` value.
-    //
-    // # TODO
-    // The loop is not (auto)vectorized but we know we are just searching for the predecessor
-    // of a 12bit value in the last 84 bits of a u128.
+    /// Returns the largest block id for `symbol` in this superblock
+    /// such that its counter is smaller than `target` value.
+    ///
+    /// # TODO
+    /// The loop is not (auto)vectorized but we know we are just searching for the predecessor
+    ///x of a 12bit value in the last 84 bits of a u128.
     #[inline(always)]
     pub fn block_predecessor(&self, symbol: u8, target: usize) -> (usize, usize) {
         let mut cnt = self.counters[symbol as usize];
-
-        /*
-        if v = (cnt & 0b111111111111) as usize >= target {
-            return (0, 0);
-        }
-        if ((cnt >> 12) & 0b111111111111) as usize >= target {
-            return (1, (cnt & 0b111111111111) as usize);
-        }
-        if ((cnt >> 24) & 0b111111111111) as usize >= target {
-            return (2, ((cnt >> 12) & 0b111111111111) as usize);
-        }
-        if ((cnt >> 36) & 0b111111111111) as usize >= target {
-            return (3, ((cnt >> 24) & 0b111111111111) as usize);
-        }
-        if ((cnt >> 48) & 0b111111111111) as usize >= target {
-            return (4, ((cnt >> 36) & 0b111111111111) as usize);
-        }
-        if ((cnt >> 60) & 0b111111111111) as usize >= target {
-            return (5, ((cnt >> 48) & 0b111111111111) as usize);
-        }
-        if ((cnt >> 72) & 0b111111111111) as usize >= target {
-            return (6, ((cnt >> 60) & 0b111111111111) as usize);
-        }
-        (7, ((cnt >> 72) & 0b111111111111) as usize)*/
-
         let mut prev_cnt = 0;
 
         for block_id in 1..Self::BLOCKS_IN_SUPERBLOCK {

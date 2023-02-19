@@ -1,10 +1,9 @@
 //! The module provides low-level utilities to perform
 //! bitwise operations, aligned allocation, and so on.
-use core::arch::x86_64::{_mm_tzcnt_64, _pdep_u64, _popcnt64};
+use core::arch::x86_64::_pdep_u64;
 
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Shr;
 
 /// Computes select_1(k) on a 64-bit word.
@@ -32,28 +31,28 @@ use std::ops::Shr;
 #[inline(always)]
 pub unsafe fn select_in_word(word: u64, k: u64) -> u32 {
     let mask = std::u64::MAX << k;
-    _mm_tzcnt_64(_pdep_u64(mask, word)) as u32
+    _pdep_u64(mask, word).trailing_zeros() 
 }
 
 #[inline(always)]
 pub unsafe fn select_in_word_u128(word: u128, k: u64) -> u32 {
     let first = word as u64;
 
-    let kp = _popcnt64(first as i64);
+    let kp = first.count_ones();
 
     if kp as u64 > k {
         select_in_word(first, k)
     } else {
-        kp as u32 + select_in_word((word >> 64) as u64, k - kp as u64)
+        kp + select_in_word((word >> 64) as u64, k - kp as u64)
     }
 }
 
 /// Compute popcnt for a slice of N words.
 #[inline(always)]
-pub unsafe fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
+pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
     let mut res: usize = 0;
     for &word in data.iter().take(N) {
-        res += _popcnt64(word as i64) as usize;
+        res += word.count_ones() as usize;
     }
     res
 }
