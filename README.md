@@ -5,6 +5,7 @@ Given a sequence, *rank* and *select* queries return the number of occurrences o
 A [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a text of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer rank and select queries in $\Theta(\log \sigma)$ time.
 
 This repository provides a very fast implementation of Wavelet Trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree).
+
 Our implementation **QWT** improves query performance by using a 4-ary tree instead of a binary tree as basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
 Our experimental evaluation shows that our quad wavelet tree can improve the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees contained in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite)). For more details, see [Benchmarks](#bench) and the paper [[2](#bib)].
