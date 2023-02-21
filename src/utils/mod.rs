@@ -145,7 +145,8 @@ pub fn select_in_word(word: u64, k: u64) -> u32 {
         return 64;
     }
     let byte_rank = k - (((byte_sums << 8) >> place) & 0xFF_u64);
-    return place + K_SELECT_IN_BYTE[(((word >> place) & 0xFF_u64) | (byte_rank << 8)) as usize] as u32;
+    
+    place + K_SELECT_IN_BYTE[(((word >> place) & 0xFF_u64) | (byte_rank << 8)) as usize] as u32
  
     /*
     use core::arch::x86_64::_pdep_u64;
