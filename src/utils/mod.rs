@@ -136,7 +136,7 @@ pub fn select_in_word(word: u64, k: u64) -> u32 {
     // byte_sums contains 8 bytes. byte_sums[j] is the number of bits in word set to 1 up to (and including) jth byte. These are values in [0, 64]
     let k_step8 = k * k_ones_step8;
 
-    /// geq_k_step8 contains 8 bytes, the jth byte geq_k_step8[j] == 128 iff byte_sums[j] <= k
+    // geq_k_step8 contains 8 bytes, the jth byte geq_k_step8[j] == 128 iff byte_sums[j] <= k
     let geq_k_step8 = ((k_step8 | k_lambdas_step8) - byte_sums) & k_lambdas_step8;
 
     let place = geq_k_step8.count_ones() * 8;
