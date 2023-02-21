@@ -1,3 +1,21 @@
+//! This library provides an efficient implementation of [Wavelet Trees](https://en.wikipedia.org/wiki/Wavelet_Tree).
+//! 
+//! A wavelet tree [[1](#bib)] is a compact data structure that for a text of length
+//! $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ 
+//! bits of space and can answer `rank` and `select` queries in $\Theta(\log \sigma)$ time.
+//! 
+//! Given a static sequence `S[0,n-1]`, a wavelet tree indexes the sequence `S` and 
+//! supports three operations:
+//! - `get(i)` returns S[i];
+//! - `rank(c, i)` returns the number of occurrences of the symbol `c` in the prefix S[0...i-1];
+//! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`. 
+//!  
+//! Our implementation of Wavelet Tree improves query performance by using a 4-ary 
+//! tree instead of a binary tree as basis of the wavelet tree. 
+//! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses 
+//! during queries and thus reduces the query latency. This way we are roughly 2 times
+//! faster than other existing implementations (e.g., SDSL).
+
 pub mod perf_and_test_utils;
 pub mod qvector;
 pub use qvector::QVector;
@@ -16,33 +34,41 @@ pub type QWaveletTreeP512 = QWaveletTree<u8, RSQVectorP512>;
 
 use num_traits::Unsigned;
 
-/// An interface for supporting access queries over an `Unsigned` alphabet.
-/// The operation `get(i)` returns the symbol at position `i`.
+/// An interface for supporting `get` queries over an `Unsigned` alphabet.
 pub trait AccessUnsigned {
     type Item: Unsigned;
+    /// Returns the symbol at position `i`.
     fn get(&self, i: usize) -> Option<Self::Item>;
+    /// Returns the symbol at position `i`. The function does not check boundaries.
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item;
 }
 
-/// An interface for supporting rank queries over an `Unsigned` alphabet.
-/// The operation `rank(symbol, i)` returns the number of
-/// occurrences in the indexed sequence of `symbol` up to
-/// position `i` excluded.
+/// An interface for supporting `rank` queries over an `Unsigned` alphabet.
 pub trait RankUnsigned: AccessUnsigned {
+    /// Returns the number of occurrences in the indexed sequence of `symbol` up to
+    /// position `i` excluded.
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize>;
+    /// Returns the number of occurrences in the indexed sequence of `symbol` up to
+    /// position `i` excluded. The function does not check boundaries.
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
-/// An interface for supporting select queries over an `Unsigned` alphabet.
-/// The operation `select(symbol, i)` returns the position in the indexed
-/// sequence of the `i`th occurrence of `symbol`.  
-/// We start counting from 1, so that `select(symbol, 1)` refers to the first
-/// occurrence of `symbol`. `select(symbol, 0)` should be `None`.
+/// An interface for supporting `select` queries over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
+    /// Returns the position in the indexed sequence of the `i`th occurrence of 
+    /// `symbol`.
+    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize>;
+    /// Returns the position in the indexed sequence of the `i`th occurrence of 
+    /// `symbol`.
+    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// occurrence of `symbol`. 
+    /// The function does not check if the `i`th occurrence of `symbol` exits.
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
+/// An interface to report the space usage of a data structure.
 pub trait SpaceUsage {
     /// Gives the space usage of the data structure in bytes.
     fn space_usage_bytes(&self) -> usize;

@@ -90,7 +90,7 @@ const K_SELECT_IN_BYTE: [u8; 2048] = [
     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7
 ];
 
-/// Computes select_1(k) on a 64-bit word.
+/// Computes `select(1, k)` operation on a 64-bit word.
 ///
 /// It computes the zero-based position of the (k+1)-th
 /// bit set in the word.
@@ -117,10 +117,10 @@ const K_SELECT_IN_BYTE: [u8; 2048] = [
 /// The current implementation uses the broadword selection algorithm 
 /// by Vigna [1], improved by Gog and Petri [2] and Vigna [3].
 /// Facebook's Folly implementation [4].
-/// [1] Sebastiano Vigna. Broadword Implementation of Rank/Select Queries. WEA, 200
-/// [2] Simon Gog, Matthias Petri. Optimized succinct data structures for massive data. Softw. Pract. Exper., 2014
-/// [3] Sebastiano Vigna. MG4J 5.2.1. http://mg4j.di.unimi.it/
-/// [4] Facebook Folly library: https://github.com/facebook/folly
+/// - [1] Sebastiano Vigna. Broadword Implementation of Rank/Select Queries. WEA, 200
+/// - [2] Simon Gog, Matthias Petri. Optimized succinct data structures for massive data. Softw. Pract. Exper., 2014
+/// - [3] Sebastiano Vigna. MG4J 5.2.1. <http://mg4j.di.unimi.it/>
+/// - [4] Facebook Folly library: <https://github.com/facebook/folly>
 
 #[inline(always)]
 pub fn select_in_word(word: u64, k: u64) -> u32 {
