@@ -27,9 +27,20 @@ pub fn gen_queries(n_queries: usize, range_size: usize) -> Vec<usize> {
         .collect()
 }
 
+/// Generate a random vector of `n_queries` for `rank` queries on a given sequence `s`. 
+/// Each query is a pair: a random position in [0, `s.len()`) and the symbol `s[pos]`, where `pos` is another random position in [0, `s.len()`).
+pub fn gen_rank_queries<T: Clone>(n_queries: usize, s: &[T]) -> Vec<(usize, T)> {
+    let mut rng = rand::thread_rng();
+    (0..n_queries)
+        .map(|_| (rng.gen_range(0..s.len()), s[rng.gen_range(0..s.len())].clone()))
+        .collect()
+}
+
+
 /// Generates a random vector of `n_queries`.
 /// Each query is a pair: a value in [0, `range_size`] and a symbol in [0, `sigma`].
-/// This can be used to generate random queries for rank/select over a general alphabet.
+/// This can be used to generate random queries for rank over a general 
+/// alphabet of size `sigma`. 
 pub fn gen_queries_pairs(n_queries: usize, range_size: usize, sigma: usize) -> Vec<(usize, usize)> {
     let mut rng = rand::thread_rng();
     (0..n_queries)

@@ -1,4 +1,4 @@
-use qwt::perf_and_test_utils::{gen_queries, gen_queries_pairs, type_of, TimingQueries};
+use qwt::perf_and_test_utils::{gen_rank_queries, gen_queries, type_of, TimingQueries};
 use qwt::utils::msb;
 use qwt::utils::text_remap;
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
@@ -33,7 +33,7 @@ struct Args {
 fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
     ds: &T,
     n: usize,
-    queries: &[(usize, usize)],
+    queries: &[(usize, u8)],
 ) {
     let mut result = 0;
     let mut t = TimingQueries::new(N_RUNS, queries.len());
@@ -42,7 +42,7 @@ fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
         t.start();
         for &(pos, symbol) in queries.iter() {
             let i = (pos + result) % n;
-            result = unsafe {ds.rank_unchecked(symbol as u8, i)};
+            result = unsafe {ds.rank_unchecked(symbol, i)};
         }
         t.stop()
     }
@@ -111,7 +111,7 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
             let i = std::cmp::max(1, i);
-            result += unsafe {ds.select_unchecked(symbol as u8, i)};
+            result = unsafe {ds.select_unchecked(symbol as u8, i)};
         }
         t.stop()
     }
@@ -188,13 +188,10 @@ fn main() {
         test_correctness(&ds, &text);
     }
 
-    let rank_queries = gen_queries_pairs(args.n_queries, n, sigma);
-    let mut r_q = Vec::new();
-    for (i, _) in rank_queries.iter() {
-        r_q.push((*i, text[*i] as usize));
-    }
+    let rank_queries = gen_rank_queries(args.n_queries, &text);
+
     if args.rank {
-        test_rank_performace(&ds, n, &r_q);
+        test_rank_performace(&ds, n, &rank_queries);
     }
 
     let access_queries = gen_queries(args.n_queries, n);
@@ -244,7 +241,7 @@ fn main() {
     }
 
     if args.rank {
-        test_rank_performace(&ds, n, &r_q);
+        test_rank_performace(&ds, n, &rank_queries);
     }
 
     if args.access {
