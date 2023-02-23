@@ -102,11 +102,11 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         let word_low = word as u64;
 
         let r = match SYMBOL {
-                0 => (!word_high & !word_low) & mask,
-                1 => (!word_high & word_low) & mask,
-                2 => (word_high & !word_low) & mask,
-                _ => (word_high & word_low) & mask, // only 3 is possible here!
-            };
+            0 => (!word_high & !word_low) & mask,
+            1 => (!word_high & word_low) & mask,
+            2 => (word_high & !word_low) & mask,
+            _ => (word_high & word_low) & mask, // only 3 is possible here!
+        };
         r.count_ones() as usize
     }
 
@@ -141,13 +141,11 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
                 // previous word is the target
                 let residual = i - prev_cnt;
                 let mut result = k * 64;
-                result += unsafe {
-                    if residual == 0 {
-                        0
-                    } else {
-                        select_in_word(word, (residual - 1) as u64) as usize
-                        // -1 because select_in_words starts counting occurrences from 0
-                    }
+                result += if residual == 0 {
+                    0
+                } else {
+                    select_in_word(word, (residual - 1) as u64) as usize
+                    // -1 because select_in_words starts counting occurrences from 0
                 };
                 return result;
             }
@@ -210,6 +208,12 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         self.rs_support.shrink_to_fit();
     }
 
+    /// Alligns data to 64-byte.
+    ///
+    /// Todo: make this safe by checking invariants.
+    ///
+    /// # Safety
+    /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
     #[inline(always)]
     pub unsafe fn align_to_64(&mut self) {
         self.qv.align_to_64();
@@ -224,7 +228,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     ///
     /// # Safety
     /// Calling this method with an out-of-bounds index is undefined behavior.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use qwt::{RSQVectorP256, QVector, AccessUnsigned};
@@ -242,7 +246,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
 
     /// Accesses the `i`th value in the quaternary vector
     /// or `None` if out of bounds.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use qwt::{RSQVectorP256, QVector, AccessUnsigned};
@@ -283,13 +287,13 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
             return None;
         }
         // Safety: Check above guarantees we are not out of bound
-        Some(unsafe{ self.rank_unchecked(symbol, i)})
+        Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
     /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// 
+    ///
     /// # Safety
-    /// Calling this method with a position `i` larger than the length of the vector 
+    /// Calling this method with a position `i` larger than the length of the vector
     /// is undefined behavior.
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
@@ -349,9 +353,9 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     }
 
     /// Returns the position of the `i`th occurrence of `symbol`.
-    /// 
+    ///
     /// # Safety
-    /// Calling this method with a value of `i` which is larger than the number of 
+    /// Calling this method with a value of `i` which is larger than the number of
     /// occurrences of the `symbol` is undefined behavior.
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.
@@ -387,6 +391,11 @@ pub trait RSSupport {
 
     /// Length of the indexed sequence.
     fn len(&self) -> usize;
+
+    /// Check if the indexed sequence is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[cfg(test)]

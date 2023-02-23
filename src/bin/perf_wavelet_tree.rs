@@ -1,4 +1,4 @@
-use qwt::perf_and_test_utils::{gen_rank_queries, gen_queries, type_of, TimingQueries};
+use qwt::perf_and_test_utils::{gen_queries, gen_rank_queries, type_of, TimingQueries};
 use qwt::utils::msb;
 use qwt::utils::text_remap;
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
@@ -42,7 +42,7 @@ fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
         t.start();
         for &(pos, symbol) in queries.iter() {
             let i = (pos + result) % n;
-            result = unsafe {ds.rank_unchecked(symbol, i)};
+            result = unsafe { ds.rank_unchecked(symbol, i) };
         }
         t.stop()
     }
@@ -76,7 +76,7 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
         t.start();
         for &pos in queries.iter() {
             let i = (pos * (result as usize)) % n;
-            result = unsafe {ds.get_unchecked(i)};
+            result = unsafe { ds.get_unchecked(i) };
         }
         t.stop()
     }
@@ -111,7 +111,7 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
             let i = std::cmp::max(1, i);
-            result = unsafe {ds.select_unchecked(symbol as u8, i)};
+            result = unsafe { ds.select_unchecked(symbol as u8, i) };
         }
         t.stop()
     }
@@ -212,7 +212,7 @@ fn main() {
 
     // TODO: make this a macro!
 
-    let output_filename = input_filename.clone() + ".512.qwt";
+    let output_filename = input_filename + ".512.qwt";
     let ds: QWaveletTreeP512;
     let path = Path::new(&output_filename);
     if path.exists() {

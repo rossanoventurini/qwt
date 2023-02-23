@@ -4,7 +4,7 @@ use crate::RSQVectorP512;
 
 #[test]
 fn test_small() {
-    let mut data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
     let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut data.clone());
 
     assert_eq!(wt.rank(1, 4), Some(2));
@@ -50,7 +50,7 @@ fn test() {
         }
 
         for i in 1..N {
-            assert_eq!(wt.rank(sigma - 2, i).unwrap() , 0);
+            assert_eq!(wt.rank(sigma - 2, i).unwrap(), 0);
         }
 
         for (i, &symbol) in sequence.iter().enumerate() {
@@ -67,9 +67,9 @@ fn test_get() {
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256] {
         let sequence = gen_sequence(n, sigma);
         let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
-        for i in 0..n {
+        for (i, &symbol) in sequence.iter().enumerate() {
             unsafe {
-                assert_eq!(wt.get_unchecked(i), sequence[i]);
+                assert_eq!(wt.get_unchecked(i), symbol);
             }
         }
     }

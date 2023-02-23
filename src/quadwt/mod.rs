@@ -209,13 +209,13 @@ where
             return None;
         }
         // Safety: Check above guarantees we are not out of bound
-        Some(unsafe{ self.rank_unchecked(symbol, i)} )
+        Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
     /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// 
+    ///
     /// # Safety
-    /// Calling this method with a position `i` larger than the size of the sequence 
+    /// Calling this method with a position `i` larger than the size of the sequence
     /// is undefined behavior.
     ///
     /// # Examples
@@ -287,14 +287,14 @@ where
             return None;
         }
         // Safety: check before guarantees we are not out of bound
-        Some(unsafe{self.get_unchecked(i)})
+        Some(unsafe { self.get_unchecked(i) })
     }
 
     /// Returns the `i`-th symbol of the indexed sequence.
     ///    
     /// # Safety
     /// Calling this method with an out-of-bounds index is undefined behavior.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use qwt::{QWaveletTreeP256, AccessUnsigned};
@@ -398,9 +398,9 @@ where
     }
 
     /// Returns the position of the `i`-th occurrence of symbol `symbol`.
-    /// 
+    ///
     /// # Safety
-    /// Calling this method with a value of `i` which is larger than the number of 
+    /// Calling this method with a value of `i` which is larger than the number of
     /// occurrences of the `symbol` is undefined behavior.
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.

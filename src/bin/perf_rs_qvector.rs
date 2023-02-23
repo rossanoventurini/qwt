@@ -18,7 +18,7 @@ where
         t.start();
         for &query in queries.iter() {
             let i = (query + result) % n;
-            result = unsafe {ds.rank_unchecked((result % 4) as u8, i)};
+            result = unsafe { ds.rank_unchecked((result % 4) as u8, i) };
         }
         t.stop();
     }
@@ -48,7 +48,7 @@ where
         t.start();
         for &query in queries.iter() {
             let i = (query + result as usize) % n;
-            result = unsafe {ds.get_unchecked(i)};
+            result = unsafe { ds.get_unchecked(i) };
         }
         t.stop();
     }

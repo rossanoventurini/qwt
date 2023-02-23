@@ -144,6 +144,11 @@ impl QVector {
     }
 
     /// Aligns data in the quatvector to 64 bytes.
+    ///
+    /// Todo: make this safe by checking invariants.
+    ///
+    /// # Safety
+    /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
     pub unsafe fn align_to_64(&mut self) {
         let mut v = get_64byte_aligned_vector::<u128>(self.data.len());
         for &word in &self.data {
@@ -189,7 +194,7 @@ impl AccessUnsigned for QVector {
     ///
     /// # Safety
     /// Calling this method with an out-of-bounds index is undefined behavior.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use qwt::{QVector, AccessUnsigned};
@@ -231,9 +236,7 @@ impl AccessUnsigned for QVector {
             return None;
         }
         // Safety: Check before guarantees to be not out of bound
-        unsafe {
-            Some(self.get_unchecked(i))
-        }
+        unsafe { Some(self.get_unchecked(i)) }
     }
 }
 
@@ -297,7 +300,7 @@ macro_rules! impl_from_iterator_quat_vector {
                 T: IntoIterator<Item = $t>
             {
                 for value in iter {
-                    debug_assert!((0 <= value) & (value < 4));
+                    debug_assert!((0..4).contains(&value));
                     self.push(value as u8);
                 }
             }

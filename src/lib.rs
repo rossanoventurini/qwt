@@ -1,18 +1,18 @@
 //! This library provides an efficient implementation of [Wavelet Trees](https://en.wikipedia.org/wiki/Wavelet_Tree).
-//! 
+//!
 //! A wavelet tree [[1](#bib)] is a compact data structure that for a text of length
-//! $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ 
+//! $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$
 //! bits of space and can answer `rank` and `select` queries in $\Theta(\log \sigma)$ time.
-//! 
-//! Given a static sequence `S[0,n-1]`, a wavelet tree indexes the sequence `S` and 
+//!
+//! Given a static sequence `S[0,n-1]`, a wavelet tree indexes the sequence `S` and
 //! supports three operations:
 //! - `get(i)` returns S[i];
 //! - `rank(c, i)` returns the number of occurrences of the symbol `c` in the prefix S[0...i-1];
-//! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`. 
+//! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`.
 //!  
-//! Our implementation of Wavelet Tree improves query performance by using a 4-ary 
-//! tree instead of a binary tree as basis of the wavelet tree. 
-//! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses 
+//! Our implementation of Wavelet Tree improves query performance by using a 4-ary
+//! tree instead of a binary tree as basis of the wavelet tree.
+//! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses
 //! during queries and thus reduces the query latency. This way we are roughly 2 times
 //! faster than other existing implementations (e.g., SDSL).
 
@@ -39,7 +39,10 @@ pub trait AccessUnsigned {
     type Item: Unsigned;
     /// Returns the symbol at position `i`.
     fn get(&self, i: usize) -> Option<Self::Item>;
-    /// Returns the symbol at position `i`. The function does not check boundaries.
+    /// Returns the symbol at position `i`.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item;
 }
 
@@ -50,21 +53,27 @@ pub trait RankUnsigned: AccessUnsigned {
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize>;
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
     /// position `i` excluded. The function does not check boundaries.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
 /// An interface for supporting `select` queries over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of 
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
     /// `symbol`.
     /// We start counting from 1, so that `select(symbol, 1)` refers to the first
     /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize>;
-    /// Returns the position in the indexed sequence of the `i`th occurrence of 
+
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
     /// `symbol`.
     /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. 
-    /// The function does not check if the `i`th occurrence of `symbol` exits.
+    /// occurrence of `symbol`.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol` does not exit is undefined behavior.
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 

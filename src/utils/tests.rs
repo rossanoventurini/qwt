@@ -9,17 +9,17 @@ fn test_select_in_word() {
     assert_eq!(select_in_word(63, 0), 0);
     assert_eq!(select_in_word(63, 1), 1);
     assert_eq!(select_in_word(63, 2), 2);
-    assert_eq!(select_in_word(1024-2, 1), 2);
+    assert_eq!(select_in_word(1024 - 2, 1), 2);
 
-    let w = 0x5050505050505050_u64; 
-    assert_eq!(select_in_word(w, 0), 4); 
-    assert_eq!(select_in_word(w, 1), 6); 
-    assert_eq!(select_in_word(w, 2), 12); 
-    assert_eq!(select_in_word(w, 3), 14); 
-    assert_eq!(select_in_word(w, 4), 20); 
-    assert_eq!(select_in_word(w, 5), 22); 
+    let w = 0x5050505050505050_u64;
+    assert_eq!(select_in_word(w, 0), 4);
+    assert_eq!(select_in_word(w, 1), 6);
+    assert_eq!(select_in_word(w, 2), 12);
+    assert_eq!(select_in_word(w, 3), 14);
+    assert_eq!(select_in_word(w, 4), 20);
+    assert_eq!(select_in_word(w, 5), 22);
     assert_eq!(select_in_word(w, 6), 28);
-    assert_eq!(select_in_word(w, 7), 30);  
+    assert_eq!(select_in_word(w, 7), 30);
     assert_eq!(select_in_word(w, 8), 36);
     assert_eq!(select_in_word(w, 9), 38);
     assert_eq!(select_in_word(w, 10), 44);

@@ -1,7 +1,7 @@
-//! A data structure for rank support provides an encoding scheme for counters of symbols
-//! of a quaternary sequence up to the beginning of blocks of a fixed size `Self::BLOCK_SIZE`.
-//!
-//!
+//! A data structure for rank support provides an encoding scheme for counters of
+//! symbols of a quaternary sequence up to the beginning of blocks of a fixed size
+//! `Self::BLOCK_SIZE`.
+
 use crate::utils::get_64byte_aligned_vector;
 use crate::QVector;
 use crate::SpaceUsage; // Traits
@@ -94,7 +94,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
             if i < qv.len() {
                 // Safety: We are sure to be not out of bound
-                let symbol = unsafe { qv.get_unchecked(i) as usize};
+                let symbol = unsafe { qv.get_unchecked(i) as usize };
 
                 if occs[symbol] % Self::SELECT_NUM_SAMPLES == 0 {
                     // we store a superblock id in a u32. Make sure it fits.
@@ -120,12 +120,12 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         }
 
         // Add a sentinel for select_samples
-        for symbol in 0..4 {
-            if select_samples[symbol].is_empty() {
+        for sample in &mut select_samples {
+            if sample.is_empty() {
                 // always sample at least once
-                select_samples[symbol].push(0);
+                sample.push(0);
             }
-            select_samples[symbol].push(superblocks.len() as u32 - 1); // sentinel
+            sample.push(superblocks.len() as u32 - 1); // sentinel
         }
 
         superblocks.shrink_to_fit();
@@ -276,16 +276,16 @@ impl SuperblockPlain {
 
     fn set_block_counters(&mut self, block_id: usize, counters: &[usize; 4]) {
         assert!(block_id < 8);
-        for i in 0..4 {
+        for &counter in counters.iter() {
             //assert!(counters[i] < SUPERBLOCK_SIZE);
-            assert!(counters[i] < (1 << 12));
+            assert!(counter < (1 << 12));
         }
         if block_id == 0 {
             return;
         }
 
-        for symbol in 0..4 {
-            self.counters[symbol] |= (counters[symbol] as u128) << ((block_id - 1) * 12);
+        for (symbol, &counter) in counters.iter().enumerate() {
+            self.counters[symbol] |= (counter as u128) << ((block_id - 1) * 12);
         }
     }
 
