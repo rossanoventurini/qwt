@@ -1,8 +1,8 @@
 # QWT: Rust Quad Wavelet Tree
 
-Given a sequence, *rank* and *select* queries return the number of occurrences of a symbol up to a given position (rank) or the position of a symbol with a given rank (select). These queries have applications in, e.g., compression, computational geometry, and pattern matching in the form of the backward search---the backbone of many compressed full-text indices.
+The [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a sequence $S$ of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer the following queries *rank* and *select* queries in $\Theta(\log \sigma)$ time.
 
-A [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a text of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer rank and select queries in $\Theta(\log \sigma)$ time.
+A rank query counts the number of occurrences of a symbol up to a given position in the sequence. A select query finds the position in the sequence of a symbol with a given rank. These queries have applications in, e.g., compression, computational geometry, and pattern matching in the form of the backward search---the backbone of many compressed full-text indices.
 
 This repository provides a very fast implementation of Wavelet Trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree).
 
