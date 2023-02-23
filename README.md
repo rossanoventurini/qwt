@@ -1,14 +1,14 @@
 # QWT: Rust Quad Wavelet Tree
 
-The [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a sequence $S$ of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer the following queries *rank* and *select* queries in $\Theta(\log \sigma)$ time.
+The [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a sequence $S$ of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer *rank* and *select* queries in $\Theta(\log \sigma)$ time.
 
 A rank query counts the number of occurrences of a symbol up to a given position in the sequence. A select query finds the position in the sequence of a symbol with a given rank. These queries have applications in, e.g., compression, computational geometry, and pattern matching in the form of the backward search---the backbone of many compressed full-text indices.
 
 This repository provides a very fast implementation of Wavelet Trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree).
 
-Our implementation **QWT** improves query performance by using a 4-ary tree instead of a binary tree as basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
+The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
-Our experimental evaluation shows that our quad wavelet tree can improve the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees contained in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite)). For more details, see [Benchmarks](#bench) and the paper [[2](#bib)].
+An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[2](#bib)].
 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
@@ -18,12 +18,12 @@ A more detailed experimental evaluation can be found in [[2](#bib)].
 
 The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (See details below). The text has an alphabet with 239 distinct symbols.
 
-| Wavelet Tree | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) |
-| :----------- | ------------: | ----------: | ------------: | ----------: |
-| SDSL         |           693 |         786 |          2619 |        3039 |
-| Pasta        |           832 |         846 |          2403 |        2124 |
-| QWT 256      |           436 |         441 |          1135 |        2308 |
-| QWT 512      |           451 |         460 |          1100 |        2180 |
+| Wavelet Tree                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) |
+| :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: |
+| [SDSL](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 |
+| [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 |
+| QWT 256                                       |           436 |         441 |          1135 |        2308 |
+| QWT 512                                       |           451 |         460 |          1100 |        2180 |
 
 To run the experiments, we need to compile the binary executables with
 ```bash
