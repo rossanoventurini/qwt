@@ -18,12 +18,15 @@ A more detailed experimental evaluation can be found in [[2](#bib)].
 
 The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (See details below). The text has an alphabet with 239 distinct symbols.
 
-| Wavelet Tree                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) |
+| Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: |
-| [SDSL](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 |
+| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 |
 | [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 |
+| [Sucds 0.6.0](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 |
 | QWT 256                                       |           436 |         441 |          1135 |        2308 |
 | QWT 512                                       |           451 |         460 |          1100 |        2180 |
+
+We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols is likely to fit in cache.
 
 To run the experiments, we need to compile the binary executables with
 ```bash
