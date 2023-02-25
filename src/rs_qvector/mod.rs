@@ -1,3 +1,5 @@
+//! This module provides support for `rank` and `select queries on a quad vector. 
+
 use crate::utils::select_in_word;
 use crate::QVector;
 
@@ -15,7 +17,7 @@ use crate::rs_qvector::rs_support_plain::RSSupportPlain;
 pub type RSQVectorP256 = RSQVector<RSSupportPlain<256>>;
 pub type RSQVectorP512 = RSQVector<RSSupportPlain<512>>;
 
-/// The generic S is the data structure used to
+/// The generic `S` is the data structure used to
 /// provide rank/select support at the level of blocks.
 #[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct RSQVector<S: RSSupport + SpaceUsage> {
@@ -208,7 +210,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         self.rs_support.shrink_to_fit();
     }
 
-    /// Alligns data to 64-byte.
+    /// Aligns data to 64-byte.
     ///
     /// Todo: make this safe by checking invariants.
     ///
@@ -266,7 +268,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
 
 impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// Returns `None` if out of bound.
+    /// Returns `None` if out of bounds.
     ///
     /// # Examples
     /// ```
@@ -366,7 +368,7 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
 }
 
 /// This trait should be implemented by any data structure that
-/// provides rank/select support on blocks.
+/// provides `rank` and `select` support on blocks.
 pub trait RSSupport {
     const BLOCK_SIZE: usize;
 

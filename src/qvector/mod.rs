@@ -1,12 +1,12 @@
-//! A quaternary vector stores a vector with values from the range [0..4].
+//! This module implements a quaternary vector to store a sequence with values in [0..3].
 //!
 //! This implementation uses a vector of `u128` and split the two bits of each
-//! symbol. The upper 64 bits of each u128 store the first bit of the symbols while
+//! symbol. The upper 64 bits of each `u128` store the first bit of the symbols while
 //! the lower 64 bits store the second bit of each symbol.
 //! This is very convenient for computing rank and select queries within a word as,
-//! differently from representation that uses u64, we compute the operation on
+//! differently from representation that uses `u64`, we compute the operation on
 //! 64 symbols at once (instead of just 32 symbols).
-//! Rank queries are 10% faster.
+//! This way, Rank queries are roughly 10% faster.
 
 use crate::utils::get_64byte_aligned_vector;
 use crate::{AccessUnsigned, SpaceUsage}; // Traits
@@ -58,7 +58,7 @@ impl QVector {
         }
     }
 
-    /// Creates an empty vector with the capacity of `n` quaternary symbols..
+    /// Creates an empty vector with the capacity of `n` quaternary symbols.
     ///
     /// The data is 64-byte aligned so that every block is aligned to a
     /// cache line.
@@ -189,7 +189,7 @@ impl AccessUnsigned for QVector {
     type Item = u8;
 
     /// Accesses the `i`th value in the quaternary vector.
-    /// The caller must guarantee that the position `i`  is
+    /// The caller must guarantee that the position `i` is
     /// valid.
     ///
     /// # Safety
@@ -211,7 +211,7 @@ impl AccessUnsigned for QVector {
         let block = i >> 6;
         let shift = i & 63;
         // SAFETY:
-        // Caller has to guarantee that block is a valid index.
+        // Caller has to guarantee that `block` is a valid index.
         let word = *self.data.get_unchecked(block);
 
         ((word >> (64 + shift - 1)) & 2 | (word >> shift) & 1) as u8

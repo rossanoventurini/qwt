@@ -47,7 +47,7 @@ gunzip english.gz
 head -c 2147483648 english > english.2GiB
 ```
 
-The following command builds the wavelet trees on this input text and runs 1 million random *access*, *rank*, and *select* queries.
+The following command builds the wavelet trees (QWT 256 and 512) on this input text and runs 1 million random *access*, *rank*, and *select* queries.
 
 ```bash
 ./target/release/perf_wavelet_tree --input-file english.2GiB --access --rank --select
@@ -118,7 +118,7 @@ assert_eq!(qwt.select(4, 0), None);
 assert_eq!(qwt.select(1, 3), None);
 ```
 
-In the following example, we use QWT to index a sequence over larger alphabet.
+In the following example, we use QWT to index a sequence over a larger alphabet.
 
 ```rust
 use qwt::{QWaveletTreeP256, AccessUnsigned, RankUnsigned, SelectUnsigned};
@@ -130,6 +130,8 @@ assert_eq!(qwt.get(2), Some(1));
 assert_eq!(qwt.get(5), Some(1000000));
 assert_eq!(qwt.get(8), None);
 ```
+
+For more details, take a look at the [documentation](https://docs.rs/qwt/latest/qwt/).
 
 ## <a name="bib">Bibliography</a>
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
