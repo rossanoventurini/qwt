@@ -12,7 +12,7 @@ An experimental evaluation shows that the quad wavelet tree improves the latency
 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
-The experiments are performed using a single thread on a server machine with 8 Intel~i9-9900KF cores with base frequencies of 3.60 GHz running Linux 5.19.0. The code is compiled with Rust 1.69.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
+The experiments are performed using a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Linux 5.19.0. The code is compiled with Rust 1.69.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
 
 A more detailed experimental evaluation can be found in [[2](#bib)].
 

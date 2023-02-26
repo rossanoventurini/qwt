@@ -1,6 +1,6 @@
 //! The module provides utilities to perform tests and performance evaluations
 //! of different data structures.
-//! 
+//!
 //! In particular, it provides functions to generate random increasing sequences and
 //! random queries, to measure rank and select queries, and so on.
 

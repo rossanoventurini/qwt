@@ -1,5 +1,5 @@
 //! This module implements a Quad Wavelet Tree to support access, rank, and select //! queries on a vector of unsigned integers.
-//! 
+//!
 //! This data structure supports three operations:
 //! - `get(i)` accesses the `i`-th symbols of the indexed sequence;
 //! - `rank(s, i)` counts the number of occurrences of symbol `s` up to position `i` excluded;

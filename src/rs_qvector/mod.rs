@@ -1,4 +1,4 @@
-//! This module provides support for `rank` and `select queries on a quad vector. 
+//! This module provides support for `rank` and `select queries on a quad vector.
 
 use crate::utils::select_in_word;
 use crate::QVector;
