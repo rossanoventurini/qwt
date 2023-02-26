@@ -1,4 +1,4 @@
-//! A quaternary vector stores a vector with values from the range [0..4].
+//! A quaternary vector stores a vector with values from the range [0..3].
 //!
 //! This implementation uses a vector of `u128` and split the two bits of each
 //! symbol. The upper 64 bits of each u128 store the first bit of the symbols while
