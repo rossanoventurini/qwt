@@ -6,7 +6,7 @@ A rank query counts the number of occurrences of a symbol up to a given position
 
 This repository provides a very fast implementation of Wavelet Trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree).
 
-The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
+The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as the basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
 An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[2](#bib)].
 
@@ -18,22 +18,22 @@ A more detailed experimental evaluation can be found in [[2](#bib)].
 
 The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (See details below). The text has an alphabet with 239 distinct symbols.
 
-| Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) |
-| :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: |
-| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 |
-| [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 |
-| [Sucds 0.6.0](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 |
-| QWT 256                                       |           436 |         441 |          1135 |        2308 |
-| QWT 512                                       |           451 |         460 |          1100 |        2180 |
+| Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
+| :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
+| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 | C++ |
+| [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 | C++ |
+| [Sucds 0.6.0](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 | Rust |
+| QWT 256                                       |           436 |         441 |          1135 |        2308 | C++/Rust |
+| QWT 512                                       |           451 |         460 |          1100 |        2180 | C++/Rust |
 
-We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols is likely to fit in cache.
+We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols is likely to fit in the cache.
 
 To run the experiments, we need to compile the binary executables with
 ```bash
 cargo build --release
 ```
 
-This produces two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
+This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
 
 The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. We can safely ignore it.
 
@@ -53,7 +53,7 @@ The following command builds the wavelet trees (QWT 256 and 512) on this input t
 ./target/release/perf_wavelet_tree --input-file english.2GiB --access --rank --select
 ```
 
-We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index.
+We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries`.
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
 
