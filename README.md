@@ -4,17 +4,17 @@ The [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a 
 
 A rank query counts the number of occurrences of a symbol up to a given position in the sequence. A select query finds the position in the sequence of a symbol with a given rank. These queries have applications in, e.g., compression, computational geometry, and pattern matching in the form of the backward search---the backbone of many compressed full-text indices.
 
-This repository provides a very fast implementation of Wavelet Trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree).
+This repository provides a very fast implementation of wavelet trees in Rust. A companion C++ implementation is available [here](https://github.com/MatteoCeregini/quad-wavelet-tree). More precisely, we implement here a variant called wavelet matrix [[2](#bib)], which gives a more elegant implementation.
 
 The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as the basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
-An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[2](#bib)].
+An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
 The experiments are performed using a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Linux 5.19.0. The code is compiled with Rust 1.69.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
 
-A more detailed experimental evaluation can be found in [[2](#bib)].
+A more detailed experimental evaluation can be found in [[3](#bib)].
 
 The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (See details below). The text has an alphabet with 239 distinct symbols.
 
@@ -135,7 +135,8 @@ For more details, take a look at the [documentation](https://docs.rs/qwt/latest/
 
 ## <a name="bib">Bibliography</a>
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
-2. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Arxiv, 2023.
+2. 	Francisco Claude, Gonzalo Navarro, and Alberto Ordóñez Pereira. *The wavelet matrix: An efficient wavelet tree for large alphabets.* Information Systems., 47:15–32, 2015.
+3. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Arxiv, 2023.
 ----
 
 Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
