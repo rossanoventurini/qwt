@@ -133,6 +133,36 @@ assert_eq!(qwt.get(8), None);
 
 For more details, take a look at the [documentation](https://docs.rs/qwt/latest/qwt/).
 
+Serialization and deserailization can be done with [`bincode`](https://docs.rs/bincode/latest/bincode/) as follows.
+
+```rust
+use std::fs;
+use std::path::Path;
+
+use qwt::{QWT256, AccessUnsigned};
+
+let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+let qwt = QWT256::new(&mut data);
+
+assert_eq!(qwt.get(2), Some(1));
+
+// serialize
+let serialized = bincode::serialize(&qwt).unwrap();
+
+// write on file, if needed
+let output_filename = "example.qwt256".to_string();
+fs::write(Path::new(&output_filename), serialized).unwrap();
+
+// read from file 
+let serialized = fs::read(Path::new(&output_filename)).unwrap();
+
+// deserialize
+let qwt = bincode::deserialize::<QWT256<u8>>(&serialized).unwrap();
+
+assert_eq!(qwt.get(2), Some(1));
+
+```
+
 ## <a name="bib">Bibliography</a>
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 2. Francisco Claude, Gonzalo Navarro, and Alberto Ordóñez Pereira. *The wavelet matrix: An efficient wavelet tree for large alphabets.* Information Systems, 47:15–32, 2015.

@@ -273,6 +273,18 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
+    /// 
+    /// ```
+    /// use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
+    ///
+    /// let mut data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
+    /// let qwt = QWT256::new(&mut data);
+    ///
+    /// assert_eq!(qwt.get(2), Some(1));
+    /// assert_eq!(qwt.get(5), Some(1000000));
+    /// assert_eq!(qwt.get(8), None);
+    /// ```
+
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
