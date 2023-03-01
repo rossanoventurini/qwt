@@ -273,7 +273,7 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-    /// 
+    ///
     /// ```
     /// use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
     ///
