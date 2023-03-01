@@ -11,14 +11,19 @@
 //! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`.
 //!  
 //! Our implementation of Wavelet Tree improves query performance by using a 4-ary
-//! tree instead of a binary tree as basis of the wavelet tree.
+//! tree instead of a binary tree as the basis of the wavelet tree.
 //! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses
 //! during queries and thus reduces the query latency. This way we are roughly 2 times
 //! faster than other existing implementations (e.g., SDSL).
+//!
+//! ## <a name="bib">Bibliography</a>
+//! 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 
 pub mod perf_and_test_utils;
 pub mod qvector;
 pub use qvector::QVector;
+
+pub mod utils;
 
 pub mod rs_qvector;
 pub use rs_qvector::RSQVector;
@@ -27,7 +32,6 @@ pub use rs_qvector::RSQVectorP512;
 
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
-pub mod utils;
 
 pub type QWaveletTreeP256 = QWaveletTree<u8, RSQVectorP256>;
 pub type QWaveletTreeP512 = QWaveletTree<u8, RSQVectorP512>;
@@ -73,8 +77,35 @@ pub trait SelectUnsigned: AccessUnsigned {
     /// occurrence of `symbol`.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol` does not exit is undefined behavior.
+    /// Calling this method if the `i`th occurrence of `symbol` does not exist is undefined behavior.
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
+}
+
+/// An interface to report the number of occurrences of symbols in a sequence.
+pub trait SymbolsStats: AccessUnsigned {
+    /// Returns the number of occurrences of `symbol` in the indexed sequence,
+    /// `None` if `symbol` is larger than the largest symbol, i.e., `symbol` is not valid.  
+    fn occs(&self, symbol: Self::Item) -> Option<usize>;
+
+    /// Returns the number of occurrences of `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol`
+    /// larger than the largest symbol is undefined behavior.
+    unsafe fn occs_unchecked(&self, symbol: Self::Item) -> usize;
+
+    /// Returns the number of occurrences of all the symbols smaller than the
+    /// input `symbol`, `None` if `symbol` is larger than the largest symbol,
+    /// i.e., `symbol` is not valid.  
+    fn occs_smaller(&self, symbol: Self::Item) -> Option<usize>;
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol` larger than the
+    /// largest symbol is undefined behavior.
+    unsafe fn occs_smaller_unchecked(&self, symbol: Self::Item) -> usize;
 }
 
 /// An interface to report the space usage of a data structure.

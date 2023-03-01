@@ -17,9 +17,7 @@ use super::*;
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RSSupportPlain<const B_SIZE: usize = 256> {
     superblocks: Vec<SuperblockPlain>,
-    occs: [usize; 4], // number of total occurrences of each symbol in qv
     select_samples: [Vec<u32>; 4],
-    n: usize,
 }
 
 impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
@@ -29,10 +27,7 @@ impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
         for c in 0..4 {
             select_space += self.select_samples[c].space_usage_bytes();
         }
-        self.superblocks.space_usage_bytes()
-            + 4 * self.occs[0].space_usage_bytes()
-            + select_space
-            + self.n.space_usage_bytes()
+        self.superblocks.space_usage_bytes() + select_space
     }
 }
 
@@ -132,9 +127,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
         Self {
             superblocks,
-            occs,
             select_samples,
-            n: qv.len(),
         }
     }
 
@@ -201,25 +194,12 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         (position, rank)
     }
 
-    /// Returns the number of occurrences of `SYMBOL` in the whole sequence.
-    #[inline(always)]
-    fn n_occs(&self, symbol: u8) -> usize {
-        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
-
-        self.occs[symbol as usize]
-    }
-
     /// Shrinks to fit
     fn shrink_to_fit(&mut self) {
         self.superblocks.shrink_to_fit();
         for i in 0..4 {
             self.select_samples[i].shrink_to_fit();
         }
-    }
-
-    /// Returns the length of the indexed sequence.
-    fn len(&self) -> usize {
-        self.n
     }
 }
 

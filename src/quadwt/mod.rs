@@ -9,7 +9,7 @@
 
 use crate::utils::{msb, stable_partition_of_4};
 use crate::QVector;
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage}; // Traits
+use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats}; // Traits
 
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -29,14 +29,14 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
-    n: usize,        // length of the represented sequence
-    n_levels: usize, // number of levels of the wavelet matrix
-    qv: RS, // quaternary vector storing the entire wavelet matrix, one level after the other.
-    rank: Vec<u64>, // for each level l, for each quaternary symbol s = 0..3, we store rank(s, l * size)
-    count: Vec<u64>, // for each level l, for each quaternary symbol s = 0..3, we store how many symbols < s there are at level l.
+    n: usize,        // The length of the represented sequence
+    n_levels: usize, // The number of levels of the wavelet matrix
+    sigma: T,        // The largest symbol in the sequence. *NOTE*: It's not +1 becuase it may overflow
+    qvs: Vec<RS>,    // A quaternary vector for each level
     item_type: PhantomData<T>,
 }
 
@@ -48,6 +48,7 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
@@ -57,12 +58,12 @@ where
     /// The alphabet size ```sigma``` is the largest value in the ```sequence```.
     /// Both space usage and query time of a QWaveletTree depends on $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the binary representation of values in the sequence).
     /// For this reason, it may be convenient for both space usage and query time to
-    /// remap the alphabet to form a consecutive range [0, d],  where d is the number of
-    ///  distinct values in ```sequence```.
+    /// remap the alphabet to form a consecutive range [0, d],  where d is the
+    /// number of distinct values in ```sequence```.
     ///
     /// ## Panics
     /// Panics if the sequence is longer than the largest possible length.
-    /// The largest possible length is (2^{44})/log sigma symbols.
+    /// The largest possible length is 2^{44} symbols.
     ///
     /// # Examples
     /// ```
@@ -79,9 +80,8 @@ where
             return Self {
                 n: 0,
                 n_levels: 0,
-                qv: RS::default(),
-                rank: Vec::new(),
-                count: Vec::new(),
+                sigma: T::zero(),
+                qvs: vec![RS::default()],
                 item_type: PhantomData,
             };
         }
@@ -89,15 +89,19 @@ where
         let log_sigma = msb(sigma) + 1;
         let n_levels = ((log_sigma + 1) / 2) as usize; // TODO: if log_sigma is odd, the FIRST level should be a binary vector!
 
-        let mut qv = QVector::with_capacity(sequence.len() * n_levels);
+        let mut qvs = Vec::<RS>::with_capacity(n_levels);
+
         let mut shift = 2 * (n_levels - 1);
 
         for _level in 0..n_levels {
+            let mut cur_qv = QVector::with_capacity(sequence.len());
             for &symbol in sequence.iter() {
                 let two_bits: u8 = (symbol >> shift).as_() & 3; // take the last 2 bits
-                qv.push(two_bits);
+                cur_qv.push(two_bits);
             }
+            cur_qv.shrink_to_fit();
 
+            qvs.push(RS::from(cur_qv));
             stable_partition_of_4(sequence, shift);
 
             if shift >= 2 {
@@ -105,37 +109,13 @@ where
             }
         }
 
-        let mut rank = Vec::with_capacity(n_levels);
-        let mut count = Vec::with_capacity(n_levels);
-
-        let qv = RS::from(qv);
-        let size = sequence.len();
-        for level in 0..n_levels {
-            for symbol in 0..4u8 {
-                rank.push(qv.rank(symbol, level * size).unwrap() as u64);
-                let mut cnt = 0;
-                for s in 0..symbol {
-                    let rank_level =
-                        qv.rank(s, (level + 1) * size).unwrap() - qv.rank(s, level * size).unwrap();
-                    cnt += rank_level;
-                }
-                count.push(cnt as u64);
-            }
-        }
-
-        /*
-        qv.shrink_to_fit();
-        unsafe {
-            qv.align_to_64();
-        }
-        */
+        qvs.shrink_to_fit();
 
         Self {
             n: sequence.len(),
             n_levels,
-            qv,
-            rank,
-            count,
+            sigma: sigma,
+            qvs,
             item_type: PhantomData,
         }
     }
@@ -154,6 +134,11 @@ where
     /// ```
     pub fn len(&self) -> usize {
         self.n
+    }
+
+    /// Returns the largest value in the sequence. Note: it is not +1 becuase it may overflow.
+    pub fn sigma(&self) -> T {
+        self.sigma
     }
 
     /// Checks if the indexed sequence is empty.
@@ -184,11 +169,13 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
     /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// `None`, is returned if `i` is out of bound.
+    /// `None`, is returned if `i` is out of bound or if `symbol`
+    /// is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
     /// ```
@@ -201,13 +188,15 @@ where
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
     /// assert_eq!(qwt.rank(1, 0), Some(0));
-    /// assert_eq!(qwt.rank(1, 9), None);
+    /// assert_eq!(qwt.rank(1, 9), None);     // too large position
+    /// assert_eq!(qwt.rank(6, 1), None);     // too large symbol
     /// ```
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i > self.n {
+        if i > self.n || symbol > self.sigma {
             return None;
         }
+
         // Safety: Check above guarantees we are not out of bound
         Some(unsafe { self.rank_unchecked(symbol, i) })
     }
@@ -216,7 +205,7 @@ where
     ///
     /// # Safety
     /// Calling this method with a position `i` larger than the size of the sequence
-    /// is undefined behavior.
+    /// of with invalid symbol is undefined behavior.
     ///
     /// # Examples
     /// ```
@@ -232,25 +221,27 @@ where
     /// ```
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
-        let mut b = 0; // b is always the beginning of the level
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
-        let mut curr_i = i;
+        let mut cur_i = i;
+        let mut cur_p = 0;
 
-        for level in 0..self.n_levels {
+        for level in 0..self.n_levels - 1 {
             let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
-            let j = (level * 4) + two_bits as usize;
 
-            // # occurrences of 's' in the interval [0,b)
-            let rank_b = self.qv.rank_unchecked(two_bits, b);
+            // Safety: Here we are sure that two_bits is a symbol in [0..3]
+            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
+            cur_p = self.qvs[level].rank_unchecked(two_bits, cur_p) + offset;
+            cur_i = self.qvs[level].rank_unchecked(two_bits, cur_i) + offset;
 
-            // # occurrences of 'symbol' in the interval [b,i)
-            curr_i = self.qv.rank_unchecked(two_bits, b + curr_i) - rank_b;
-
-            b = (level + 1) * self.n + (rank_b - self.rank[j] as usize) + (self.count[j] as usize);
             shift -= 2;
         }
 
-        curr_i
+        let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
+
+        cur_i = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_i);
+        cur_p = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_p);
+
+        cur_i - cur_p
     }
 }
 
@@ -262,6 +253,7 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
@@ -312,22 +304,18 @@ where
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut result = T::zero();
 
-        let mut curr_i = i;
+        let mut cur_i = i;
         for level in 0..self.n_levels - 1 {
-            // last rank can be saved. ~3% improvement. Indeed, most of the cost is for the cache miss for data access that we pay anyway
-            let symbol = self.qv.get_unchecked(curr_i);
-
+            // The last rank can be saved. The improvement is just ~3%. Indeed, most of the cost is for the cache miss for data access that we pay anyway
+            let symbol = self.qvs[level].get_unchecked(cur_i);
             result = (result << 2) | symbol.as_();
 
-            let rank = self.qv.rank_unchecked(symbol, curr_i);
-
-            let j = (level * 4) + symbol as usize;
-
-            curr_i =
-                (level + 1) * self.len() + (rank - self.rank[j] as usize) + self.count[j] as usize;
+            // Safety: Here we are sure that symbol is in [0..3]
+            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
+            cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
         }
 
-        let symbol = self.qv.get_unchecked(curr_i);
+        let symbol = self.qvs[self.n_levels - 1].get_unchecked(cur_i);
         (result << 2) | symbol.as_()
     }
 }
@@ -340,10 +328,13 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
-    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is returned if i is 0 or if there is no such occurrence for the symbol.
+    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is 
+    /// returned if i is 0 or if there is no such occurrence for the symbol or if 
+    /// `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
     /// ```
@@ -356,13 +347,14 @@ where
     /// assert_eq!(qwt.select(1, 1), Some(0));
     /// assert_eq!(qwt.select(0, 2), Some(3));
     /// assert_eq!(qwt.select(1, 0), None);
+    /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i == 0 {
+        if i == 0 || symbol > self.sigma {
             return None;
         }
-
+        
         let mut path_off = Vec::with_capacity(self.n_levels);
         let mut rank_path_off = Vec::with_capacity(self.n_levels);
 
@@ -373,11 +365,11 @@ where
             path_off.push(b);
 
             let two_bits = (symbol >> shift as usize).as_() & 3;
-            let j = (level * 4) + two_bits as usize;
 
-            let rank_b = self.qv.rank(two_bits, b)?;
+            let rank_b = self.qvs[level].rank(two_bits, b)?;
 
-            b = (level + 1) * self.n + (rank_b - self.rank[j] as usize) + (self.count[j] as usize);
+            // Safety: we are sure the symbol `two_bits` is in [0..3]
+            b = rank_b + unsafe{self.qvs[level].occs_smaller_unchecked(two_bits)};
             shift -= 2;
 
             rank_path_off.push(rank_b);
@@ -390,18 +382,20 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            result = self.qv.select(two_bits, rank_b + result)? - b + 1;
+            result = self.qvs[level].select(two_bits, rank_b + result)? - b + 1;
             shift += 2;
         }
 
         Some(result - 1)
+
     }
 
     /// Returns the position of the `i`-th occurrence of symbol `symbol`.
     ///
     /// # Safety
     /// Calling this method with a value of `i` which is larger than the number of
-    /// occurrences of the `symbol` is undefined behavior.
+    /// occurrences of the `symbol` or if the `symbol` is not valid is undefined behavior.
+    ///
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.
     #[inline(always)]
@@ -418,15 +412,17 @@ where
         + AccessUnsigned<Item = u8>
         + RankUnsigned
         + SelectUnsigned
+        + SymbolsStats
         + SpaceUsage
         + Default,
 {
     /// Gives the space usage in bytes of the struct.
     fn space_usage_bytes(&self) -> usize {
         8 + 8
-            + self.qv.space_usage_bytes()
-            + self.rank.space_usage_bytes()
-            + self.count.space_usage_bytes()
+            + self
+                .qvs
+                .iter()
+                .fold(0, |acc, ds| acc + ds.space_usage_bytes())
     }
 }
 

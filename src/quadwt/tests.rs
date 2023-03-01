@@ -8,6 +8,14 @@ fn test_small() {
     let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut data.clone());
 
     assert_eq!(wt.rank(1, 4), Some(2));
+    assert_eq!(wt.rank(1, 0), Some(0));   
+    assert_eq!(wt.rank(8, 1), None);     // too large symbol
+    assert_eq!(wt.rank(1, 9), Some(2));
+    assert_eq!(wt.rank(7, 9), Some(1));  
+    assert_eq!(wt.rank(1, 10), None);      // too large position
+
+    assert_eq!(wt.select(8, 1), None);     // too large symbol
+    assert_eq!(wt.select(5, 0), None);     // no 0th occurrence
 
     for (i, &v) in data.iter().enumerate() {
         let rank = wt.rank(v, i + 1).unwrap();
@@ -37,16 +45,20 @@ fn test() {
             let s = wt.select(symbol, rank).unwrap();
             assert_eq!(s, i);
         }
+
+        // Select out of bound
+        assert_eq!(wt.select(0, N), None);
+        assert_eq!(wt.select(1, 1), None);
+        assert_eq!(wt.select(sigma-1, 2), None);
     }
 
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256, 16000] {
-        let mut sequence: [u16; N] = [1; N];
+        let mut sequence: [u16; N] = [0; N];
         sequence[N - 1] = sigma - 1;
         let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
 
-        dbg!(sigma, wt.n_levels());
         for i in 1..N - 1 {
-            assert_eq!(wt.rank(1, i).unwrap(), i);
+            assert_eq!(wt.rank(0, i).unwrap(), i);
         }
 
         for i in 1..N {
@@ -58,6 +70,11 @@ fn test() {
             let s = wt.select(symbol, rank).unwrap();
             assert_eq!(s, i);
         }
+
+        // Select out of bound
+        assert_eq!(wt.select(0, N), None);
+        assert_eq!(wt.select(1, 1), None);
+        assert_eq!(wt.select(sigma-1, 2), None);
     }
 }
 
@@ -68,9 +85,7 @@ fn test_get() {
         let sequence = gen_sequence(n, sigma);
         let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
         for (i, &symbol) in sequence.iter().enumerate() {
-            unsafe {
-                assert_eq!(wt.get_unchecked(i), symbol);
-            }
+            assert_eq!(wt.get(i), Some(symbol));
         }
     }
 }

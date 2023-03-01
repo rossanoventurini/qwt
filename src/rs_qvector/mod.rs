@@ -6,7 +6,7 @@ use crate::QVector;
 use serde::{Deserialize, Serialize};
 
 // Traits
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
+use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats};
 use num_traits::Unsigned;
 
 /// Alternative representations to support Rank/Select queries at the level of blocks
@@ -23,12 +23,13 @@ pub type RSQVectorP512 = RSQVector<RSSupportPlain<512>>;
 pub struct RSQVector<S: RSSupport + SpaceUsage> {
     qv: QVector,
     rs_support: S,
+    n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 counters so we can use it to compute also the number of occs of each symbol without the need of branches.
 }
 
 impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_bytes(&self) -> usize {
-        self.qv.space_usage_bytes() + self.rs_support.space_usage_bytes()
+        self.qv.space_usage_bytes() + self.rs_support.space_usage_bytes() + 5 * 8
     }
 }
 
@@ -48,10 +49,23 @@ impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
     /// ```
     fn from(qv: QVector) -> Self {
         let rank_support = S::new(&qv);
+        let mut n_occs_smaller = [0; 5];
+        for c in qv.iter() {
+            n_occs_smaller[c as usize] += 1;
+        }
+
+        let mut prev = n_occs_smaller[0];
+        n_occs_smaller[0] = 0;
+        for i in 1..5 {
+            let tmp = n_occs_smaller[i];
+            n_occs_smaller[i] = n_occs_smaller[i - 1] + prev;
+            prev = tmp;
+        }
 
         let mut me = Self {
             qv,
             rs_support: rank_support,
+            n_occs_smaller,
         };
 
         me.shrink_to_fit();
@@ -288,7 +302,7 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
         if i > self.qv.len() {
             return None;
         }
-        // Safety: Check above guarantees we are not out of bound
+        // Safety: The check above guarantees we are not out of bound
         Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
@@ -310,10 +324,56 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     }
 }
 
+impl<S: RSSupport + SpaceUsage> SymbolsStats for RSQVector<S> {
+    /// Returns the number of occurrences of `symbol` in the indexed sequence,
+    /// `None` if `symbol` is not in [0..3].  
+    #[inline(always)]
+    fn occs(&self, symbol: Self::Item) -> Option<usize> {
+        if symbol > 3 {
+            return None;
+        }
+
+        Some(unsafe { self.occs_unchecked(symbol) })
+    }
+
+    /// Returns the number of occurrences of `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
+    #[inline(always)]
+    unsafe fn occs_unchecked(&self, symbol: Self::Item) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
+
+        self.n_occs_smaller[(symbol + 1) as usize] - self.n_occs_smaller[symbol as usize]
+    }
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol`, `None` if `symbol` is not in [0..3].
+    #[inline(always)]
+    fn occs_smaller(&self, symbol: Self::Item) -> Option<usize> {
+        if symbol > 3 {
+            return None;
+        }
+        Some(unsafe { self.occs_smaller_unchecked(symbol) })
+    }
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
+    #[inline(always)]
+    unsafe fn occs_smaller_unchecked(&self, symbol: Self::Item) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
+
+        self.n_occs_smaller[symbol as usize]
+    }
+}
+
 impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     /// Returns the position of the `i`th occurrence of `symbol`.
     /// Returns `None` if i is not valid, i.e., if i == 0 or i is larger than
-    /// the number of occurrences of `symbol`.
+    /// the number of occurrences of `symbol`, or if `symbol` is not in [0..3].
     ///
     /// # Examples
     /// ```
@@ -330,9 +390,7 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     /// ```
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        debug_assert!(symbol <= 3);
-
-        if i == 0 || self.rs_support.n_occs(symbol) < i {
+        if symbol > 3 || i == 0 || unsafe { self.occs_unchecked(symbol) } < i {
             return None;
         }
 
@@ -358,11 +416,17 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     ///
     /// # Safety
     /// Calling this method with a value of `i` which is larger than the number of
-    /// occurrences of the `symbol` is undefined behavior.
+    /// occurrences of the `symbol` or if `symbol is larger than 3 is  
+    /// undefined behavior.
+    ///
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
+        debug_assert!(symbol <= 3);
+        debug_assert!(i > 0);
+        debug_assert!(self.occs(symbol) <= Some(i));
+
         self.select(symbol, i).unwrap()
     }
 }
@@ -385,19 +449,8 @@ pub trait RSSupport {
     /// occurrences of `symbol` up to the beginning of this block.
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
 
-    /// Returns the number of occurrences of `SYMBOL` in the whole sequence.
-    fn n_occs(&self, symbol: u8) -> usize;
-
     /// Shrinks to fit.
     fn shrink_to_fit(&mut self);
-
-    /// Length of the indexed sequence.
-    fn len(&self) -> usize;
-
-    /// Check if the indexed sequence is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 #[cfg(test)]
@@ -409,10 +462,20 @@ mod tests {
     #[test]
     fn test_small<D>()
     where
-        D: From<QVector> + AccessUnsigned<Item = u8> + RankUnsigned + SelectUnsigned,
+        D: From<QVector> + AccessUnsigned<Item = u8> + RankUnsigned + SelectUnsigned + SymbolsStats,
     {
         let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10000).collect();
         let rsqv = D::from(qv.clone());
+
+        // test occs and occs_smaller
+        for c in 0..4 {
+            assert_eq!(rsqv.occs(c), Some(10000 / 4));
+        }
+        assert_eq!(rsqv.occs(4), None);
+
+        for c in 0..4 {
+            assert_eq!(rsqv.occs_smaller(c), Some((10000 / 4) * (c as usize)));
+        }
 
         // test get on just created quadvector
         for (i, c) in qv.iter().enumerate() {
