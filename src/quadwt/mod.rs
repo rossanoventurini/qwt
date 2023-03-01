@@ -35,8 +35,8 @@ where
 {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
-    sigma: T,        // The largest symbol in the sequence. *NOTE*: It's not +1 becuase it may overflow
-    qvs: Vec<RS>,    // A quaternary vector for each level
+    sigma: T, // The largest symbol in the sequence. *NOTE*: It's not +1 becuase it may overflow
+    qvs: Vec<RS>, // A quaternary vector for each level
     item_type: PhantomData<T>,
 }
 
@@ -114,7 +114,7 @@ where
         Self {
             n: sequence.len(),
             n_levels,
-            sigma: sigma,
+            sigma,
             qvs,
             item_type: PhantomData,
         }
@@ -332,8 +332,8 @@ where
         + SpaceUsage
         + Default,
 {
-    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is 
-    /// returned if i is 0 or if there is no such occurrence for the symbol or if 
+    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is
+    /// returned if i is 0 or if there is no such occurrence for the symbol or if
     /// `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
@@ -354,7 +354,7 @@ where
         if i == 0 || symbol > self.sigma {
             return None;
         }
-        
+
         let mut path_off = Vec::with_capacity(self.n_levels);
         let mut rank_path_off = Vec::with_capacity(self.n_levels);
 
@@ -369,7 +369,7 @@ where
             let rank_b = self.qvs[level].rank(two_bits, b)?;
 
             // Safety: we are sure the symbol `two_bits` is in [0..3]
-            b = rank_b + unsafe{self.qvs[level].occs_smaller_unchecked(two_bits)};
+            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
             shift -= 2;
 
             rank_path_off.push(rank_b);
@@ -387,7 +387,6 @@ where
         }
 
         Some(result - 1)
-
     }
 
     /// Returns the position of the `i`-th occurrence of symbol `symbol`.
