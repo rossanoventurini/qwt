@@ -70,11 +70,11 @@ to add the library.
 Once the crate has been added, we can easily build a Quad Wavelet Tree with the following code. 
 
 ```rust
-use qwt::QWaveletTreeP256;
+use qwt::QWT256;
 
 let mut data: [u8; 8] = [1, 0, 1, 0, 3, 4, 5, 3];
 
-let qwt = QWaveletTreeP256::new(&mut data);
+let qwt = QWT256::new(&mut data);
 
 assert_eq!(qwt.len(), 8);
 ```
@@ -97,11 +97,11 @@ The data structure supports three operations:
 Here is an example of the three operations.
 
 ```rust
-use qwt::{QWaveletTreeP256, AccessUnsigned, RankUnsigned, SelectUnsigned};
+use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
 let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
 
-let qwt = QWaveletTreeP256::new(&mut data);
+let qwt = QWT256::new(&mut data);
 
 assert_eq!(qwt.get(2), Some(1));
 assert_eq!(qwt.get(3), Some(0));
@@ -121,10 +121,10 @@ assert_eq!(qwt.select(1, 3), None);
 In the following example, we use QWT to index a sequence over a larger alphabet.
 
 ```rust
-use qwt::{QWaveletTreeP256, AccessUnsigned, RankUnsigned, SelectUnsigned};
+use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
 let mut data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
-let qwt = QWaveletTreeP256::new(&mut data);
+let qwt = QWT256::new(&mut data);
 
 assert_eq!(qwt.get(2), Some(1));
 assert_eq!(qwt.get(5), Some(1000000));

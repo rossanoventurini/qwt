@@ -67,11 +67,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::QWaveletTreeP256;
+    /// use qwt::QWT256;
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
@@ -124,11 +124,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::QWaveletTreeP256;
+    /// use qwt::QWT256;
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
@@ -145,9 +145,9 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::QWaveletTreeP256;
+    /// use qwt::QWT256;
     ///
-    /// let qwt = QWaveletTreeP256::default();
+    /// let qwt = QWT256::<u8>::default();
     ///
     /// assert_eq!(qwt.is_empty(), true);
     /// ```
@@ -179,11 +179,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWaveletTreeP256, RankUnsigned};
+    /// use qwt::{QWT256, RankUnsigned};
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
@@ -209,11 +209,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWaveletTreeP256, RankUnsigned};
+    /// use qwt::{QWT256, RankUnsigned};
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// unsafe {
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
@@ -263,11 +263,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWaveletTreeP256, AccessUnsigned};
+    /// use qwt::{QWT256, AccessUnsigned};
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.get(2), Some(1));
     /// assert_eq!(qwt.get(3), Some(0));
@@ -289,11 +289,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWaveletTreeP256, AccessUnsigned};
+    /// use qwt::{QWT256, AccessUnsigned};
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// unsafe {
     ///     assert_eq!(qwt.get_unchecked(2), 1);
@@ -338,11 +338,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWaveletTreeP256, SelectUnsigned};
+    /// use qwt::{QWT256, SelectUnsigned};
     ///
     /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWaveletTreeP256::new(&mut data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.select(1, 1), Some(0));
     /// assert_eq!(qwt.select(0, 2), Some(3));

@@ -33,8 +33,8 @@ pub use rs_qvector::RSQVectorP512;
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
 
-pub type QWaveletTreeP256 = QWaveletTree<u8, RSQVectorP256>;
-pub type QWaveletTreeP512 = QWaveletTree<u8, RSQVectorP512>;
+pub type QWT256<T> = QWaveletTree<T, RSQVectorP256>;
+pub type QWT512<T> = QWaveletTree<T, RSQVectorP512>;
 
 use num_traits::Unsigned;
 
