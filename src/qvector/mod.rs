@@ -143,7 +143,7 @@ impl QVector {
         self.position += 2;
     }
 
-    /// Aligns data in the quatvector to 64 bytes.
+    /// Aligns data in the `qvector` to 64 bytes.
     ///
     /// Todo: make this safe by checking invariants.
     ///
@@ -157,7 +157,7 @@ impl QVector {
         self.data = v;
     }
 
-    /// Shrinks the vector to fits the data (rounded to the closest u128).
+    /// Shrinks the vector to fit the data (rounded to the closest u128).
     pub fn shrink_to_fit(&mut self) {
         self.data.shrink_to_fit();
     }

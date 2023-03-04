@@ -1,11 +1,12 @@
-//! This module implements a Quad Wavelet Tree to support access, rank, and select //! queries on a vector of unsigned integers.
+//! This module implements a Quad Wavelet Tree to support access, rank, and select 
+//! queries on a vector of unsigned integers.
 //!
 //! This data structure supports three operations:
 //! - `get(i)` accesses the `i`-th symbols of the indexed sequence;
 //! - `rank(s, i)` counts the number of occurrences of symbol `s` up to position `i` excluded;
 //! - `select(s, i)` returns the position of the `i`-th occurrence of symbol `s`.
 //!
-//! We can index vectors of length up to (2^{44})/log sigma symbols.
+//! We can index vectors of length up to 2^{43} symbols.
 
 use crate::utils::{msb, stable_partition_of_4};
 use crate::QVector;
@@ -159,6 +160,7 @@ where
     pub fn n_levels(&self) -> usize {
         self.n_levels
     }
+
 }
 
 impl<T, RS> RankUnsigned for QWaveletTree<T, RS>

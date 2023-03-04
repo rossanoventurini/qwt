@@ -23,7 +23,7 @@ pub type RSQVectorP512 = RSQVector<RSSupportPlain<512>>;
 pub struct RSQVector<S: RSSupport + SpaceUsage> {
     qv: QVector,
     rs_support: S,
-    n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 counters so we can use it to compute also the number of occs of each symbol without the need of branches.
+    n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
 }
 
 impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
@@ -34,8 +34,8 @@ impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
 }
 
 impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
-    /// Converts a given quaternary vector `qv` to an `RSQVector` with support for `Rank`
-    /// and `Select` queries.
+    /// Converts a given quaternary vector `qv` to a `RSQVector` with support 
+    /// for `Rank` and `Select` queries.
     ///
     /// # Examples
     /// ```
@@ -218,7 +218,6 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     }
 
     /// Shrinks the capacity of the allocated vector to fit the real length.
-    #[inline(always)]
     pub fn shrink_to_fit(&mut self) {
         self.qv.shrink_to_fit();
         self.rs_support.shrink_to_fit();
@@ -230,7 +229,6 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     ///
     /// # Safety
     /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
-    #[inline(always)]
     pub unsafe fn align_to_64(&mut self) {
         self.qv.align_to_64();
     }

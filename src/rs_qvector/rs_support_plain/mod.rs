@@ -104,7 +104,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
             }
         }
 
-        // Fill next blocks with max occurrences. This is a sentinel for select algorithm
+        // Fill the next blocks with max occurrences. This is a sentinel for `select` query algorithm.
         let next_block_id = (qv.len() / Self::BLOCK_SIZE) % Self::BLOCKS_IN_SUPERBLOCK + 1;
 
         if next_block_id < Self::BLOCKS_IN_SUPERBLOCK {
@@ -194,7 +194,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         (position, rank)
     }
 
-    /// Shrinks to fit
+    /// Shrinks to fit.
     fn shrink_to_fit(&mut self) {
         self.superblocks.shrink_to_fit();
         for i in 0..4 {
