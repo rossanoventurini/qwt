@@ -141,7 +141,7 @@ assert_eq!(qwt.get(8), None);
 
 For more details, take a look at the [documentation](https://docs.rs/qwt/latest/qwt/).
 
-Serialization and deserailization can be done with [`bincode`](https://docs.rs/bincode/latest/bincode/) as follows.
+Serialization and deserialization can be done with [`bincode`](https://docs.rs/bincode/latest/bincode/) as follows.
 
 ```rust
 use std::fs;
