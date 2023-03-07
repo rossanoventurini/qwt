@@ -14,8 +14,8 @@ mod rs_support_plain;
 use crate::rs_qvector::rs_support_plain::RSSupportPlain;
 
 /// Possible specializations which provide different space/time trade-offs.
-pub type RSQVectorP256 = RSQVector<RSSupportPlain<256>>;
-pub type RSQVectorP512 = RSQVector<RSSupportPlain<512>>;
+pub type RSQVector256 = RSQVector<RSSupportPlain<256>>;
+pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 
 /// The generic `S` is the data structure used to
 /// provide rank/select support at the level of blocks.
@@ -39,10 +39,10 @@ impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVectorP256, QVector};
+    /// use qwt::{RSQVector256, QVector};
     ///
     /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::from(qv);
+    /// let rsqv = RSQVector256::from(qv);
     ///
     /// assert_eq!(rsqv.is_empty(), false);
     /// assert_eq!(rsqv.len(), 10);
@@ -88,10 +88,10 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::RSQVectorP256;
+    /// use qwt::RSQVector256;
     ///
     /// let v: Vec<u64> = (0..10).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::new(&v);
+    /// let rsqv = RSQVector256::new(&v);
     ///
     /// assert_eq!(rsqv.is_empty(), false);
     /// assert_eq!(rsqv.len(), 10);
@@ -243,10 +243,10 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVectorP256, QVector, AccessUnsigned};
+    /// use qwt::{RSQVector256, QVector, AccessUnsigned};
     ///
     /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::from(qv);
+    /// let rsqv = RSQVector256::from(qv);
     ///
     /// assert_eq!(unsafe { rsqv.get_unchecked(0) }, 0);
     /// assert_eq!(unsafe { rsqv.get_unchecked(1) }, 1);
@@ -261,10 +261,10 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVectorP256, QVector, AccessUnsigned};
+    /// use qwt::{RSQVector256, QVector, AccessUnsigned};
     ///
     /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::from(qv);
+    /// let rsqv = RSQVector256::from(qv);
     ///
     /// assert_eq!(rsqv.get(0), Some(0));
     /// assert_eq!(rsqv.get(1), Some(1));
@@ -282,10 +282,10 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVectorP256, QVector, RankUnsigned};
+    /// use qwt::{RSQVector256, QVector, RankUnsigned};
     ///
     /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::from(qv);
+    /// let rsqv = RSQVector256::from(qv);
     ///
     /// assert_eq!(rsqv.rank(0, 0), Some(0));
     /// assert_eq!(rsqv.rank(0, 1), Some(1));
@@ -373,10 +373,10 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVectorP256, QVector, SelectUnsigned};
+    /// use qwt::{RSQVector256, QVector, SelectUnsigned};
     ///
     /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVectorP256::from(qv);
+    /// let rsqv = RSQVector256::from(qv);
     ///
     /// assert_eq!(rsqv.select(0, 1), Some(0));
     /// assert_eq!(rsqv.select(0, 2), Some(4));
@@ -563,9 +563,9 @@ mod tests {
         }
     }
 
-    #[instantiate_tests(<RSQVectorP256>)]
+    #[instantiate_tests(<RSQVector256>)]
     mod testp256 {}
 
-    #[instantiate_tests(<RSQVectorP512>)]
+    #[instantiate_tests(<RSQVector512>)]
     mod testp512 {}
 }

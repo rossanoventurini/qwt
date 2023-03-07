@@ -1,11 +1,11 @@
 use super::*;
 use crate::perf_and_test_utils::gen_sequence;
-use crate::RSQVectorP512;
+use crate::RSQVector512;
 
 #[test]
 fn test_small() {
     let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
-    let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut data.clone());
+    let wt = QWaveletTree::<_, RSQVector512>::new(&mut data.clone());
 
     assert_eq!(wt.rank(1, 4), Some(2));
     assert_eq!(wt.rank(1, 0), Some(0));
@@ -30,7 +30,7 @@ fn test() {
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255] {
         let mut sequence: [u8; N] = [0; N];
         sequence[N - 1] = sigma - 1;
-        let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
+        let wt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
 
         for i in 0..N - 1 {
             assert_eq!(wt.rank(0, i).unwrap(), i);
@@ -55,7 +55,7 @@ fn test() {
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256, 16000] {
         let mut sequence: [u16; N] = [0; N];
         sequence[N - 1] = sigma - 1;
-        let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
+        let wt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
 
         for i in 1..N - 1 {
             assert_eq!(wt.rank(0, i).unwrap(), i);
@@ -83,7 +83,7 @@ fn test_get() {
     let n = 1025;
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256] {
         let sequence = gen_sequence(n, sigma);
-        let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut sequence.clone());
+        let wt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
         for (i, &symbol) in sequence.iter().enumerate() {
             assert_eq!(wt.get(i), Some(symbol));
         }
@@ -94,10 +94,10 @@ use bincode;
 
 #[test]
 fn test_serialize() {
-    let wt = QWaveletTree::<_, RSQVectorP512>::new(&mut [0_u8; 10]);
+    let wt = QWaveletTree::<_, RSQVector512>::new(&mut [0_u8; 10]);
     let s = bincode::serialize(&wt).unwrap();
 
-    let des_wt = bincode::deserialize::<QWaveletTree<u8, RSQVectorP512>>(&s).unwrap();
+    let des_wt = bincode::deserialize::<QWaveletTree<u8, RSQVector512>>(&s).unwrap();
 
     assert_eq!(des_wt, wt);
 }

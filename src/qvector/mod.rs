@@ -9,7 +9,7 @@
 //! This way, a popcount operation counts the number of occurrences of that symbol
 //! in the word.
 //! Note that using `u128` instead of `u64` is convenient here because the popcount
-//! operates on 64 bits.
+//! operates on 64 bits. So, the use of `u128` fully uses every popcount.
 
 use crate::{AccessUnsigned, SpaceUsage}; // Traits
 

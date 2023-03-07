@@ -28,14 +28,14 @@ pub mod utils;
 
 pub mod rs_qvector;
 pub use rs_qvector::RSQVector;
-pub use rs_qvector::RSQVectorP256;
-pub use rs_qvector::RSQVectorP512;
+pub use rs_qvector::RSQVector256;
+pub use rs_qvector::RSQVector512;
 
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
 
-pub type QWT256<T> = QWaveletTree<T, RSQVectorP256>;
-pub type QWT512<T> = QWaveletTree<T, RSQVectorP512>;
+pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
+pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 
 use num_traits::Unsigned;
 

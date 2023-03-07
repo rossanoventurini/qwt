@@ -2,7 +2,6 @@
 //! symbols of a quaternary sequence up to the beginning of blocks of a fixed size
 //! `Self::BLOCK_SIZE`.
 
-use crate::utils::get_64byte_aligned_vector;
 use crate::QVector;
 use crate::SpaceUsage; // Traits
 
@@ -16,7 +15,7 @@ use super::*;
 /// space overhead (6.25%) at the cost of (slightly) increasing the query time.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RSSupportPlain<const B_SIZE: usize = 256> {
-    superblocks: Vec<SuperblockPlain>,
+    superblocks: Box<[SuperblockPlain]>,
     select_samples: [Vec<u32>; 4],
 }
 
@@ -55,8 +54,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         // Number of symbols in each superblock
         let superblock_size: usize = Self::BLOCKS_IN_SUPERBLOCK * Self::BLOCK_SIZE;
         let n_superblocks = (qv.len() + superblock_size) / superblock_size;
-        let mut superblocks =
-            unsafe { get_64byte_aligned_vector::<SuperblockPlain>(n_superblocks) };
+        let mut superblocks = Vec::<SuperblockPlain>::with_capacity(n_superblocks);
 
         for i in 0..qv.len() + 1 {
             // Need position qv.len() to make last superblock if needed
@@ -123,10 +121,8 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
             sample.push(superblocks.len() as u32 - 1); // sentinel
         }
 
-        superblocks.shrink_to_fit();
-
         Self {
-            superblocks,
+            superblocks: superblocks.into_boxed_slice(),
             select_samples,
         }
     }
@@ -196,7 +192,6 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
     /// Shrinks to fit.
     fn shrink_to_fit(&mut self) {
-        self.superblocks.shrink_to_fit();
         for i in 0..4 {
             self.select_samples[i].shrink_to_fit();
         }

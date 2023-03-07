@@ -1,5 +1,5 @@
 use qwt::perf_and_test_utils::{gen_queries, type_of, TimingQueries};
-use qwt::RSQVectorP256;
+use qwt::RSQVector256;
 
 // traits
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
@@ -106,7 +106,7 @@ fn main() {
         let n = 1 << logn;
 
         let v: Vec<u8> = [0, 1, 2, 3].into_iter().cycle().take(n).collect();
-        let rsqv = RSQVectorP256::new(&v);
+        let rsqv = RSQVector256::new(&v);
 
         let queries = gen_queries(N_QUERIES, n);
         perf_rank(&rsqv, &queries, n, logn, 2 * n);
