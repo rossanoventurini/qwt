@@ -1,4 +1,4 @@
-use qwt::perf_and_test_utils::{gen_queries, gen_rank_queries, type_of, TimingQueries};
+use qwt::perf_and_test_utils::{gen_queries, gen_rank_queries, gen_select_queries,type_of, TimingQueries};
 use qwt::utils::msb;
 use qwt::utils::text_remap;
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
@@ -101,7 +101,7 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
 fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
     ds: &T,
     n: usize,
-    queries: &[(usize, usize)],
+    queries: &[(usize, u8)],
 ) {
     let mut t = TimingQueries::new(N_RUNS, queries.len());
 
@@ -111,7 +111,7 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
             let i = std::cmp::max(1, i);
-            result = unsafe { ds.select_unchecked(symbol as u8, i) };
+            result = unsafe { ds.select_unchecked(symbol, i) };
         }
         t.stop()
     }
@@ -160,6 +160,11 @@ fn main() {
     println!("Text length: {:?}", n);
     println!("Alphabet size: {sigma}");
 
+    // Generate queries
+    let rank_queries = gen_rank_queries(args.n_queries, &text);
+    let access_queries = gen_queries(args.n_queries, n);
+    let select_queries = gen_select_queries(args.n_queries, &text);
+
     let output_filename = input_filename.clone() + ".256.qwt";
     let ds: QWT256<_>;
     let path = Path::new(&output_filename);
@@ -188,25 +193,15 @@ fn main() {
         test_correctness(&ds, &text);
     }
 
-    let rank_queries = gen_rank_queries(args.n_queries, &text);
-
     if args.rank {
         test_rank_performace(&ds, n, &rank_queries);
     }
 
-    let access_queries = gen_queries(args.n_queries, n);
     if args.access {
         test_access_performace(&ds, n, &access_queries);
     }
 
-    let mut select_queries = Vec::with_capacity(args.n_queries);
-
     if args.select {
-        for &pos in gen_queries(args.n_queries, n - 1).iter() {
-            let symbol = ds.get(pos).unwrap();
-            let rank = ds.rank(symbol, pos + 1).unwrap();
-            select_queries.push((rank, symbol as usize));
-        }
         test_select_performace(&ds, n, &select_queries);
     }
 

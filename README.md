@@ -149,8 +149,8 @@ use std::path::Path;
 
 use qwt::{QWT256, AccessUnsigned};
 
-let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
-let qwt = QWT256::new(&mut data);
+let data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+let qwt = QWT256::from(data);
 
 assert_eq!(qwt.get(2), Some(1));
 
