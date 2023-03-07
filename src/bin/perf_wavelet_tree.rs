@@ -1,4 +1,6 @@
-use qwt::perf_and_test_utils::{gen_queries, gen_rank_queries, gen_select_queries,type_of, TimingQueries};
+use qwt::perf_and_test_utils::{
+    gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
+};
 use qwt::utils::msb;
 use qwt::utils::text_remap;
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
