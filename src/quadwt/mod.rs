@@ -53,7 +53,7 @@ where
         + SpaceUsage
         + Default,
 {
-    /// Builds the wavelet matrix of the ```sequence``` of unsigned integers.
+    /// Builds the wavelet matrix of the `sequence` of unsigned integers.
     /// The input sequence is **destroyed**.
     ///
     /// The alphabet size ```sigma``` is the largest value in the ```sequence```.

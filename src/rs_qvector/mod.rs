@@ -1,5 +1,6 @@
 //! This module provides support for `rank` and `select queries on a quad vector.
 
+use crate::qvector::QVectorIterator;
 use crate::utils::select_in_word;
 use crate::QVector;
 
@@ -26,6 +27,25 @@ pub struct RSQVector<S: RSSupport + SpaceUsage> {
     n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
 }
 
+impl<S: RSSupport + SpaceUsage> RSQVector<S> {
+    /// Returns an iterator over the values in the quad vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::RSQVector256;
+    ///
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
+    ///
+    /// for (i, v) in rsqv.iter().enumerate() {
+    ///    assert_eq!((i%4) as u8, v);
+    /// }
+    /// ```
+    pub fn iter(&self) -> QVectorIterator<&QVector> {
+        self.qv.iter()
+    }
+}
+
 impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_bytes(&self) -> usize {
@@ -34,15 +54,14 @@ impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
 }
 
 impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
-    /// Converts a given quaternary vector `qv` to a `RSQVector` with support
+    /// Converts a given quad vector `qv` to a `RSQVector` with support
     /// for `Rank` and `Select` queries.
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, QVector};
+    /// use qwt::RSQVector256;
     ///
-    /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVector256::from(qv);
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(rsqv.is_empty(), false);
     /// assert_eq!(rsqv.len(), 10);
@@ -62,20 +81,16 @@ impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
             prev = tmp;
         }
 
-        let mut me = Self {
+        Self {
             qv,
             rs_support: rank_support,
             n_occs_smaller,
-        };
-
-        me.shrink_to_fit();
-
-        me
+        }
     }
 }
 
 impl<S: RSSupport + SpaceUsage> RSQVector<S> {
-    /// Creates a quaternary vector with support for `RankUnsigned` and `SelectUnsigned`
+    /// Creates a quad vector with support for `RankUnsigned` and `SelectUnsigned`
     /// queries for a sequence of unsigned integers in the range [0, 3].
     ///
     /// # Panics
@@ -180,15 +195,6 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         let offset = i % S::BLOCK_SIZE; // offset (in symbols) within the block
         let last_word = first_word + offset / 64;
 
-        /*  // Prefetching the second cache-line for the larger block size is not very useful.
-        if S::BLOCK_SIZE >= 512 {
-            // if a block covers two cache-lines, it could be convenient to h the second cache-line.
-            unsafe {
-                let p = data.as_ptr().add(last_word);
-                _mm_prefetch(p as *const i8, core::arch::x86_64::_MM_HINT_T0);
-            }
-        } */
-
         for i in first_word..last_word {
             let word = unsafe { *data.get_unchecked(i) };
             rank += Self::rank_word::<SYMBOL>(word, u64::MAX);
@@ -204,7 +210,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         rank
     }
 
-    // Returns the number of symbols in the quaternary vector.
+    // Returns the number of symbols in the quad vector.
     pub fn len(&self) -> usize {
         self.qv.len()
     }
@@ -212,11 +218,6 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     /// Checks if the vector is empty.
     pub fn is_empty(&self) -> bool {
         self.qv.len() == 0
-    }
-
-    /// Shrinks the capacity of the allocated vector to fit the real length.
-    pub fn shrink_to_fit(&mut self) {
-        self.rs_support.shrink_to_fit();
     }
 
     /*
@@ -245,8 +246,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     /// ```
     /// use qwt::{RSQVector256, QVector, AccessUnsigned};
     ///
-    /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVector256::from(qv);
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(unsafe { rsqv.get_unchecked(0) }, 0);
     /// assert_eq!(unsafe { rsqv.get_unchecked(1) }, 1);
@@ -256,15 +256,14 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
         self.qv.get_unchecked(i)
     }
 
-    /// Accesses the `i`th value in the quaternary vector
+    /// Accesses the `i`th value in the quad vector
     /// or `None` if out of bounds.
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, QVector, AccessUnsigned};
+    /// use qwt::{RSQVector256, AccessUnsigned};
     ///
-    /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVector256::from(qv);
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(rsqv.get(0), Some(0));
     /// assert_eq!(rsqv.get(1), Some(1));
@@ -282,10 +281,9 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, QVector, RankUnsigned};
+    /// use qwt::{RSQVector256, RankUnsigned};
     ///
-    /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVector256::from(qv);
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(rsqv.rank(0, 0), Some(0));
     /// assert_eq!(rsqv.rank(0, 1), Some(1));
@@ -373,10 +371,9 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, QVector, SelectUnsigned};
+    /// use qwt::{RSQVector256, SelectUnsigned};
     ///
-    /// let qv: QVector = (0..10_u64).into_iter().map(|x| x % 4).collect();
-    /// let rsqv = RSQVector256::from(qv);
+    /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(rsqv.select(0, 1), Some(0));
     /// assert_eq!(rsqv.select(0, 2), Some(4));
@@ -427,6 +424,12 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     }
 }
 
+impl<S: RSSupport + SpaceUsage> AsRef<RSQVector<S>> for RSQVector<S> {
+    fn as_ref(&self) -> &RSQVector<S> {
+        self
+    }
+}
+
 /// This trait should be implemented by any data structure that
 /// provides `rank` and `select` support on blocks.
 pub trait RSSupport {
@@ -444,10 +447,22 @@ pub trait RSSupport {
     /// that contains the `i`th occurrence of `symbol`, and `rank` is the number of
     /// occurrences of `symbol` up to the beginning of this block.
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
-
-    /// Shrinks to fit.
-    fn shrink_to_fit(&mut self);
 }
+
+macro_rules! impl_from_iterator_rsqvector {
+    ($($t:ty),*) => {
+        $(impl<S: RSSupport + SpaceUsage> FromIterator<$t> for RSQVector<S> {
+                fn from_iter<T>(iter: T) -> Self
+                where
+                    T: IntoIterator<Item = $t>,
+                {
+                    Self::from(QVector::from_iter(iter))
+                }
+            })*
+    }
+}
+
+impl_from_iterator_rsqvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 #[cfg(test)]
 #[generic_tests::define]
@@ -473,7 +488,7 @@ mod tests {
             assert_eq!(rsqv.occs_smaller(c), Some((10000 / 4) * (c as usize)));
         }
 
-        // test get on just created quadvector
+        // test get on just created qvector
         for (i, c) in qv.iter().enumerate() {
             assert_eq!(rsqv.get(i), Some(c));
         }

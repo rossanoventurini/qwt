@@ -1,5 +1,5 @@
 //! A data structure for rank support provides an encoding scheme for counters of
-//! symbols of a quaternary sequence up to the beginning of blocks of a fixed size
+//! symbols of a quad sequence up to the beginning of blocks of a fixed size
 //! `Self::BLOCK_SIZE`.
 
 use crate::QVector;
@@ -16,7 +16,7 @@ use super::*;
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RSSupportPlain<const B_SIZE: usize = 256> {
     superblocks: Box<[SuperblockPlain]>,
-    select_samples: [Vec<u32>; 4],
+    select_samples: [Box<[u32]>; 4],
 }
 
 impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
@@ -48,7 +48,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         let mut block_counters = [0; 4];
         let mut occs = [0; 4];
 
-        // Sample superblock ids for each symbol at every SELECT_SAMPLES occurrences
+        // Sample superblock ids for each symbol at every SELECT_SAMPLES occurrence
         let mut select_samples: [Vec<u32>; 4] = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
 
         // Number of symbols in each superblock
@@ -123,7 +123,12 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
         Self {
             superblocks: superblocks.into_boxed_slice(),
-            select_samples,
+            select_samples: select_samples
+                .into_iter()
+                .map(|sample| sample.into_boxed_slice())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(), // all this just to convert Vecs into boxed slices (and because we cannot collect into an array directly)
         }
     }
 
@@ -188,13 +193,6 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         rank += block_rank;
 
         (position, rank)
-    }
-
-    /// Shrinks to fit.
-    fn shrink_to_fit(&mut self) {
-        for i in 0..4 {
-            self.select_samples[i].shrink_to_fit();
-        }
     }
 }
 

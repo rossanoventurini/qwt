@@ -16,7 +16,7 @@ The experiments are performed using a single thread on a server machine with 8 I
 
 A more detailed experimental evaluation can be found in [[3](#bib)].
 
-The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (See details below). The text has an alphabet with 239 distinct symbols.
+The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/) (details below). The text has an alphabet with 239 distinct symbols.
 
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |

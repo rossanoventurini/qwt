@@ -187,7 +187,7 @@ impl<'a> IntoIterator for &'a QVector {
     }
 }
 
-macro_rules! impl_from_iterator_quad_vector {
+macro_rules! impl_from_iterator_qvector {
     ($($t:ty),*) => {
         $(impl FromIterator<$t> for QVector {
                 fn from_iter<T>(iter: T) -> Self
@@ -202,7 +202,7 @@ macro_rules! impl_from_iterator_quad_vector {
     }
 }
 
-impl_from_iterator_quad_vector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
+impl_from_iterator_qvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 impl std::fmt::Debug for QVector {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -278,7 +278,7 @@ impl QVectorBuilder {
     }
 }
 
-macro_rules! impl_from_iterator_quad_vector_builder {
+macro_rules! impl_from_iterator_qvector_builder {
     ($($t:ty),*) => {
         $(impl FromIterator<$t> for QVectorBuilder {
                 fn from_iter<T>(iter: T) -> Self
@@ -305,9 +305,7 @@ macro_rules! impl_from_iterator_quad_vector_builder {
     }
 }
 
-impl_from_iterator_quad_vector_builder![
-    i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize
-];
+impl_from_iterator_qvector_builder![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 #[cfg(test)]
 mod tests;
