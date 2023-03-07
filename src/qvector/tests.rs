@@ -2,21 +2,33 @@ use super::*;
 
 #[test]
 fn test_empty() {
-    let qv = QVector::new();
+    let qv = QVector::default();
     assert!(qv.is_empty());
     assert_eq!(qv.len(), 0);
 
-    let qv = QVector::with_capacity(100);
-    assert!(qv.is_empty());
-    assert_eq!(qv.len(), 0);
-
-    let qv = QVector::with_capacity_align64(100);
-    assert!(qv.is_empty());
-    assert_eq!(qv.len(), 0);
+    let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
+    assert!(!qv.is_empty());
+    assert_eq!(qv.len(), 10);
 }
 
-// Test construction FromIterator of a quaternary vector starting from vectors of
-// integers types.
+#[test]
+fn test_iterators() {
+    let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
+    for (i, v) in qv.iter().enumerate() {
+        assert_eq!(v, (i % 4) as u8);
+    }
+
+    for (i, v) in (&qv).into_iter().enumerate() {
+        assert_eq!(v, (i % 4) as u8);
+    }
+
+    for (i, v) in qv.into_iter().enumerate() {
+        assert_eq!(v, (i % 4) as u8);
+    }
+}
+
+// Test construction FromIterator of a quad vector starting from vectors of
+// different integers types.
 macro_rules! test_collect_and_get {
     ($($t:ty),*) => {
         $(::paste::paste! {

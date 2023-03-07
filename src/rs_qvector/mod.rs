@@ -34,7 +34,7 @@ impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
 }
 
 impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
-    /// Converts a given quaternary vector `qv` to a `RSQVector` with support 
+    /// Converts a given quaternary vector `qv` to a `RSQVector` with support
     /// for `Rank` and `Select` queries.
     ///
     /// # Examples
@@ -101,10 +101,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         T: Unsigned + Copy,
         QVector: FromIterator<T>,
     {
-        let mut qv: QVector = v.iter().copied().collect();
-        unsafe {
-            qv.align_to_64();
-        }
+        let qv: QVector = v.iter().copied().collect();
         Self::from(qv)
     }
 
@@ -219,10 +216,10 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
 
     /// Shrinks the capacity of the allocated vector to fit the real length.
     pub fn shrink_to_fit(&mut self) {
-        self.qv.shrink_to_fit();
         self.rs_support.shrink_to_fit();
     }
 
+    /*
     /// Aligns data to 64-byte.
     ///
     /// Todo: make this safe by checking invariants.
@@ -232,6 +229,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     pub unsafe fn align_to_64(&mut self) {
         self.qv.align_to_64();
     }
+    */
 }
 
 impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {

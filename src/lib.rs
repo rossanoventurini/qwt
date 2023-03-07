@@ -22,6 +22,7 @@
 pub mod perf_and_test_utils;
 pub mod qvector;
 pub use qvector::QVector;
+pub use qvector::QVectorBuilder;
 
 pub mod utils;
 
@@ -145,6 +146,19 @@ where
             mem::size_of::<Self>() + self.get(0).unwrap().space_usage_bytes() * self.capacity()
         } else {
             mem::size_of::<Self>() + mem::size_of::<T>() * self.capacity()
+        }
+    }
+}
+
+impl<T> SpaceUsage for Box<[T]>
+where
+    T: SpaceUsage + Copy,
+{
+    fn space_usage_bytes(&self) -> usize {
+        if !self.is_empty() {
+            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_bytes() * self.len()
+        } else {
+            mem::size_of::<Self>()
         }
     }
 }

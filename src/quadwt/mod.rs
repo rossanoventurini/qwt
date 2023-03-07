@@ -1,4 +1,4 @@
-//! This module implements a Quad Wavelet Tree to support access, rank, and select 
+//! This module implements a Quad Wavelet Tree to support access, rank, and select
 //! queries on a vector of unsigned integers.
 //!
 //! This data structure supports three operations:
@@ -9,8 +9,8 @@
 //! We can index vectors of length up to 2^{43} symbols.
 
 use crate::utils::{msb, stable_partition_of_4};
-use crate::QVector;
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats}; // Traits
+use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats};
+use crate::{QVector, QVectorBuilder}; // Traits
 
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -95,14 +95,13 @@ where
         let mut shift = 2 * (n_levels - 1);
 
         for _level in 0..n_levels {
-            let mut cur_qv = QVector::with_capacity(sequence.len());
+            let mut cur_qv = QVectorBuilder::with_capacity(sequence.len());
             for &symbol in sequence.iter() {
                 let two_bits: u8 = (symbol >> shift).as_() & 3; // take the last 2 bits
                 cur_qv.push(two_bits);
             }
-            cur_qv.shrink_to_fit();
 
-            qvs.push(RS::from(cur_qv));
+            qvs.push(RS::from(cur_qv.build()));
             stable_partition_of_4(sequence, shift);
 
             if shift >= 2 {
@@ -160,7 +159,6 @@ where
     pub fn n_levels(&self) -> usize {
         self.n_levels
     }
-
 }
 
 impl<T, RS> RankUnsigned for QWaveletTree<T, RS>
