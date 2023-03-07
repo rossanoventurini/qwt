@@ -174,7 +174,7 @@ fn main() {
     } else {
         let mut t = TimingQueries::new(1, 1); // measure building time
         t.start();
-        ds = QWT256::new(&mut text.clone());
+        ds = QWT256::from(text.clone());
         t.stop();
         let (t_min, _, _) = t.get();
         println!("Construction time {:?} millisecs", t_min / 1000000);
@@ -226,7 +226,7 @@ fn main() {
     } else {
         let mut t = TimingQueries::new(1, 1); // measure building time
         t.start();
-        ds = QWT512::new(&mut text.clone());
+        ds = QWT512::from(text.clone());
         t.stop();
         let (t_min, _, _) = t.get();
         println!("Construction time {:?} millisecs", t_min / 1000000);

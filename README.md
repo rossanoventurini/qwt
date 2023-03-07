@@ -72,14 +72,12 @@ Once the crate has been added, we can easily build a Quad Wavelet Tree with the 
 ```rust
 use qwt::QWT256;
 
-let mut data: [u8; 8] = [1, 0, 1, 0, 3, 4, 5, 3];
+let data: [u8; 8] = [1, 0, 1, 0, 3, 4, 5, 3];
 
-let qwt = QWT256::new(&mut data);
+let qwt = QWT256::from(data);
 
 assert_eq!(qwt.len(), 8);
 ```
-
-Note that ```data``` must be mutable because the construction of the wavelet tree is going to permute it. Make a copy of ```data``` if you need it later on.
 
 We can print the space usage of the wavelet tree with 
 
@@ -87,6 +85,16 @@ We can print the space usage of the wavelet tree with
 use qwt::SpaceUsage;
 
 println!( qwt.space_usage_bytes() );
+```
+
+A wavelet tree implements `FromIterator` and, thus, we can use `.collect()`.
+
+```rust
+use qwt::QWT256;
+
+let qwt: QWT256<_> = (0..10_u8).into_iter().cycle().take(1000).collect();
+
+assert_eq!(qwt.len(), 1000);
 ```
 
 The data structure supports three operations:
@@ -99,9 +107,9 @@ Here is an example of the three operations.
 ```rust
 use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
-let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+let data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
 
-let qwt = QWT256::new(&mut data);
+let qwt = QWT256::from(data);
 
 assert_eq!(qwt.get(2), Some(1));
 assert_eq!(qwt.get(3), Some(0));
@@ -123,8 +131,8 @@ In the following example, we use QWT to index a sequence over a larger alphabet.
 ```rust
 use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
-let mut data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
-let qwt = QWT256::new(&mut data);
+let data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
+let qwt = QWT256::from(data);
 
 assert_eq!(qwt.get(2), Some(1));
 assert_eq!(qwt.get(5), Some(1000000));
@@ -162,6 +170,9 @@ let qwt = bincode::deserialize::<QWT256<u8>>(&serialized).unwrap();
 assert_eq!(qwt.get(2), Some(1));
 
 ```
+
+We can index any sequence over any [num::traits::Unsigned](https://docs.rs/num/latest/num/traits/trait.Unsigned.html) integers. 
+As the space usage depends on the largest value in the sequence, it could be worth remapping the values to remove "holes".
 
 ## <a name="bib">Bibliography</a>
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
