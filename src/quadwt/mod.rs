@@ -474,8 +474,8 @@ where
     }
 }
 
-// This is a naive implementation of an iterator for WT. 
-// We could do better by storing more information and 
+// This is a naive implementation of an iterator for WT.
+// We could do better by storing more information and
 // avoid rank operations!
 pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>>
 where
@@ -494,8 +494,7 @@ where
     _phantom: PhantomData<(T, RS)>,
 }
 
-impl<T, RS, Q: AsRef<QWaveletTree<T, RS>>> Iterator
-    for QWTIterator<T, RS, Q>
+impl<T, RS, Q: AsRef<QWaveletTree<T, RS>>> Iterator for QWTIterator<T, RS, Q>
 where
     T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
     u8: AsPrimitive<T>,
@@ -526,12 +525,17 @@ where
         + SelectUnsigned
         + SymbolsStats
         + SpaceUsage
-        + Default, {
-    type IntoIter = QWTIterator<T, RS, QWaveletTree<T,RS>>;
+        + Default,
+{
+    type IntoIter = QWTIterator<T, RS, QWaveletTree<T, RS>>;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
-        QWTIterator { i: 0, qwt: self, _phantom: PhantomData }
+        QWTIterator {
+            i: 0,
+            qwt: self,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -545,8 +549,9 @@ where
         + SelectUnsigned
         + SymbolsStats
         + SpaceUsage
-        + Default, {
-    type IntoIter = QWTIterator<T, RS, &'a QWaveletTree<T,RS>>;
+        + Default,
+{
+    type IntoIter = QWTIterator<T, RS, &'a QWaveletTree<T, RS>>;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
