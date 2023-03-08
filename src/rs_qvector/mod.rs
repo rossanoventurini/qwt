@@ -430,6 +430,24 @@ impl<S: RSSupport + SpaceUsage> AsRef<RSQVector<S>> for RSQVector<S> {
     }
 }
 
+impl<S: RSSupport + SpaceUsage> IntoIterator for RSQVector<S> {
+    type IntoIter = QVectorIterator<QVector>;
+    type Item = u8;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.qv.into_iter()
+    }
+}
+
+impl<'a, S: RSSupport + SpaceUsage> IntoIterator for &'a RSQVector<S> {
+    type IntoIter = QVectorIterator<&'a QVector>;
+    type Item = u8;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.qv.iter()
+    }
+}
+
 /// This trait should be implemented by any data structure that
 /// provides `rank` and `select` support on blocks.
 pub trait RSSupport {
