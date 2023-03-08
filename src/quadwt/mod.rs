@@ -56,8 +56,8 @@ where
     /// The input sequence is **destroyed**.
     ///
     /// The alphabet size `sigma` is the largest value in the `sequence`.
-    /// Both space usage and query time of a QWaveletTree depend on 
-    /// $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the 
+    /// Both space usage and query time of a QWaveletTree depend on
+    /// $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the
     /// binary representation of values in the sequence).
     /// For this reason, it may be convenient for both space usage and query time to
     /// remap the alphabet to form a consecutive range [0, d],  where d is the
