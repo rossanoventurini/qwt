@@ -52,18 +52,20 @@ where
         + SpaceUsage
         + Default,
 {
-    /// Builds the wavelet matrix of the `sequence` of unsigned integers.
+    /// Builds the wavelet tree of the `sequence` of unsigned integers.
     /// The input sequence is **destroyed**.
     ///
-    /// The alphabet size ```sigma``` is the largest value in the ```sequence```.
-    /// Both space usage and query time of a QWaveletTree depends on $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the binary representation of values in the sequence).
+    /// The alphabet size `sigma` is the largest value in the `sequence`.
+    /// Both space usage and query time of a QWaveletTree depend on 
+    /// $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the 
+    /// binary representation of values in the sequence).
     /// For this reason, it may be convenient for both space usage and query time to
     /// remap the alphabet to form a consecutive range [0, d],  where d is the
-    /// number of distinct values in ```sequence```.
+    /// number of distinct values in `sequence`.
     ///
     /// ## Panics
     /// Panics if the sequence is longer than the largest possible length.
-    /// The largest possible length is 2^{44} symbols.
+    /// The largest possible length is 2^{43} symbols.
     ///
     /// # Examples
     /// ```
@@ -133,7 +135,7 @@ where
         self.n
     }
 
-    /// Returns the largest value in the sequence. Note: it is not +1 becuase it may overflow.
+    /// Returns the largest value in the sequence. Note: it is not +1 because it may overflow.
     pub fn sigma(&self) -> T {
         self.sigma
     }
@@ -157,7 +159,7 @@ where
         self.n_levels
     }
 
-    /// Returns an iterator over the values in the quad vector.
+    /// Returns an iterator over the values in the wavelet tree.
     ///
     /// # Examples
     ///
