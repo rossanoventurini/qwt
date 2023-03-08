@@ -72,7 +72,7 @@ Once the crate has been added, we can easily build a Quad Wavelet Tree with the 
 ```rust
 use qwt::QWT256;
 
-let data: [u8; 8] = [1, 0, 1, 0, 3, 4, 5, 3];
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
 
 let qwt = QWT256::from(data);
 
@@ -107,7 +107,7 @@ Here is an example of the three operations.
 ```rust
 use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
-let data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
 
 let qwt = QWT256::from(data);
 
@@ -131,7 +131,7 @@ In the following example, we use QWT to index a sequence over a larger alphabet.
 ```rust
 use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
 
-let data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
+let data = vec![1u32, 0, 1, 0, 2, 1000000, 5, 3];
 let qwt = QWT256::from(data);
 
 assert_eq!(qwt.get(2), Some(1));
@@ -149,7 +149,7 @@ use std::path::Path;
 
 use qwt::{QWT256, AccessUnsigned};
 
-let data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
 let qwt = QWT256::from(data);
 
 assert_eq!(qwt.get(2), Some(1));

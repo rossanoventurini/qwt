@@ -38,7 +38,6 @@ where
     n_levels: usize, // The number of levels of the wavelet matrix
     sigma: T, // The largest symbol in the sequence. *NOTE*: It's not +1 becuase it may overflow
     qvs: Vec<RS>, // A quaternary vector for each level
-    item_type: PhantomData<T>,
 }
 
 impl<T, RS> QWaveletTree<T, RS>
@@ -70,9 +69,9 @@ where
     /// ```
     /// use qwt::QWT256;
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
@@ -83,7 +82,6 @@ where
                 n_levels: 0,
                 sigma: T::zero(),
                 qvs: vec![RS::default()],
-                item_type: PhantomData,
             };
         }
         let sigma = *sequence.iter().max().unwrap();
@@ -116,7 +114,6 @@ where
             n_levels,
             sigma,
             qvs,
-            item_type: PhantomData,
         }
     }
 
@@ -126,9 +123,9 @@ where
     /// ```
     /// use qwt::QWT256;
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
@@ -159,6 +156,29 @@ where
     pub fn n_levels(&self) -> usize {
         self.n_levels
     }
+
+    /// Returns an iterator over the values in the quad vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::QWT256;
+    ///
+    /// let data: Vec<u8> = (0..10u8).into_iter().cycle().take(100).collect();
+    ///
+    /// let qwt = QWT256::from(data);
+    ///
+    /// for (i, v) in qwt.iter().enumerate() {
+    ///    assert_eq!((i%10) as u8, v);
+    /// }
+    /// ```
+    pub fn iter(&self) -> QWTIterator<T, RS, &QWaveletTree<T, RS>> {
+        QWTIterator {
+            i: 0,
+            qwt: self,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T, RS> RankUnsigned for QWaveletTree<T, RS>
@@ -181,9 +201,9 @@ where
     /// ```
     /// use qwt::{QWT256, RankUnsigned};
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
@@ -211,9 +231,9 @@ where
     /// ```
     /// use qwt::{QWT256, RankUnsigned};
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// unsafe {
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
@@ -265,9 +285,9 @@ where
     /// ```
     /// use qwt::{QWT256, AccessUnsigned};
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.get(2), Some(1));
     /// assert_eq!(qwt.get(3), Some(0));
@@ -277,8 +297,8 @@ where
     /// ```
     /// use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
     ///
-    /// let mut data: [u32; 8] = [1, 0, 1, 0, 2, 1000000, 5, 3];
-    /// let qwt = QWT256::new(&mut data);
+    /// let data = vec![1u32, 0, 1, 0, 2, 1000000, 5, 3];
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.get(2), Some(1));
     /// assert_eq!(qwt.get(5), Some(1000000));
@@ -303,9 +323,9 @@ where
     /// ```
     /// use qwt::{QWT256, AccessUnsigned};
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// unsafe {
     ///     assert_eq!(qwt.get_unchecked(2), 1);
@@ -352,9 +372,9 @@ where
     /// ```
     /// use qwt::{QWT256, SelectUnsigned};
     ///
-    /// let mut data: [u8; 8] = [1, 0, 1, 0, 2, 4, 5, 3];
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::new(&mut data);
+    /// let qwt = QWT256::from(data);
     ///
     /// assert_eq!(qwt.select(1, 1), Some(0));
     /// assert_eq!(qwt.select(0, 2), Some(3));
@@ -434,6 +454,103 @@ where
                 .qvs
                 .iter()
                 .fold(0, |acc, ds| acc + ds.space_usage_bytes())
+    }
+}
+
+impl<T, RS> AsRef<QWaveletTree<T, RS>> for QWaveletTree<T, RS>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default,
+{
+    fn as_ref(&self) -> &QWaveletTree<T, RS> {
+        self
+    }
+}
+
+// This is a naive implementation of an iterator for WT. 
+// We could do better by storing more information and 
+// avoid rank operations!
+pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default,
+{
+    i: usize,
+    qwt: Q,
+    _phantom: PhantomData<(T, RS)>,
+}
+
+impl<T, RS, Q: AsRef<QWaveletTree<T, RS>>> Iterator
+    for QWTIterator<T, RS, Q>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        self.i += 1;
+        qwt.get(self.i - 1)
+    }
+}
+
+impl<T, RS> IntoIterator for QWaveletTree<T, RS>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default, {
+    type IntoIter = QWTIterator<T, RS, QWaveletTree<T,RS>>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        QWTIterator { i: 0, qwt: self, _phantom: PhantomData }
+    }
+}
+
+impl<'a, T, RS> IntoIterator for &'a QWaveletTree<T, RS>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default, {
+    type IntoIter = QWTIterator<T, RS, &'a QWaveletTree<T,RS>>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
