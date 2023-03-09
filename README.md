@@ -33,11 +33,14 @@ To run the experiments, we need to compile the binary executables with
 cargo build --release
 ```
 
-This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
+This produces the two executables `perf_rs_quat_vector`,  `perf_wavelet_tree`, and 
+`perf_wt_bench` in `\target\release\`.
 
-The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. We can safely ignore it.
+The first one is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. We can safely ignore it.
 
-The latter is used to measure the performance of a Quad Wavelet Tree built on a given input text.
+The bin `perf_wavelet_tree`  is used to measure the performance of a Quad Wavelet Tree built on a given input text.
+
+Finally, `perf_wt_bench` compares QWT against other implementations (only [Sucds 0.6.0](https://github.com/kampersanda/sucds) for the moment). 
 
 We can now download and uncompress in the current directory the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/). Then, we take its prefix of length 2 GiB.
 
@@ -53,7 +56,15 @@ The following command builds the wavelet trees (QWT 256 and 512) on this input t
 ./target/release/perf_wavelet_tree --input-file english.2GiB --access --rank --select
 ```
 
-We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries`.
+We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of qfor a comparisonueries with `n_queries`.
+
+We can run
+
+```bash
+./target/release/perf_wt_bench --input-file english.2GiB --access --rank --select
+```
+
+to compare with other implementations.
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
 
