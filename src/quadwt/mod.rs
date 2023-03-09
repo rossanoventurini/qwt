@@ -19,38 +19,66 @@ use std::marker::PhantomData;
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::ops::{Shl, Shr};
 
+/// Alias for the trait bounds to be satisfied by a data structure
+/// we would like to use `rank` and `select` queries at each level
+/// of the wavelet tree.
+/// We need an alias to avoid repeating a lot of bounds here and there.
+pub trait RSforWT:
+    From<QVector>
+    + AccessUnsigned<Item = u8>
+    + RankUnsigned
+    + SelectUnsigned
+    + SymbolsStats
+    + SpaceUsage
+    + Default
+{
+}
+// Generic implementation for any T
+impl<T> RSforWT for T where
+    T: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default
+{
+}
+
+/// Alias for the trait bounds of the type T to be indexable in the
+/// wavelet tree.
+pub trait WTIndexable:
+    Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>
+{
+}
+
+impl<T> WTIndexable for T
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+{
+}
+
 /// The generic RS is the data structure we use to index a quaternary sequence
 /// to support Rank, Select and Access queries.
 #[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
-    sigma: T, // The largest symbol in the sequence. *NOTE*: It's not +1 becuase it may overflow
-    qvs: Vec<RS>, // A quaternary vector for each level
+    sigma: T, // The largest symbol in the sequence. *NOTE*: It's not +1 because it may overflow
+    qvs: Vec<RS>, // A quad vector for each level
 }
 
 impl<T, RS> QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     /// Builds the wavelet tree of the `sequence` of unsigned integers.
     /// The input sequence is **destroyed**.
@@ -60,8 +88,8 @@ where
     /// $$\lfloor\log_2 (\sigma-1)\rfloor + 1$$ (i.e., the length of the
     /// binary representation of values in the sequence).
     /// For this reason, it may be convenient for both space usage and query time to
-    /// remap the alphabet to form a consecutive range [0, d],  where d is the
-    /// number of distinct values in `sequence`.
+    /// remap the alphabet to form a consecutive range [0, d], where d is
+    /// the number of distinct values in `sequence`.
     ///
     /// ## Panics
     /// Panics if the sequence is longer than the largest possible length.
@@ -185,15 +213,9 @@ where
 
 impl<T, RS> RankUnsigned for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     /// Returns rank of `symbol` up to position `i` **excluded**.
     /// `None`, is returned if `i` is out of bound or if `symbol`
@@ -269,15 +291,9 @@ where
 
 impl<T, RS> AccessUnsigned for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     type Item = T;
 
@@ -356,15 +372,9 @@ where
 
 impl<T, RS> SelectUnsigned for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8> + std::fmt::Debug,
+    T: WTIndexable + std::fmt::Debug,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is
     /// returned if i is 0 or if there is no such occurrence for the symbol or if
@@ -439,15 +449,9 @@ where
 
 impl<T, RS> SpaceUsage for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     /// Gives the space usage in bytes of the struct.
     fn space_usage_bytes(&self) -> usize {
@@ -461,7 +465,7 @@ where
 
 impl<T, RS> AsRef<QWaveletTree<T, RS>> for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
     RS: From<QVector>
         + AccessUnsigned<Item = u8>
@@ -481,15 +485,9 @@ where
 // avoid rank operations!
 pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     i: usize,
     qwt: Q,
@@ -498,15 +496,9 @@ where
 
 impl<T, RS, Q: AsRef<QWaveletTree<T, RS>>> Iterator for QWTIterator<T, RS, Q>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
@@ -519,15 +511,9 @@ where
 
 impl<T, RS> IntoIterator for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     type IntoIter = QWTIterator<T, RS, QWaveletTree<T, RS>>;
     type Item = T;
@@ -543,15 +529,9 @@ where
 
 impl<'a, T, RS> IntoIterator for &'a QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     type IntoIter = QWTIterator<T, RS, &'a QWaveletTree<T, RS>>;
     type Item = T;
@@ -563,15 +543,9 @@ where
 
 impl<T, RS> FromIterator<T> for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     fn from_iter<I>(iter: I) -> Self
     where
@@ -583,15 +557,9 @@ where
 
 impl<T, RS> From<Vec<T>> for QWaveletTree<T, RS>
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
+    RS: RSforWT,
 {
     fn from(mut v: Vec<T>) -> Self {
         QWaveletTree::new(&mut v[..])

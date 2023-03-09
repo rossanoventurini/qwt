@@ -5,13 +5,12 @@ use crate::utils::select_in_word;
 use crate::QVector;
 
 use num_traits::int::PrimInt;
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, Unsigned};
 
 use serde::{Deserialize, Serialize};
 
 // Traits
 use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats};
-use num_traits::Unsigned;
 
 /// Alternative representations to support Rank/Select queries at the level of blocks
 mod rs_support_plain;
