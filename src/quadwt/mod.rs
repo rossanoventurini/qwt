@@ -584,7 +584,7 @@ where
 impl<T, RS> From<Vec<T>> for QWaveletTree<T, RS>
 where
     T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>, 
+    u8: AsPrimitive<T>,
     RS: From<QVector>
         + AccessUnsigned<Item = u8>
         + RankUnsigned

@@ -470,7 +470,7 @@ pub trait RSSupport {
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
 }
 
-impl<T, S: RSSupport + SpaceUsage> FromIterator<T> for RSQVector<S> 
+impl<T, S: RSSupport + SpaceUsage> FromIterator<T> for RSQVector<S>
 where
     T: PrimInt + AsPrimitive<u8>,
 {
