@@ -13,6 +13,9 @@
 
 use crate::{AccessUnsigned, SpaceUsage}; // Traits
 
+use num_traits::int::PrimInt;
+use num_traits::AsPrimitive;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
@@ -187,22 +190,19 @@ impl<'a> IntoIterator for &'a QVector {
     }
 }
 
-macro_rules! impl_from_iterator_qvector {
-    ($($t:ty),*) => {
-        $(impl FromIterator<$t> for QVector {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    let mut qvb = QVectorBuilder::default();
-                    qvb.extend(iter);
-                    qvb.build()
-                }
-            })*
+impl<T> FromIterator<T> for QVector
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut qvb = QVectorBuilder::default();
+        qvb.extend(iter);
+        qvb.build()
     }
 }
-
-impl_from_iterator_qvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 impl std::fmt::Debug for QVector {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -278,34 +278,34 @@ impl QVectorBuilder {
     }
 }
 
-macro_rules! impl_from_iterator_qvector_builder {
-    ($($t:ty),*) => {
-        $(impl FromIterator<$t> for QVectorBuilder {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    let mut qvb = QVectorBuilder::default();
-                    qvb.extend(iter);
-                    qvb
-                }
-            }
-
-        impl Extend<$t> for QVectorBuilder {
-            fn extend<T>(&mut self, iter: T)
-            where
-                T: IntoIterator<Item = $t>
-            {
-                for value in iter {
-                    debug_assert!((0..4).contains(&value));
-                    self.push(value as u8);
-                }
-            }
-        })*
+impl<T> FromIterator<T> for QVectorBuilder
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut qvb = QVectorBuilder::default();
+        qvb.extend(iter);
+        qvb
     }
 }
 
-impl_from_iterator_qvector_builder![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
+impl<T> Extend<T> for QVectorBuilder
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        for value in iter {
+            //debug_assert!((0..4).contains(&value));
+            self.push(value.as_());
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;

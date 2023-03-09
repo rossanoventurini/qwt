@@ -4,6 +4,9 @@ use crate::qvector::QVectorIterator;
 use crate::utils::select_in_word;
 use crate::QVector;
 
+use num_traits::int::PrimInt;
+use num_traits::AsPrimitive;
+
 use serde::{Deserialize, Serialize};
 
 // Traits
@@ -467,20 +470,17 @@ pub trait RSSupport {
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
 }
 
-macro_rules! impl_from_iterator_rsqvector {
-    ($($t:ty),*) => {
-        $(impl<S: RSSupport + SpaceUsage> FromIterator<$t> for RSQVector<S> {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    Self::from(QVector::from_iter(iter))
-                }
-            })*
+impl<T, S: RSSupport + SpaceUsage> FromIterator<T> for RSQVector<S> 
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        Self::from(QVector::from_iter(iter))
     }
 }
-
-impl_from_iterator_rsqvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 #[cfg(test)]
 #[generic_tests::define]

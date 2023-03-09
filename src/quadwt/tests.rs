@@ -35,6 +35,15 @@ fn test_small() {
 }
 
 #[test]
+fn test_from_iterator() {
+    let qwt: QWT256<_> = (0..10u32).into_iter().cycle().take(100).collect();
+
+    for (i, v) in qwt.iter().enumerate() {
+        assert_eq!(v, (i as u32) % 10);
+    }
+}
+
+#[test]
 fn test() {
     const N: usize = 1025;
     for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255] {

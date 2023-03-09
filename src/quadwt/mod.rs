@@ -561,51 +561,42 @@ where
     }
 }
 
-macro_rules! impl_from_iterator_qwt {
-    ($($t:ty),*) => {
-        $(impl<RS> FromIterator<$t> for QWaveletTree<$t, RS>
-            where
-            $t: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
-            RS: From<QVector>
-            + AccessUnsigned<Item = u8>
-            + RankUnsigned
-            + SelectUnsigned
-            + SymbolsStats
-            + SpaceUsage
-            + Default, {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    QWaveletTree::new(&mut iter.into_iter().collect::<Vec<$t>>())
-                }
-            })*
+impl<T, RS> FromIterator<T> for QWaveletTree<T, RS>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        QWaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
     }
 }
 
-impl_from_iterator_qwt![u8, u16, u32, u64, u128, usize];
-
-macro_rules! impl_from_qwt {
-    ($($t:ty),*) => {
-        $(impl<RS> From<Vec<$t>> for QWaveletTree<$t, RS>
-            where
-            $t: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
-            RS: From<QVector>
-            + AccessUnsigned<Item = u8>
-            + RankUnsigned
-            + SelectUnsigned
-            + SymbolsStats
-            + SpaceUsage
-            + Default, {
-                fn from(mut v: Vec<$t>) -> Self
-                {
-                    QWaveletTree::new(&mut v[..])
-                }
-            })*
+impl<T, RS> From<Vec<T>> for QWaveletTree<T, RS>
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>, 
+    RS: From<QVector>
+        + AccessUnsigned<Item = u8>
+        + RankUnsigned
+        + SelectUnsigned
+        + SymbolsStats
+        + SpaceUsage
+        + Default,
+{
+    fn from(mut v: Vec<T>) -> Self {
+        QWaveletTree::new(&mut v[..])
     }
 }
-
-impl_from_qwt![u8, u16, u32, u64, u128, usize];
 
 #[cfg(test)]
 mod tests;
