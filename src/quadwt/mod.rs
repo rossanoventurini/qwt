@@ -366,7 +366,7 @@ where
 
 impl<T, RS> SelectUnsigned for QWaveletTree<T, RS>
 where
-    T: WTIndexable + std::fmt::Debug,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
@@ -441,12 +441,7 @@ where
     }
 }
 
-impl<T, RS> SpaceUsage for QWaveletTree<T, RS>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
+impl<T, RS: SpaceUsage> SpaceUsage for QWaveletTree<T, RS> {
     /// Gives the space usage in bytes of the struct.
     fn space_usage_bytes(&self) -> usize {
         8 + 8
@@ -457,18 +452,7 @@ where
     }
 }
 
-impl<T, RS> AsRef<QWaveletTree<T, RS>> for QWaveletTree<T, RS>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default,
-{
+impl<T, RS> AsRef<QWaveletTree<T, RS>> for QWaveletTree<T, RS> {
     fn as_ref(&self) -> &QWaveletTree<T, RS> {
         self
     }
@@ -478,12 +462,7 @@ where
 // We could do better by storing more information and
 // avoid rank operations!
 #[derive(Debug, PartialEq)]
-pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
+pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>> {
     i: usize,
     qwt: Q,
     _phantom: PhantomData<(T, RS)>,
