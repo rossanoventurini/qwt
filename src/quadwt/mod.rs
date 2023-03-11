@@ -20,8 +20,7 @@ use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::ops::{Shl, Shr};
 
 /// Alias for the trait bounds to be satisfied by a data structure
-/// we would like to use `rank` and `select` queries at each level
-/// of the wavelet tree.
+/// to support `rank` and `select` queries at each level of the wavelet tree.
 /// We need an alias to avoid repeating a lot of bounds here and there.
 pub trait RSforWT:
     From<QVector>
@@ -62,12 +61,7 @@ where
 /// The generic RS is the data structure we use to index a quaternary sequence
 /// to support Rank, Select and Access queries.
 #[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
-pub struct QWaveletTree<T, RS>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
+pub struct QWaveletTree<T, RS> {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
     sigma: T, // The largest symbol in the sequence. *NOTE*: It's not +1 because it may overflow
@@ -483,6 +477,7 @@ where
 // This is a naive implementation of an iterator for WT.
 // We could do better by storing more information and
 // avoid rank operations!
+#[derive(Debug, PartialEq)]
 pub struct QWTIterator<T, RS, Q: AsRef<QWaveletTree<T, RS>>>
 where
     T: WTIndexable,

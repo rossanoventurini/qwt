@@ -38,9 +38,7 @@ fn test_small() {
 fn test_from_iterator() {
     let qwt: QWT256<_> = (0..10u32).into_iter().cycle().take(100).collect();
 
-    for (i, v) in qwt.iter().enumerate() {
-        assert_eq!(v, (i as u32) % 10);
-    }
+    assert!(qwt.into_iter().eq((0..10u32).into_iter().cycle().take(100)));
 }
 
 #[test]

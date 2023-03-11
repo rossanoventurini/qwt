@@ -23,13 +23,13 @@ pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 /// The generic `S` is the data structure used to
 /// provide rank/select support at the level of blocks.
 #[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
-pub struct RSQVector<S: RSSupport + SpaceUsage> {
+pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
     n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
 }
 
-impl<S: RSSupport + SpaceUsage> RSQVector<S> {
+impl<S> RSQVector<S> {
     /// Returns an iterator over the values in the quad vector.
     ///
     /// # Examples
@@ -48,14 +48,14 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
+impl<S: SpaceUsage> SpaceUsage for RSQVector<S> {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_bytes(&self) -> usize {
         self.qv.space_usage_bytes() + self.rs_support.space_usage_bytes() + 5 * 8
     }
 }
 
-impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
+impl<S: RSSupport> From<QVector> for RSQVector<S> {
     /// Converts a given quad vector `qv` to a `RSQVector` with support
     /// for `Rank` and `Select` queries.
     ///
@@ -91,7 +91,7 @@ impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> RSQVector<S> {
+impl<S: RSSupport> RSQVector<S> {
     /// Creates a quad vector with support for `RankUnsigned` and `SelectUnsigned`
     /// queries for a sequence of unsigned integers in the range [0, 3].
     ///
@@ -235,7 +235,7 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     */
 }
 
-impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
+impl<S> AccessUnsigned for RSQVector<S> {
     type Item = u8;
 
     /// Accesses the `i`-th value in the quad vector.
@@ -277,7 +277,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
+impl<S: RSSupport> RankUnsigned for RSQVector<S> {
     /// Returns rank of `symbol` up to position `i` **excluded**.
     /// Returns `None` if out of bounds.
     ///
@@ -320,7 +320,7 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> SymbolsStats for RSQVector<S> {
+impl<S> SymbolsStats for RSQVector<S> {
     /// Returns the number of occurrences of `symbol` in the indexed sequence,
     /// `None` if `symbol` is not in [0..3].  
     #[inline(always)]
@@ -366,7 +366,7 @@ impl<S: RSSupport + SpaceUsage> SymbolsStats for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
+impl<S: RSSupport> SelectUnsigned for RSQVector<S> {
     /// Returns the position of the `i`th occurrence of `symbol`.
     /// Returns `None` if i is not valid, i.e., if i == 0 or i is larger than
     /// the number of occurrences of `symbol`, or if `symbol` is not in [0..3].
@@ -426,13 +426,13 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> AsRef<RSQVector<S>> for RSQVector<S> {
+impl<S> AsRef<RSQVector<S>> for RSQVector<S> {
     fn as_ref(&self) -> &RSQVector<S> {
         self
     }
 }
 
-impl<S: RSSupport + SpaceUsage> IntoIterator for RSQVector<S> {
+impl<S> IntoIterator for RSQVector<S> {
     type IntoIter = QVectorIterator<QVector>;
     type Item = u8;
 
@@ -441,7 +441,7 @@ impl<S: RSSupport + SpaceUsage> IntoIterator for RSQVector<S> {
     }
 }
 
-impl<'a, S: RSSupport + SpaceUsage> IntoIterator for &'a RSQVector<S> {
+impl<'a, S> IntoIterator for &'a RSQVector<S> {
     type IntoIter = QVectorIterator<&'a QVector>;
     type Item = u8;
 
@@ -469,7 +469,7 @@ pub trait RSSupport {
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
 }
 
-impl<T, S: RSSupport + SpaceUsage> FromIterator<T> for RSQVector<S>
+impl<T, S: RSSupport> FromIterator<T> for RSQVector<S>
 where
     T: PrimInt + AsPrimitive<u8>,
 {
