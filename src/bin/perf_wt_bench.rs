@@ -181,7 +181,7 @@ fn main() {
     let mut text = std::fs::read(input_filename).expect("Cannot read the input file.");
     let sigma = text_remap(&mut text);
     let n = text.len();
-    let n_levels = msb(sigma) as usize;
+    let n_levels = msb(sigma - 1) as usize + 1;
 
     println!("Text length: {n}");
     println!("Alphabet size: {sigma}");
@@ -226,7 +226,7 @@ fn main() {
     if args.select {
         test_select_performace(&sucds_wm, n, &select_queries);
         test_select_performace(&qwt256, n, &select_queries);
-        test_select_performace(&qwt256, n, &select_queries);
+        test_select_performace(&qwt512, n, &select_queries);
         //test_access_performace(&sdsl_wt, n, &access_queries);
     }
 }
