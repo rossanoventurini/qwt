@@ -5,7 +5,7 @@
 //! the lower 64 bits store the second bit of each symbol.
 //! This is very convenient for computing `rank` and `select` queries within a word.
 //! Indeed, we take the upper and lower parts and, via boolean operation), we obtain
-//! a 64 bit word with a 1 in any position containing a given symbol.
+//! a 64-bit word with a 1 in any position containing a given symbol.
 //! This way, a popcount operation counts the number of occurrences of that symbol
 //! in the word.
 //! Note that using `u128` instead of `u64` is convenient here because the popcount
@@ -95,8 +95,6 @@ impl AccessUnsigned for QVector {
     type Item = u8;
 
     /// Accesses the `i`th value in the quaternary vector.
-    /// The caller must guarantee that the position `i` is
-    /// valid.
     ///
     /// # Safety
     /// Calling this method with an out-of-bounds index is undefined behavior.
