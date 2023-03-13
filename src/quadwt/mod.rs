@@ -109,7 +109,7 @@ where
             };
         }
         let sigma = *sequence.iter().max().unwrap();
-        let log_sigma = msb(sigma) + 1;
+        let log_sigma = msb(sigma) + 1; // Note that sigma equals the largest symbol, so it's already "alphabet_size - 1"
         let n_levels = ((log_sigma + 1) / 2) as usize; // TODO: if log_sigma is odd, the FIRST level should be a binary vector!
 
         let mut qvs = Vec::<RS>::with_capacity(n_levels);
