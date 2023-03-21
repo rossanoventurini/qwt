@@ -18,7 +18,7 @@ use num_traits::AsPrimitive;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QVector {
     data: Box<[u128]>,
     position: usize,

@@ -32,6 +32,7 @@ pub trait RSforWT:
     + Default
 {
 }
+
 // Generic implementation for any T
 impl<T> RSforWT for T where
     T: From<QVector>
@@ -60,7 +61,7 @@ where
 
 /// The generic RS is the data structure we use to index a quaternary sequence
 /// to support Rank, Select and Access queries.
-#[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct QWaveletTree<T, RS> {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix

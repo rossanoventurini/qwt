@@ -22,7 +22,7 @@ pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 
 /// The generic `S` is the data structure used to
 /// provide rank/select support at the level of blocks.
-#[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
