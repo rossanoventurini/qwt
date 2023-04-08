@@ -9,7 +9,7 @@
 //! We can index vectors of length up to 2^{43} symbols.
 
 use crate::utils::{msb, stable_partition_of_4};
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats};
+use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, WTSupport};
 use crate::{QVector, QVectorBuilder}; // Traits
 
 use serde::{Deserialize, Serialize};
@@ -22,28 +22,10 @@ use std::ops::{Shl, Shr};
 /// Alias for the trait bounds to be satisfied by a data structure
 /// to support `rank` and `select` queries at each level of the wavelet tree.
 /// We need an alias to avoid repeating a lot of bounds here and there.
-pub trait RSforWT:
-    From<QVector>
-    + AccessUnsigned<Item = u8>
-    + RankUnsigned
-    + SelectUnsigned
-    + SymbolsStats
-    + SpaceUsage
-    + Default
-{
-}
+pub trait RSforWT: From<QVector> + WTSupport + SpaceUsage + Default {}
 
 // Generic implementation for any T
-impl<T> RSforWT for T where
-    T: From<QVector>
-        + AccessUnsigned<Item = u8>
-        + RankUnsigned
-        + SelectUnsigned
-        + SymbolsStats
-        + SpaceUsage
-        + Default
-{
-}
+impl<T> RSforWT for T where T: From<QVector> + WTSupport + SpaceUsage + Default {}
 
 /// Alias for the trait bounds of the type T to be indexable in the
 /// wavelet tree.
@@ -59,8 +41,8 @@ where
 {
 }
 
-/// The generic RS is the data structure we use to index a quaternary sequence
-/// to support Rank, Select and Access queries.
+/// The generic RS is the data structure we use to index a quaternary
+/// sequence to support `access, `rank`, and `select` queries.
 #[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct QWaveletTree<T, RS> {
     n: usize,        // The length of the represented sequence
@@ -236,7 +218,7 @@ where
             return None;
         }
 
-        // Safety: Check above guarantees we are not out of bound
+        // SAFETY: Check above guarantees we are not out of bound
         Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
@@ -323,7 +305,7 @@ where
         if i >= self.n {
             return None;
         }
-        // Safety: check before guarantees we are not out of bound
+        // SAFETY: check before guarantees we are not out of bound
         Some(unsafe { self.get_unchecked(i) })
     }
 
@@ -352,10 +334,12 @@ where
         let mut cur_i = i;
         for level in 0..self.n_levels - 1 {
             // The last rank can be saved. The improvement is just ~3%. Indeed, most of the cost is for the cache miss for data access that we pay anyway
+
+            self.qvs[level].prefetch_info(cur_i); // Compiler is not able to infer that later it is needed for the rank query. Access is roughly 33% slower for large files without this.
             let symbol = self.qvs[level].get_unchecked(cur_i);
             result = (result << 2) | symbol.as_();
 
-            // Safety: Here we are sure that symbol is in [0..3]
+            // SAFETY: Here we are sure that symbol is in [0..3]
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
             cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
         }

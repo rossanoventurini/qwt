@@ -50,3 +50,30 @@ macro_rules! test_collect_and_get {
 }
 
 test_collect_and_get![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
+
+#[test]
+fn test_data_line() {
+    let data_line = DataLine {
+        // contains only symbol 1
+        words: [
+            0x0000000000000000FFFFFFFFFFFFFFFF,
+            0x0000000000000000FFFFFFFFFFFFFFFF,
+            0x0000000000000000FFFFFFFFFFFFFFFF,
+            0x0000000000000000FFFFFFFFFFFFFFFF,
+        ],
+    };
+
+    for i in 0..256 {
+        dbg!(i);
+        assert_eq!(data_line.get(i), Some(1));
+    }
+
+    for i in 0..=256 {
+        dbg!(i);
+        assert_eq!(data_line.rank(0, i), Some(0));
+    }
+
+    for i in 0..=256 {
+        assert_eq!(data_line.rank(1, i), Some(i));
+    }
+}

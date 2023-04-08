@@ -1,4 +1,4 @@
-//! This library provides an efficient implementation of [Wavelet Trees](https://en.wikipedia.org/wiki/Wavelet_Tree).
+//! The crate provides an efficient implementation of [Wavelet Trees](https://en.wikipedia.org/wiki/Wavelet_Tree).
 //!
 //! A wavelet tree [[1](#bib)] is a compact data structure that for a text of length
 //! $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$
@@ -10,7 +10,7 @@
 //! - `rank(c, i)` returns the number of occurrences of the symbol `c` in the prefix S[0...i-1];
 //! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`.
 //!  
-//! Our implementation of Wavelet Tree improves query performance by using a 4-ary
+//! Our implementation of Wavelet Tree [2] improves query performance by using a 4-ary
 //! tree instead of a binary tree as the basis of the wavelet tree.
 //! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses
 //! during queries and thus reduces the query latency. This way we are roughly 2 times
@@ -18,6 +18,7 @@
 //!
 //! ## <a name="bib">Bibliography</a>
 //! 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
+//! 2. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. Faster Wavelet Trees with Quad Vectors. Arxiv, 2023.
 
 pub mod perf_and_test_utils;
 pub mod qvector;
@@ -26,10 +27,9 @@ pub use qvector::QVectorBuilder;
 
 pub mod utils;
 
-pub mod rs_qvector;
-pub use rs_qvector::RSQVector;
-pub use rs_qvector::RSQVector256;
-pub use rs_qvector::RSQVector512;
+pub use qvector::rs_qvector::RSQVector;
+pub use qvector::rs_qvector::RSQVector256;
+pub use qvector::rs_qvector::RSQVector512;
 
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
@@ -42,8 +42,10 @@ use num_traits::Unsigned;
 /// An interface for supporting `get` queries over an `Unsigned` alphabet.
 pub trait AccessUnsigned {
     type Item: Unsigned;
+
     /// Returns the symbol at position `i`.
     fn get(&self, i: usize) -> Option<Self::Item>;
+
     /// Returns the symbol at position `i`.
     ///
     /// # Safety
@@ -56,6 +58,7 @@ pub trait RankUnsigned: AccessUnsigned {
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
     /// position `i` excluded.
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize>;
+
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
     /// position `i` excluded. The function does not check boundaries.
     ///
@@ -82,31 +85,47 @@ pub trait SelectUnsigned: AccessUnsigned {
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
-/// An interface to report the number of occurrences of symbols in a sequence.
-pub trait SymbolsStats: AccessUnsigned {
-    /// Returns the number of occurrences of `symbol` in the indexed sequence,
-    /// `None` if `symbol` is larger than the largest symbol, i.e., `symbol` is not valid.  
-    fn occs(&self, symbol: Self::Item) -> Option<usize>;
+/// An interface for supporting `get` queries over the alphabet [0..3].
+pub trait AccessQuad {
+    /// Returns the symbol at position `i`.
+    fn get(&self, i: usize) -> Option<u8>;
 
-    /// Returns the number of occurrences of `symbol` in the indexed sequence.
+    /// Returns the symbol at position `i`.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol`
-    /// larger than the largest symbol is undefined behavior.
-    unsafe fn occs_unchecked(&self, symbol: Self::Item) -> usize;
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    unsafe fn get_unchecked(&self, i: usize) -> u8;
+}
 
-    /// Returns the number of occurrences of all the symbols smaller than the
-    /// input `symbol`, `None` if `symbol` is larger than the largest symbol,
-    /// i.e., `symbol` is not valid.  
-    fn occs_smaller(&self, symbol: Self::Item) -> Option<usize>;
+pub trait RankQuad {
+    /// Returns the number of occurrences in the indexed sequence of `symbol` up to
+    /// position `i` excluded.
+    fn rank(&self, symbol: u8, i: usize) -> Option<usize>;
 
-    /// Returns the number of occurrences of all the symbols smaller than the input
-    /// `symbol` in the indexed sequence.
+    /// Returns the number of occurrences in the indexed sequence of `symbol` up to
+    /// position `i` excluded.The function does not check boundaries.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol` larger than the
-    /// largest symbol is undefined behavior.
-    unsafe fn occs_smaller_unchecked(&self, symbol: Self::Item) -> usize;
+    /// Calling this method with an out-of-bounds index or with a symbol larger than
+    /// 3 is undefined behavior.
+    unsafe fn rank_unchecked(&self, symbol: u8, i: usize) -> usize;
+}
+
+pub trait SelectQuad {
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `symbol`.
+    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    fn select(&self, symbol: u8, i: usize) -> Option<usize>;
+
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `symbol`.
+    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// occurrence of `symbol`.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol` does not exist or with a symbol larger than 3 is undefined behavior.
+    unsafe fn select_unchecked(&self, symbol: u8, i: usize) -> usize;
 }
 
 /// An interface to report the space usage of a data structure.
@@ -133,9 +152,43 @@ pub trait SpaceUsage {
     }
 }
 
+/// An interface for the operations that a quad vector implementation needs
+/// to provide to support Wavelet Tree queries.
+pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
+    /// Returns the number of occurrences of `symbol` in the indexed sequence,
+    /// `None` if `symbol` is larger than the largest symbol, i.e., `symbol` is not valid.  
+    fn occs(&self, symbol: u8) -> Option<usize>;
+
+    /// Returns the number of occurrences of `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol`
+    /// larger than the largest symbol is undefined behavior.
+    unsafe fn occs_unchecked(&self, symbol: u8) -> usize;
+
+    /// Returns the number of occurrences of all the symbols smaller than the
+    /// input `symbol`, `None` if `symbol` is larger than the largest symbol,
+    /// i.e., `symbol` is not valid.  
+    fn occs_smaller(&self, symbol: u8) -> Option<usize>;
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `symbol` larger than the
+    /// largest symbol is undefined behavior.
+    unsafe fn occs_smaller_unchecked(&self, symbol: u8) -> usize;
+
+    /// Prefetches counter of superblock and blocks containing the position `pos`.
+    fn prefetch_info(&self, pos: usize);
+
+    /// Prefetches data containing the position `pos`.
+    fn prefetch_data(&self, pos: usize);
+}
+
 use std::mem;
-/// TODO: Improve and generalize. Incorrect if T is not primitive type
-/// It is also error prone to implement this for every data structure.
+/// TODO: Improve and generalize. Incorrect if T is not a primitive type.
+/// It is also error-prone to implement this for every data structure.
 /// Make a macro to go over the member of a struct!
 impl<T> SpaceUsage for Vec<T>
 where

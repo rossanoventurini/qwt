@@ -2,14 +2,14 @@ use qwt::perf_and_test_utils::{gen_queries, type_of, TimingQueries};
 use qwt::RSQVector256;
 
 // traits
-use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
+use qwt::{AccessQuad, RankQuad, SelectQuad, SpaceUsage};
 
-const N_RUNS: usize = 15;
+const N_RUNS: usize = 5;
 const N_QUERIES: usize = 10000000;
 
 fn perf_rank<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: RankUnsigned<Item = u8> + SpaceUsage,
+    T: RankQuad + SpaceUsage,
 {
     let mut result = 0;
 
@@ -39,7 +39,7 @@ where
 
 fn perf_get<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: AccessUnsigned<Item = u8> + SpaceUsage,
+    T: AccessQuad + SpaceUsage,
 {
     let mut result = 0;
 
@@ -70,7 +70,7 @@ where
 
 fn perf_select<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: SelectUnsigned<Item = u8> + SpaceUsage,
+    T: SelectQuad + SpaceUsage,
 {
     let mut result = 0;
 
@@ -102,7 +102,7 @@ where
 }
 
 fn main() {
-    for logn in 33..34 {
+    for logn in 30..33 {
         let n = 1 << logn;
 
         let v: Vec<u8> = [0, 1, 2, 3].into_iter().cycle().take(n).collect();

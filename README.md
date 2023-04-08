@@ -30,7 +30,7 @@ We note that the results for the rank query depend on how we generate the symbol
 
 To run the experiments, we need to compile the binary executables with
 ```bash
-cargo build --release
+RUSTFLAGS='-C target-cpu=native' cargo build --release
 ```
 
 This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.

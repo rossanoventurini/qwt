@@ -6,6 +6,7 @@ use crate::QVector;
 use crate::SpaceUsage; // Traits
 
 use serde::{Deserialize, Serialize};
+use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA}; //_MM_HINT_T0;
 
 use super::*;
 
@@ -132,20 +133,18 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         }
     }
 
-    /// Returns the number of occurrences of `SYMBOL` up to the beginning
+    /// Returns the number of occurrences of `symbol` up to the beginning
     /// of the block that contains position `i`.
-    ///
-    /// We use a const generic to have a specialized method for each symbol.
     #[inline(always)]
-    fn rank_block<const SYMBOL: u8>(&self, i: usize) -> usize {
-        debug_assert!(SYMBOL <= 3, "Symbols are in [0, 3].");
+    fn rank_block(&self, symbol: u8, i: usize) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
 
         let superblock_index = Self::superblock_index(i);
         let block_index = Self::block_index(i);
 
-        let mut result = self.superblocks[superblock_index].get_superblock_counter(SYMBOL);
+        let mut result = self.superblocks[superblock_index].get_superblock_counter(symbol);
 
-        result += self.superblocks[superblock_index].get_block_counter(SYMBOL, block_index % 8);
+        result += self.superblocks[superblock_index].get_block_counter(symbol, block_index % 8);
 
         result
     }
@@ -194,6 +193,15 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
         (position, rank)
     }
+
+    #[inline(always)]
+    fn prefetch(&self, pos: usize) {
+        let superblock_index = Self::superblock_index(pos) as isize;
+        let p = self.superblocks.as_ptr();
+        unsafe {
+            _mm_prefetch(p.offset(superblock_index) as *const i8, _MM_HINT_NTA);
+        }
+    }
 }
 
 impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
@@ -217,6 +225,7 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[repr(C, align(64))]
 struct SuperblockPlain {
     counters: [u128; 4],
 }
@@ -276,8 +285,8 @@ impl SuperblockPlain {
     /// such that its counter is smaller than `target` value.
     ///
     /// # TODO
-    /// The loop is not (auto)vectorized but we know we are just searching for the predecessor
-    ///x of a 12bit value in the last 84 bits of a u128.
+    /// The loop is not (auto)vectorized but we know we are just searching for the
+    /// predecessor x of a 12bit value in the last 84 bits of a u128.
     #[inline(always)]
     pub fn block_predecessor(&self, symbol: u8, target: usize) -> (usize, usize) {
         let mut cnt = self.counters[symbol as usize];
