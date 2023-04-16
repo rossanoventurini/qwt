@@ -20,6 +20,8 @@
 //! 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 //! 2. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. Faster Wavelet Trees with Quad Vectors. Arxiv, 2023.
 
+#![feature(stdsimd)]
+
 pub mod perf_and_test_utils;
 pub mod qvector;
 pub use qvector::QVector;

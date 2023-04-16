@@ -2,9 +2,7 @@
 
 use super::{DataLine, QVector, QVectorIterator};
 
-use crate::utils::select_in_word;
-
-use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA}; //_MM_HINT_T0;
+use crate::utils::{prefetch_read_NTA, select_in_word};
 
 use num_traits::int::PrimInt;
 use num_traits::{AsPrimitive, Unsigned};
@@ -405,16 +403,11 @@ impl<S: RSSupport> WTSupport for RSQVector<S> {
     /// Prefetches data containing the position `pos`.
     #[inline(always)]
     fn prefetch_data(&self, pos: usize) {
-        let line_id = (pos >> 8) as isize;
-        let p = self.qv.data.as_ptr();
-        unsafe {
-            _mm_prefetch(p.offset(line_id) as *const i8, _MM_HINT_NTA);
-            if S::BLOCK_SIZE == 512 {
-                _mm_prefetch(
-                    p.offset(if line_id > 0 { line_id - 1 } else { 0 }) as *const i8,
-                    _MM_HINT_NTA,
-                );
-            }
+        let line_id = pos >> 8;
+
+        prefetch_read_NTA(&self.qv.data, line_id);
+        if S::BLOCK_SIZE == 512 {
+            prefetch_read_NTA(&self.qv.data, if line_id > 0 { line_id - 1 } else { 0 });
         }
     }
 }
