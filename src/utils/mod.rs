@@ -4,6 +4,24 @@ use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::collections::{HashMap, HashSet};
 use std::ops::Shr;
 
+#[allow(non_snake_case)]
+pub fn prefetch_read_NTA<T>(data: &[T], offset: usize) {
+    let p = unsafe { data.as_ptr().add(offset) };
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        #[cfg(target_arch = "x86")]
+        use std::arch::x86::{_mm_prefetch, _MM_HINT_NTA};
+
+        #[cfg(target_arch = "x86_64")]
+        use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA};
+
+        unsafe {
+            _mm_prefetch(p as *const i8, _MM_HINT_NTA);
+        }
+    }
+}
+
 // Required by select64
 const K_SELECT_IN_BYTE: [u8; 2048] = [
     8, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
