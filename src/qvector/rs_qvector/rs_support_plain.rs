@@ -2,11 +2,11 @@
 //! symbols of a quad sequence up to the beginning of blocks of a fixed size
 //! `Self::BLOCK_SIZE`.
 
+use crate::utils::prefetch_read_NTA;
 use crate::QVector;
 use crate::SpaceUsage; // Traits
 
 use serde::{Deserialize, Serialize};
-use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA}; //_MM_HINT_T0;
 
 use super::*;
 
@@ -142,11 +142,11 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         let superblock_index = Self::superblock_index(i);
         let block_index = Self::block_index(i);
 
-        let mut result = self.superblocks[superblock_index].get_superblock_counter(symbol);
-
-        result += self.superblocks[superblock_index].get_block_counter(symbol, block_index % 8);
-
-        result
+        unsafe {
+            self.superblocks
+                .get_unchecked(superblock_index)
+                .get_rank(symbol, block_index & 7)
+        }
     }
 
     /// Returns a pair `(position, rank)` where the position is the beginning of the block
@@ -196,11 +196,9 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
     #[inline(always)]
     fn prefetch(&self, pos: usize) {
-        let superblock_index = Self::superblock_index(pos) as isize;
-        let p = self.superblocks.as_ptr();
-        unsafe {
-            _mm_prefetch(p.offset(superblock_index) as *const i8, _MM_HINT_NTA);
-        }
+        let superblock_index = Self::superblock_index(pos);
+
+        prefetch_read_NTA(&self.superblocks, superblock_index);
     }
 }
 
@@ -252,8 +250,19 @@ impl SuperblockPlain {
     }
 
     #[inline(always)]
+    fn get_rank(&self, symbol: u8, block_id: usize) -> usize {
+        let data = unsafe { *self.counters.get_unchecked(symbol as usize) };
+        let sb = (data >> 84) as usize;
+
+        // We avoid a branch here. We want b be 0 if block_id is 0, real counter extracted from data otherwise
+        let not_first = (block_id > 0) as usize;
+        let b = ((data >> ((block_id - not_first) * 12)) as usize & 0b111111111111) * not_first;
+
+        sb + b
+    }
+
     fn get_superblock_counter(&self, symbol: u8) -> usize {
-        (self.counters[symbol as usize] >> 84) as usize
+        (unsafe { *self.counters.get_unchecked(symbol as usize) } >> 84) as usize
     }
 
     fn set_block_counters(&mut self, block_id: usize, counters: &[usize; 4]) {
@@ -271,9 +280,9 @@ impl SuperblockPlain {
         }
     }
 
-    #[inline(always)]
     fn get_block_counter(&self, symbol: u8, block_id: usize) -> usize {
         debug_assert!(block_id < Self::BLOCKS_IN_SUPERBLOCK);
+
         if block_id == 0 {
             0
         } else {

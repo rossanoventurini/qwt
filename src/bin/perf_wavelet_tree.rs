@@ -64,7 +64,7 @@ fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
             N_RUNS
         );
 
-    println!("fake {}", result);
+    println!("Result: {}", result);
 }
 
 fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
@@ -97,7 +97,7 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
         queries.len(),
         N_RUNS
     );
-    println!("Fake {result}");
+    println!("Result: {result}");
 }
 
 fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
@@ -133,7 +133,7 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         N_RUNS
     );
 
-    println!("fake {}", result);
+    println!("Result: {}", result);
 }
 
 fn test_correctness<
