@@ -32,17 +32,17 @@ struct DataLine {
 
 impl DataLine {
     const REPEATEDSYMB: [u128; 4] = [
-        0x00000000000000000000000000000000,
-        0x0000000000000000FFFFFFFFFFFFFFFF,
-        0xFFFFFFFFFFFFFFFF0000000000000000,
         0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
+        0xFFFFFFFFFFFFFFFF0000000000000000,
+        0x0000000000000000FFFFFFFFFFFFFFFF,
+        0x00000000000000000000000000000000,
     ];
 
     // Return a u64 where each bit is `1` if the corresponding symbol
     // in the `word` is equal to the `symbol`, `0` otherwise.
     #[inline(always)]
     fn normalize(word: u128, symbol: u8) -> u64 {
-        let word = !(word ^ Self::REPEATEDSYMB[symbol as usize]);
+        let word = word ^ Self::REPEATEDSYMB[symbol as usize];
         let word_high = (word >> 64) as u64;
         let word_low = word as u64;
 
