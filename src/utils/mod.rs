@@ -167,11 +167,10 @@ pub fn select_in_word_u128(word: u128, k: u64) -> u32 {
     let first = word as u64;
 
     let kp = first.count_ones();
-
     if kp as u64 > k {
         select_in_word(first, k)
     } else {
-        kp + select_in_word((word >> 64) as u64, k - kp as u64)
+        64 + select_in_word((word >> 64) as u64, k - kp as u64)
     }
 }
 

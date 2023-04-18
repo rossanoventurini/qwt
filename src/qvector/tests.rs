@@ -53,27 +53,25 @@ test_collect_and_get![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, u
 
 #[test]
 fn test_data_line() {
-    let data_line = DataLine {
-        // contains only symbol 1
-        words: [
-            0x0000000000000000FFFFFFFFFFFFFFFF,
-            0x0000000000000000FFFFFFFFFFFFFFFF,
-            0x0000000000000000FFFFFFFFFFFFFFFF,
-            0x0000000000000000FFFFFFFFFFFFFFFF,
-        ],
-    };
+    // new data_line full of `symbol``
+    for symbol in 0..4 {
+        let mut data_line = DataLine::default();
 
-    for i in 0..256 {
-        dbg!(i);
-        assert_eq!(data_line.get(i), Some(1));
-    }
+        for i in 0..256 {
+            data_line.set_symbol(symbol, i);
+        }
 
-    for i in 0..=256 {
-        dbg!(i);
-        assert_eq!(data_line.rank(0, i), Some(0));
-    }
+        for i in 0..256 {
+            assert_eq!(data_line.get(i), Some(symbol));
+        }
 
-    for i in 0..=256 {
-        assert_eq!(data_line.rank(1, i), Some(i));
+        for i in 0..=256 {
+            assert_eq!(data_line.rank((symbol + 1) % 4, i), Some(0));
+        }
+
+        for i in 0..=256 {
+            dbg!(i, symbol);
+            assert_eq!(data_line.rank(symbol, i), Some(i));
+        }
     }
 }

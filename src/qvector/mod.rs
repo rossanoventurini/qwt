@@ -1,16 +1,8 @@
 //! This module implements a quad vector to store a sequence with values from [0..3],
 //! i.e., two bits symbols.
 //!
-//! This implementation uses a vector of `u128`. Each `u128` stores (up to) 64
-//! symbols. The upper 64 bits of each `u128` store the first bit of the symbols while
-//! the lower 64 bits store the second bit of each symbol.
-//! This is very convenient for computing `rank` and `select` queries within a word.
-//! Indeed, we take the upper and lower parts and, via boolean operation), we obtain
-//! a 64-bit word with a 1 in any position containing a given symbol.
-//! This way, a popcount operation counts the number of occurrences of that symbol
-//! in the word.
-//! Note that using `u128` instead of `u64` is convenient here because the popcount
-//! operates on 64 bits. So, the use of `u128` fully uses every popcount.
+//! This implementation uses a vector of `DataLine`. Each `DataLine` is an array of four `u128`
+//! and stores (up to) 256 symbols.
 
 use crate::{AccessQuad, RankQuad, SpaceUsage}; // Traits
 
@@ -31,22 +23,47 @@ struct DataLine {
 }
 
 impl DataLine {
-    const REPEATEDSYMB: [u128; 4] = [
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,
-        0xFFFFFFFFFFFFFFFF0000000000000000,
-        0x0000000000000000FFFFFFFFFFFFFFFF,
+    const MASK: u128 = 3;
+
+    const REPEATEDSYMB: [u128; 2] = [
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, // !bit repeated
         0x00000000000000000000000000000000,
     ];
 
-    // Return a u64 where each bit is `1` if the corresponding symbol
-    // in the `word` is equal to the `symbol`, `0` otherwise.
-    #[inline(always)]
-    fn normalize(word: u128, symbol: u8) -> u64 {
-        let word = word ^ Self::REPEATEDSYMB[symbol as usize];
-        let word_high = (word >> 64) as u64;
-        let word_low = word as u64;
+    // #[inline(always)]
+    fn normalize(&self, symbol: u8) -> (u128, u128) {
+        let word_high_0 = self.words[0] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
+        let word_low_0 = self.words[2] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
+        let word_high_1 = self.words[1] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
+        let word_low_1 = self.words[3] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
 
-        word_high & word_low
+        (word_high_0 & word_low_0, word_high_1 & word_low_1)
+    }
+
+    // Return a u128 where each bit is `1` if the corresponding symbol
+    // in the word_high_id is equal to the `symbol`, `0` otherwise.
+    // #[inline(always)]
+    // fn normalize(&self, word_high_id: usize, symbol: u8) -> u128 {
+    //     let word_high = self.words[word_high_id] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
+    //     let word_low = self.words[word_high_id + 2] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
+
+    //     word_high & word_low
+    // }
+
+    // Set the position `i` to `symbol`
+    #[inline]
+    fn set_symbol(&mut self, symbol: u8, i: usize) {
+        // The higher bit is placed in the first two words,
+        // the lower bit is placed in the second two words.
+
+        let word_id_high = i >> 7;
+        let word_id_low = word_id_high + 2;
+        let cur_shift = i & 127;
+
+        let symbol = (symbol as u128) & Self::MASK;
+
+        self.words[word_id_high] |= (symbol >> 1) << cur_shift;
+        self.words[word_id_low] |= (symbol & 1) << cur_shift;
     }
 }
 
@@ -60,12 +77,14 @@ impl AccessQuad for DataLine {
 
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> u8 {
-        let word_id = i >> 6;
-        let shift = i & 63;
+        let word_id_high = i >> 7;
+        let word_id_low = word_id_high + 2;
+        let cur_shift = i & 127;
 
-        let word = unsafe { *self.words.get_unchecked(word_id) };
+        let word_high = unsafe { *self.words.get_unchecked(word_id_high) };
+        let word_low = unsafe { *self.words.get_unchecked(word_id_low) };
 
-        ((word >> (64 + shift - 1)) & 2 | (word >> shift) & 1) as u8
+        ((word_high >> (cur_shift) & 1) << 1 | (word_low >> cur_shift) & 1) as u8
     }
 }
 
@@ -84,21 +103,30 @@ impl RankQuad for DataLine {
         debug_assert!(symbol <= 3, "Only the four symbols in [0, 3] are possible.");
         debug_assert!(i <= 256, "Only positions up to 256 are possible");
 
-        let last_word = i / 64;
-        let offset = i & 63; // offset within the last word
+        let (word_0, word_1) = self.normalize(symbol);
 
-        let mask_full = u64::MAX;
-        let mask_offset = if offset > 0 { (1_u64 << offset) - 1 } else { 0 };
-        let mask_zero = 0;
+        let last_word = i >> 7;
+        let offset = i & 127; // offset within the last word
 
-        let mut rank = 0;
-        for (i, &word) in self.words.iter().enumerate() {
-            let mask = if i < last_word { mask_full } else { mask_zero };
-            let mask = if i == last_word { mask_offset } else { mask };
-            rank += (Self::normalize(word, symbol) & mask).count_ones() as usize;
-        }
+        let mask_full = u128::MAX;
+        let mask_offset = (1_u128 << offset) - 1;
 
-        rank
+        let mask = if last_word == 0 {
+            mask_offset
+        } else {
+            mask_full
+        };
+        let mut rank = (word_0 & mask).count_ones();
+
+        let mask = if last_word == 1 {
+            mask_offset
+        } else {
+            mask_full * (last_word == 2) as u128
+        };
+
+        rank += (word_1 & mask).count_ones();
+
+        rank as usize
     }
 }
 
@@ -181,10 +209,10 @@ impl AccessQuad for QVector {
         debug_assert!(i < self.position / 2);
 
         let line = i >> 8;
-        let offset_in_line = i & 255;
+        let pos_in_last_line = i & 255;
         let line = self.data.get_unchecked(line);
 
-        line.get_unchecked(offset_in_line)
+        line.get_unchecked(pos_in_last_line)
     }
 
     /// Access the `i`th value in the quaternary vector
@@ -282,7 +310,6 @@ pub struct QVectorBuilder {
 }
 
 impl QVectorBuilder {
-    const MASK: u128 = 3;
     const N_BITS_WORD: usize = 128 * 4;
 
     /// Build the `qvector`.
@@ -310,29 +337,25 @@ impl QVectorBuilder {
         }
     }
 
-    /// Appends the (last 2 bits of the) value `v` at the end
+    /// Appends the (last 2 bits of the) value `symbol` at the end
     /// of the quad vector.
     ///
-    /// It does not check if the value `v` fits is actually in [0..3].
+    /// It does not check if the value `symbol` fits is actually in [0..3].
     /// The value is truncated to the two least significant bits.
     ///
     /// # Panics
     /// Panics if the new capacity exceeds `isize::MAX` bytes.
-    pub fn push(&mut self, v: u8) {
-        let offset_in_line = (self.position / 2) & 255;
-        if offset_in_line == 0 {
+    pub fn push(&mut self, symbol: u8) {
+        let pos_in_last_line = (self.position / 2) & 255;
+        if pos_in_last_line == 0 {
             // no more space in the current line
             self.data.push(DataLine::default());
         }
 
-        let word_id = offset_in_line >> 6;
-        let cur_shift = offset_in_line & 63;
-
-        let v = (v as u128) & Self::MASK;
-
-        let last_line = self.data.last_mut().unwrap();
-
-        last_line.words[word_id] |= (v >> 1) << (64 + cur_shift) | ((v & 1) << cur_shift);
+        self.data
+            .last_mut()
+            .unwrap()
+            .set_symbol(symbol, pos_in_last_line);
 
         self.position += 2;
     }

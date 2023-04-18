@@ -1,8 +1,8 @@
 //! This module provides support for `rank` and `select` queries on a quad vector.
 
-use super::{DataLine, QVector, QVectorIterator};
+use super::{QVector, QVectorIterator};
 
-use crate::utils::{prefetch_read_NTA, select_in_word};
+use crate::utils::{prefetch_read_NTA, select_in_word_u128};
 
 use num_traits::int::PrimInt;
 use num_traits::{AsPrimitive, Unsigned};
@@ -125,28 +125,29 @@ impl<S: RSSupport> RSQVector<S> {
     #[inline]
     fn select_intra_block(&self, symbol: u8, i: usize, pos: usize) -> usize {
         let line_id = pos >> 8;
-        let mut cnt = 0;
+        let mut result = 0;
+        let mut i = i - 1;
 
         for j in 0..if S::BLOCK_SIZE == 256 { 1 } else { 2 } {
-            // may need two iterations for blocks of size 512
-            let words = unsafe { self.qv.data.get_unchecked(line_id + j).words };
-            for (k, &word) in words.iter().enumerate() {
-                let norm_word = DataLine::normalize(word, symbol);
-                let prev_cnt = cnt;
-                cnt += norm_word.count_ones() as usize;
+            // May need two iterations for blocks of size 512
+            let (word_0, word_1) =
+                unsafe { self.qv.data.get_unchecked(line_id + j).normalize(symbol) };
 
-                if cnt >= i {
-                    // previous word is the target
-                    let residual = i - prev_cnt;
-                    let mut result = (j * 4 + k) * 64;
-                    result += if residual == 0 {
-                        0
-                    } else {
-                        select_in_word(norm_word, (residual - 1) as u64) as usize
-                        // -1 because select_in_words starts counting occurrences from 0
-                    };
-                    return result;
-                }
+            let cnt_0 = word_0.count_ones() as usize;
+            if cnt_0 > i {
+                let p = select_in_word_u128(word_0, i as u64) as usize;
+                return result + p;
+            } else {
+                i -= cnt_0;
+                result += 128;
+            }
+
+            let cnt_1 = word_1.count_ones() as usize;
+            if cnt_1 > i {
+                return result + select_in_word_u128(word_1, i as u64) as usize;
+            } else {
+                i -= cnt_1;
+                result += 128;
             }
         }
         0
@@ -515,7 +516,6 @@ mod tests {
         for (i, c) in qv.iter().enumerate() {
             let rank = rsqv.rank(c, i + 1).unwrap();
             let s = rsqv.select(c, rank).unwrap();
-
             assert_eq!(s, i);
         }
     }
@@ -549,7 +549,6 @@ mod tests {
                 let qv: QVector = iter::repeat(symbol).take(n).collect();
                 let rsqv = D::from(qv.clone());
                 for i in 0..qv.len() + 1 {
-                    dbg!(i, symbol, n);
                     if i < qv.len() {
                         assert_eq!(rsqv.get(i), Some(symbol));
                     }
