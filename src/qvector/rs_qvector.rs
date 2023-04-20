@@ -50,8 +50,8 @@ impl<S> RSQVector<S> {
 
 impl<S: SpaceUsage> SpaceUsage for RSQVector<S> {
     /// Gives the space usage in bytes of the data structure.
-    fn space_usage_bytes(&self) -> usize {
-        self.qv.space_usage_bytes() + self.rs_support.space_usage_bytes() + 5 * 8
+    fn space_usage_byte(&self) -> usize {
+        self.qv.space_usage_byte() + self.rs_support.space_usage_byte() + 5 * 8
     }
 }
 

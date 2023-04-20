@@ -26,29 +26,22 @@ impl DataLine {
     const MASK: u128 = 3;
 
     const REPEATEDSYMB: [u128; 2] = [
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, // !bit repeated
-        0x00000000000000000000000000000000,
+        u128::MAX, // !bit repeated
+        0,
     ];
 
-    // #[inline(always)]
+    #[inline(always)]
     fn normalize(&self, symbol: u8) -> (u128, u128) {
-        let word_high_0 = self.words[0] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
-        let word_low_0 = self.words[2] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
-        let word_high_1 = self.words[1] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
-        let word_low_1 = self.words[3] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
+        let mask_high = Self::REPEATEDSYMB[(symbol >> 1) as usize];
+        let mask_low = Self::REPEATEDSYMB[(symbol & 1) as usize];
+
+        let word_high_0 = self.words[0] ^ mask_high;
+        let word_low_0 = self.words[2] ^ mask_low;
+        let word_high_1 = self.words[1] ^ mask_high;
+        let word_low_1 = self.words[3] ^ mask_low;
 
         (word_high_0 & word_low_0, word_high_1 & word_low_1)
     }
-
-    // Return a u128 where each bit is `1` if the corresponding symbol
-    // in the word_high_id is equal to the `symbol`, `0` otherwise.
-    // #[inline(always)]
-    // fn normalize(&self, word_high_id: usize, symbol: u8) -> u128 {
-    //     let word_high = self.words[word_high_id] ^ Self::REPEATEDSYMB[(symbol >> 1) as usize];
-    //     let word_low = self.words[word_high_id + 2] ^ Self::REPEATEDSYMB[(symbol & 1) as usize];
-
-    //     word_high & word_low
-    // }
 
     // Set the position `i` to `symbol`
     #[inline]
@@ -133,7 +126,7 @@ impl RankQuad for DataLine {
 // The trait SelectQuad is not implemented because RSSupport needs to it by hand :-)
 
 impl SpaceUsage for DataLine {
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         64
     }
 }
@@ -239,8 +232,8 @@ impl AccessQuad for QVector {
 }
 
 impl SpaceUsage for QVector {
-    fn space_usage_bytes(&self) -> usize {
-        self.data.space_usage_bytes() + 8
+    fn space_usage_byte(&self) -> usize {
+        self.data.space_usage_byte() + 8
     }
 }
 

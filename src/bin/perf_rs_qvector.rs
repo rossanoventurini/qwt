@@ -24,7 +24,7 @@ where
     }
     let (t_min, t_max, t_avg) = t.get();
     println!(
-        "RANK: [ds_name: {}, n: {}, logn: {}, bitsize: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbytes): {:.2}]",
+        "RANK: [ds_name: {}, n: {}, logn: {}, bitsize: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbyte): {:.2}]",
         type_of(&ds),
         n,
         logn,
@@ -32,8 +32,8 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes()
+        ds.space_usage_byte(),
+        ds.space_usage_MiB()
     );
 }
 
@@ -63,8 +63,8 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes()
+        ds.space_usage_byte(),
+        ds.space_usage_MiB()
     );
 }
 
@@ -96,8 +96,8 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes()
+        ds.space_usage_byte(),
+        ds.space_usage_MiB()
     );
 }
 

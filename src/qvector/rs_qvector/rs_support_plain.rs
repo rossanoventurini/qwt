@@ -22,12 +22,12 @@ pub struct RSSupportPlain<const B_SIZE: usize = 256> {
 
 impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
     /// Gives the space usage in bytes of the struct.
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         let mut select_space = 0;
         for c in 0..4 {
-            select_space += self.select_samples[c].space_usage_bytes();
+            select_space += self.select_samples[c].space_usage_byte();
         }
-        self.superblocks.space_usage_bytes() + select_space
+        self.superblocks.space_usage_byte() + select_space
     }
 }
 
@@ -230,7 +230,7 @@ struct SuperblockPlain {
 
 impl SpaceUsage for SuperblockPlain {
     /// Gives the space usage in bytes of the struct.
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         4 * 128 / 8
     }
 }

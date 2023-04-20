@@ -58,8 +58,8 @@ fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
             t_min,
             t_max,
             t_avg,
-            ds.space_usage_bytes(),
-            ds.space_usage_mbytes(),
+            ds.space_usage_byte(),
+            ds.space_usage_MiB(),
             queries.len(),
             N_RUNS
         );
@@ -92,8 +92,8 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes(),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
         queries.len(),
         N_RUNS
     );
@@ -127,8 +127,8 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes(),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
         queries.len(),
         N_RUNS
     );

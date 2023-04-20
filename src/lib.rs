@@ -133,23 +133,26 @@ pub trait SelectQuad {
 /// An interface to report the space usage of a data structure.
 pub trait SpaceUsage {
     /// Gives the space usage of the data structure in bytes.
-    fn space_usage_bytes(&self) -> usize;
+    fn space_usage_byte(&self) -> usize;
 
-    /// Gives the space usage of the data structure in Kbytes.
-    fn space_usage_kbytes(&self) -> f64 {
-        let bytes = self.space_usage_bytes();
+    /// Gives the space usage of the data structure in KiB.
+    #[allow(non_snake_case)]
+    fn space_usage_KiB(&self) -> f64 {
+        let bytes = self.space_usage_byte();
         (bytes as f64) / (1024_f64)
     }
 
-    /// Gives the space usage of the data structure in Mbytes.
-    fn space_usage_mbytes(&self) -> f64 {
-        let bytes = self.space_usage_bytes();
+    /// Gives the space usage of the data structure in MiB.
+    #[allow(non_snake_case)]
+    fn space_usage_MiB(&self) -> f64 {
+        let bytes = self.space_usage_byte();
         (bytes as f64) / ((1024 * 1024) as f64)
     }
 
-    /// Gives the space usage of the data structure in Gbytes.
-    fn space_usage_gbytes(&self) -> f64 {
-        let bytes = self.space_usage_bytes();
+    /// Gives the space usage of the data structure in GiB.
+    #[allow(non_snake_case)]
+    fn space_usage_GiB(&self) -> f64 {
+        let bytes = self.space_usage_byte();
         (bytes as f64) / ((1024 * 1024 * 1024) as f64)
     }
 }
@@ -177,7 +180,7 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
     /// `symbol` in the indexed sequence.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol` larger than the
+    /// Calling this method if the `i`th occurrence of `symbol` is larger than the
     /// largest symbol is undefined behavior.
     unsafe fn occs_smaller_unchecked(&self, symbol: u8) -> usize;
 
@@ -196,9 +199,9 @@ impl<T> SpaceUsage for Vec<T>
 where
     T: SpaceUsage + Copy,
 {
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_bytes() * self.capacity()
+            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.capacity()
         } else {
             mem::size_of::<Self>() + mem::size_of::<T>() * self.capacity()
         }
@@ -209,9 +212,9 @@ impl<T> SpaceUsage for Box<[T]>
 where
     T: SpaceUsage + Copy,
 {
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_bytes() * self.len()
+            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.len()
         } else {
             mem::size_of::<Self>()
         }
@@ -221,7 +224,7 @@ where
 macro_rules! impl_space_usage {
     ($($t:ty),*) => {
         $(impl SpaceUsage for $t {
-            fn space_usage_bytes(&self) -> usize {
+            fn space_usage_byte(&self) -> usize {
                 mem::size_of::<Self>()
             }
         })*

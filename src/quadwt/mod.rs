@@ -428,12 +428,12 @@ where
 
 impl<T, RS: SpaceUsage> SpaceUsage for QWaveletTree<T, RS> {
     /// Gives the space usage in bytes of the struct.
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         8 + 8
             + self
                 .qvs
                 .iter()
-                .fold(0, |acc, ds| acc + ds.space_usage_bytes())
+                .fold(0, |acc, ds| acc + ds.space_usage_byte())
     }
 }
 
