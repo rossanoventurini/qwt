@@ -1,13 +1,11 @@
 use qwt::perf_and_test_utils::{
-    gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
+    gen_queries, gen_rank_queries, gen_select_queries, load_or_build_and_save_qwt, type_of,
+    TimingQueries,
 };
 use qwt::utils::msb;
 use qwt::utils::text_remap;
 use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
 use qwt::{QWT256, QWT512};
-
-use std::fs;
-use std::path::Path;
 
 use clap::Parser;
 
@@ -168,28 +166,7 @@ fn main() {
     let select_queries = gen_select_queries(args.n_queries, &text);
 
     let output_filename = input_filename.clone() + ".256.qwt";
-    let ds: QWT256<_>;
-    let path = Path::new(&output_filename);
-    if path.exists() {
-        println!(
-            "Wavelet tree already exists. Filename: {}. I'm going to read it ...",
-            output_filename
-        );
-        let serialized = fs::read(path).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        ds = bincode::deserialize::<QWT256<u8>>(&serialized).unwrap();
-    } else {
-        let mut t = TimingQueries::new(1, 1); // measure building time
-        t.start();
-        ds = QWT256::from(text.clone());
-        t.stop();
-        let (t_min, _, _) = t.get();
-        println!("Construction time {:?} millisecs", t_min / 1000000);
-
-        let serialized = bincode::serialize(&ds).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        fs::write(path, serialized).unwrap();
-    }
+    let ds = load_or_build_and_save_qwt::<QWT256<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);
@@ -210,28 +187,7 @@ fn main() {
     // TODO: make this a macro!
 
     let output_filename = input_filename + ".512.qwt";
-    let ds: QWT512<_>;
-    let path = Path::new(&output_filename);
-    if path.exists() {
-        println!(
-            "Wavelet tree already exists. Filename: {}. I'm going to read it ...",
-            output_filename
-        );
-        let serialized = fs::read(path).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        ds = bincode::deserialize::<QWT512<u8>>(&serialized).unwrap();
-    } else {
-        let mut t = TimingQueries::new(1, 1); // measure building time
-        t.start();
-        ds = QWT512::from(text.clone());
-        t.stop();
-        let (t_min, _, _) = t.get();
-        println!("Construction time {:?} millisecs", t_min / 1000000);
-
-        let serialized = bincode::serialize(&ds).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        fs::write(path, serialized).unwrap();
-    }
+    let ds = load_or_build_and_save_qwt::<QWT512<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);
