@@ -75,7 +75,7 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
     for _ in 0..N_RUNS {
         t.start();
         for &pos in queries.iter() {
-            let i = (pos * (result as usize)) % n;
+            let i = ((pos + 42) * (result as usize)) % n;
             result = unsafe { ds.get_unchecked(i) };
         }
         t.stop()
