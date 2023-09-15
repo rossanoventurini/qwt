@@ -20,12 +20,14 @@
 //! 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 //! 2. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. Faster Wavelet Trees with Quad Vectors. Arxiv, 2023.
 
-//#![feature(stdsimd)]
-
 pub mod perf_and_test_utils;
 pub mod qvector;
 pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
+
+pub mod bitvector;
+pub use bitvector::rs_narrow::RSNarrow;
+pub use bitvector::BitVector;
 
 pub mod utils;
 
@@ -35,13 +37,18 @@ pub use qvector::rs_qvector::RSQVector512;
 
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
+pub use quadwt::WTIndexable;
 
 pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
 pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 
+// Quad Wavelet tree with support for prefetching
+pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
+pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
+
 use num_traits::Unsigned;
 
-/// An interface for supporting `get` queries over an `Unsigned` alphabet.
+/// A trait fro the support `get` query over an `Unsigned` alphabet.
 pub trait AccessUnsigned {
     type Item: Unsigned;
 
@@ -55,7 +62,7 @@ pub trait AccessUnsigned {
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item;
 }
 
-/// An interface for supporting `rank` queries over an `Unsigned` alphabet.
+/// A trait for the support of `rank` query over an `Unsigned` alphabet.
 pub trait RankUnsigned: AccessUnsigned {
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
     /// position `i` excluded.
@@ -69,7 +76,7 @@ pub trait RankUnsigned: AccessUnsigned {
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
-/// An interface for supporting `select` queries over an `Unsigned` alphabet.
+/// A trait for the support of ``select` query over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
     /// Returns the position in the indexed sequence of the `i`th occurrence of
     /// `symbol`.
@@ -87,9 +94,59 @@ pub trait SelectUnsigned: AccessUnsigned {
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
-/// An interface for supporting `get` queries over the alphabet [0..3].
+/// A trait for the support of `get` query over the binary alphabet.
+pub trait AccessBin {
+    /// Returns the bit at the given position `i`,
+    /// or [`None`] if ```i``` is out of bounds.
+    fn get(&self, i: usize) -> Option<bool>;
+
+    /// Returns the symbol at the given position `i`.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    unsafe fn get_unchecked(&self, i: usize) -> bool;
+}
+
+/// A trait for the support of `rank` query over the binary alphabet.
+pub trait RankBin {
+    /// Returns the number of zeros in the indexed sequence up to
+    /// position `i` excluded.
+    #[inline]
+    fn rank0(&self, i: usize) -> Option<usize> {
+        if let Some(k) = self.rank1(i) {
+            return Some(i - k);
+        }
+
+        None
+    }
+
+    /// Returns the number of ones in the indexed sequence up to
+    /// position `i` excluded.
+    fn rank1(&self, i: usize) -> Option<usize>;
+
+    /// Returns the number of ones in the indexed sequence up to
+    /// position `i` excluded. `None` if the position is out of bound.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    unsafe fn rank1_unchecked(&self, i: usize) -> usize;
+
+    /// Returns the number of zeros in the indexed sequence up to
+    /// position `i` excluded.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    #[inline]
+    unsafe fn rank0_unchecked(&self, i: usize) -> usize {
+        i - self.rank1_unchecked(i)
+    }
+}
+
+// TODO: Add SelectBin trait when select will be implemented
+
+/// A trait for the support of `get` query over the alphabet [0..3].
 pub trait AccessQuad {
-    /// Returns the symbol at position `i`.
+    /// Returns the symbol at position `i`, `None` if the position is out of bound.
     fn get(&self, i: usize) -> Option<u8>;
 
     /// Returns the symbol at position `i`.
@@ -99,13 +156,14 @@ pub trait AccessQuad {
     unsafe fn get_unchecked(&self, i: usize) -> u8;
 }
 
+/// A trait for the support of `rank` query over the alphabet [0..3].
 pub trait RankQuad {
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
-    /// position `i` excluded.
+    /// position `i` excluded. `None` if the position is out of bound.
     fn rank(&self, symbol: u8, i: usize) -> Option<usize>;
 
     /// Returns the number of occurrences in the indexed sequence of `symbol` up to
-    /// position `i` excluded.The function does not check boundaries.
+    /// position `i` excluded. The function does not check boundaries.
     ///
     /// # Safety
     /// Calling this method with an out-of-bounds index or with a symbol larger than
@@ -113,6 +171,7 @@ pub trait RankQuad {
     unsafe fn rank_unchecked(&self, symbol: u8, i: usize) -> usize;
 }
 
+/// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
     /// Returns the position in the indexed sequence of the `i`th occurrence of
     /// `symbol`.
@@ -157,31 +216,38 @@ pub trait SpaceUsage {
     }
 }
 
-/// An interface for the operations that a quad vector implementation needs
-/// to provide to support Wavelet Tree queries.
+/// A trait for the operations that a quad vector implementation needs
+/// to provide to be used in a Quad Wavelet Tree.
 pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
     /// Returns the number of occurrences of `symbol` in the indexed sequence,
-    /// `None` if `symbol` is larger than the largest symbol, i.e., `symbol` is not valid.  
+    /// `None` if `symbol` is larger than 3, i.e., `symbol` is not valid.  
     fn occs(&self, symbol: u8) -> Option<usize>;
 
     /// Returns the number of occurrences of `symbol` in the indexed sequence.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol`
-    /// larger than the largest symbol is undefined behavior.
+    /// Calling this method if the `symbol` is larger than 3 (i.e., `symbol` is not valid)
+    /// is undefined behavior.
     unsafe fn occs_unchecked(&self, symbol: u8) -> usize;
 
     /// Returns the number of occurrences of all the symbols smaller than the
-    /// input `symbol`, `None` if `symbol` is larger than the largest symbol,
+    /// input `symbol`, `None` if `symbol` is larger than 3,
     /// i.e., `symbol` is not valid.  
     fn occs_smaller(&self, symbol: u8) -> Option<usize>;
+
+    /// Returns the rank of `symbol` up to the block that contains the position
+    /// `i`.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is larger than 3 of
+    /// if the position `i` is out of bound is undefined behavior.
+    unsafe fn rank_block_unchecked(&self, symbol: u8, i: usize) -> usize;
 
     /// Returns the number of occurrences of all the symbols smaller than the input
     /// `symbol` in the indexed sequence.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `symbol` is larger than the
-    /// largest symbol is undefined behavior.
+    /// Calling this method if the `symbol` is larger than 3 is undefined behavior.
     unsafe fn occs_smaller_unchecked(&self, symbol: u8) -> usize;
 
     /// Prefetches counter of superblock and blocks containing the position `pos`.

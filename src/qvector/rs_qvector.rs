@@ -395,6 +395,17 @@ impl<S: RSSupport> WTSupport for RSQVector<S> {
         self.n_occs_smaller[symbol as usize]
     }
 
+    /// Returns the rank of `symbol` up to the block that contains the position
+    /// `i`.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is larger than 3 of
+    /// if the position `i` is out of bound is undefined behavior.
+    #[inline(always)]
+    unsafe fn rank_block_unchecked(&self, symbol: u8, i: usize) -> usize {
+        self.rs_support.rank_block(symbol, i)
+    }
+
     /// Prefetches counters of the superblock and blocks containing the position `pos`.
     #[inline(always)]
     fn prefetch_info(&self, pos: usize) {
@@ -475,6 +486,20 @@ where
 mod tests {
     use super::*;
     use std::iter;
+
+    #[test]
+    fn test_just_one_data_line<D>()
+    where
+        D: From<QVector> + AccessQuad + RankQuad + SelectQuad + WTSupport,
+    {
+        let qv: QVector = [0].into_iter().cycle().take(256).collect(); // a full DataLine
+        let rsqv = D::from(qv);
+
+        assert_eq!(rsqv.rank(0, 256), Some(256));
+        assert_eq!(rsqv.rank(1, 256), Some(0));
+        assert_eq!(rsqv.rank(2, 256), Some(0));
+        assert_eq!(rsqv.rank(3, 256), Some(0));
+    }
 
     #[test]
     fn test_small<D>()

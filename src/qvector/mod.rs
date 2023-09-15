@@ -45,7 +45,7 @@ impl DataLine {
 
     // Set the position `i` to `symbol`
     #[inline]
-    fn set_symbol(&mut self, symbol: u8, i: usize) {
+    fn set_symbol(&mut self, symbol: u8, i: u8) {
         // The higher bit is placed in the first two words,
         // the lower bit is placed in the second two words.
 
@@ -55,8 +55,8 @@ impl DataLine {
 
         let symbol = (symbol as u128) & Self::MASK;
 
-        self.words[word_id_high] |= (symbol >> 1) << cur_shift;
-        self.words[word_id_low] |= (symbol & 1) << cur_shift;
+        self.words[word_id_high as usize] |= (symbol >> 1) << cur_shift;
+        self.words[word_id_low as usize] |= (symbol & 1) << cur_shift;
     }
 }
 
@@ -84,8 +84,9 @@ impl AccessQuad for DataLine {
 impl RankQuad for DataLine {
     #[inline(always)]
     fn rank(&self, symbol: u8, i: usize) -> Option<usize> {
-        assert!(symbol < 4);
-        assert!(i <= 256);
+        if symbol >= 4 || i > 256 {
+            return None;
+        }
 
         // SAFETY: checks above guarantee correctness
         Some(unsafe { self.rank_unchecked(symbol, i) })
@@ -209,7 +210,7 @@ impl AccessQuad for QVector {
     }
 
     /// Access the `i`th value in the quaternary vector
-    /// or `None` if out of bounds.
+    /// or `None` if `i` is out of bounds.
     ///
     /// # Examples
     /// ```
@@ -348,7 +349,7 @@ impl QVectorBuilder {
         self.data
             .last_mut()
             .unwrap()
-            .set_symbol(symbol, pos_in_last_line);
+            .set_symbol(symbol, pos_in_last_line as u8);
 
         self.position += 2;
     }

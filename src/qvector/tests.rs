@@ -57,7 +57,7 @@ fn test_data_line() {
     for symbol in 0..4 {
         let mut data_line = DataLine::default();
 
-        for i in 0..256 {
+        for i in 0..=255 {
             data_line.set_symbol(symbol, i);
         }
 
