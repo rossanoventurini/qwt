@@ -22,7 +22,7 @@ The dataset is `english.2GiB`: the 2 GiB prefix of the [English](http://pizzachi
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
 | [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 | C++ |
 | [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 | C++ |
-| [Sucds 0.6.0](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 | Rust |
+| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 | Rust |
 | QWT 256                                       |           436 |         441 |          1135 |        2308 | C++/Rust |
 | QWT 512                                       |           451 |         460 |          1100 |        2180 | C++/Rust |
 

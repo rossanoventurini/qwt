@@ -4,8 +4,10 @@ use qwt::perf_and_test_utils::{
 use qwt::utils::{msb, text_remap};
 use qwt::{QWT256, QWT512};
 
-use sucds::WaveletMatrixBuilder;
-use sucds::{Searial, WaveletMatrix};
+use sucds::bit_vectors::{Access, Build, NumBits, Rank, Rank9Sel, Select};
+use sucds::char_sequences::WaveletMatrix;
+use sucds::int_vectors::CompactVector;
+use sucds::Serializable;
 
 // use sdsl::int_vectors;
 // use sdsl::wavelet_trees::WtInt;
@@ -25,15 +27,18 @@ pub trait Operations {
     }
 }
 
-impl Operations for WaveletMatrix {
+impl<B> Operations for WaveletMatrix<B>
+where
+    B: Serializable + Access + Build + NumBits + Rank + Select,
+{
     fn rank(&self, s: u8, i: usize) -> usize {
-        self.rank(i, s as usize)
+        self.rank(i, s as usize).unwrap()
     }
     fn select(&self, s: u8, i: usize) -> usize {
-        self.select(i - 1, s as usize)
+        self.select(i - 1, s as usize).unwrap()
     }
     fn get(&self, i: usize) -> u8 {
-        self.get(i) as u8
+        self.access(i).unwrap() as u8
     }
     fn space_usage_bytes(&self) -> usize {
         self.size_in_bytes()
@@ -193,10 +198,10 @@ fn main() {
     let access_queries = gen_queries(args.n_queries, n);
     let select_queries = gen_select_queries(args.n_queries, &text);
 
-    // Building wavelet trees
-    let mut wmb = WaveletMatrixBuilder::with_width(n_levels);
-    text.iter().for_each(|c| wmb.push(*c as usize));
-    let sucds_wm = wmb.build().unwrap();
+    // Building sucds wavelet tree
+    let mut seq = CompactVector::new(8).unwrap();
+    seq.extend(text.iter().map(|&c| c as usize)).unwrap();
+    let sucds_wm = WaveletMatrix::<Rank9Sel>::new(seq).unwrap();
 
     let qwt256 = QWT256::from(text.clone());
     let qwt512 = QWT512::from(text.clone());
