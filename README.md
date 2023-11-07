@@ -38,6 +38,7 @@ We note that the results for the rank query depend on how we generate the symbol
 There are four instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `pfs` in `Qwt256pfs` and `Qwt512pfs` indicates that they utilize additional space to store a predicting model, which is able to further accelerate 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
 
 To run the experiments, we need to compile the binary executables with
+
 ```bash
 cargo build --release
 ```
@@ -77,7 +78,7 @@ Then, run the benchmark `perf_wt_bench` using the following command:
 
 Run the following Cargo command in your project directory
 
-```
+```bash
 cargo add qwt
 ```
 
