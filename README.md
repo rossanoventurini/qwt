@@ -38,6 +38,7 @@ We note that the results for the rank query depend on how we generate the symbol
 There are four instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `pfs` in `Qwt256pfs` and `Qwt512pfs` indicates that they utilize additional space to store a predicting model, which is able to further accelerate 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
 
 To run the experiments, we need to compile the binary executables with
+
 ```bash
 cargo build --release
 ```
@@ -51,7 +52,7 @@ The bin `perf_wavelet_tree`  is used to measure the performance of a Quad Wavele
 
 Finally, `perf_wt_bench` compares QWT against other implementations (only [Sucds 0.6.0](https://github.com/kampersanda/sucds) for the moment). 
 
-We can now download and uncompress in the current directory the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/). Then, we take its prefix of length 2 GiB.
+We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 8 GiB.
 
 ```bash
 wget http://pages.di.unipi.it/rossano/big_english.gz
@@ -59,7 +60,7 @@ gunzip big_english.gz
 head -c 8589934592 english > big_english.8GiB
 ```
 
-The following command builds the wavelet trees (QWT 256 and 512) on this input text and runs 1 million random *access*, *rank*, and *select* queries.
+The following command builds the wavelet trees (QWT 256 and 512 with or witout prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
 ./target/release/perf_wavelet_tree --input-file big_english.8GiB --access --rank --select
@@ -69,11 +70,18 @@ We can use the flag `--test-correctness` to perform some extra tests for the cor
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
 
+To repeat the comparison against other Rust libraries, please check out the branch `benchmark`.
+Then, run the benchmark `perf_wt_bench` using the following command:
+
+```bash
+/target/release/perf_wt_bench --input-file big_english.8GiB --rank --select --access
+```
+
 ## Examples
 
 Run the following Cargo command in your project directory
 
-```
+```bash
 cargo add qwt
 ```
 
