@@ -10,6 +10,14 @@ The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree
 
 An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
 
+## <a name="faste">Even faster rank query</a>
+
+As previously highlighted, the Quad Wavelet Tree (QWT) enhances query performance by replacing the conventional binary tree structure in the wavelet tree with a 4-ary tree.
+
+When working with moderately large sequences, the primary factor affecting query performance is the cost of the cache misses, which occur at each level of the wavelet tree. However, by utilizing a 4-ary tree structure, we effectively reduce the tree's height by half. Consequently, this reduction in height leads to a proportional decrease in the number of cache misses, resulting in the ~2x improvement in query time.
+
+The **rank** queries can be further improved by means of a **small prediction model** designed to anticipate and pre-fetch the cache lines required for rank queries. This could give a further improvement up to 2x for rank query.
+
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
 The experiments are performed using a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Linux 5.19.0. The code is compiled with Rust 1.69.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
