@@ -4,6 +4,34 @@ use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::collections::{HashMap, HashSet};
 use std::ops::Shr;
 
+#[allow(non_snake_case)]
+pub fn prefetch_read_NTA<T>(data: &[T], offset: usize) {
+    let p = unsafe { data.as_ptr().add(offset) as *const i8 };
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        #[cfg(target_arch = "x86")]
+        use std::arch::x86::{_mm_prefetch, _MM_HINT_NTA};
+
+        #[cfg(target_arch = "x86_64")]
+        use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA};
+
+        unsafe {
+            _mm_prefetch(p, _MM_HINT_NTA);
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        #[cfg(target_arch = "aarch64")]
+        use core::arch::aarch64::{_prefetch, _PREFETCH_LOCALITY0, _PREFETCH_READ};
+
+        unsafe {
+            _prefetch(p, _PREFETCH_READ, _PREFETCH_LOCALITY0);
+        }
+    }
+}
+
 // Required by select64
 const K_SELECT_IN_BYTE: [u8; 2048] = [
     8, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
@@ -106,6 +134,9 @@ const K_SELECT_IN_BYTE: [u8; 2048] = [
 
 #[inline(always)]
 pub fn select_in_word(word: u64, k: u64) -> u32 {
+    // use core::arch::x86_64::_pdep_u64;
+    // let mask = std::u64::MAX << k;
+    // return unsafe{ _pdep_u64(mask, word).trailing_zeros() };
     let k_ones_step4 = 0x1111111111111111_u64;
     let k_ones_step8 = 0x0101010101010101_u64;
     let k_lambdas_step8 = 0x8080808080808080_u64;
@@ -129,12 +160,6 @@ pub fn select_in_word(word: u64, k: u64) -> u32 {
     let byte_rank = k - (((byte_sums << 8) >> place) & 0xFF_u64);
 
     place + K_SELECT_IN_BYTE[(((word >> place) & 0xFF_u64) | (byte_rank << 8)) as usize] as u32
-
-    /*
-    use core::arch::x86_64::_pdep_u64;
-    let mask = std::u64::MAX << k;
-    return unsafe{ _pdep_u64(mask, word).trailing_zeros() };
-    */
 }
 
 #[inline(always)]
@@ -142,11 +167,10 @@ pub fn select_in_word_u128(word: u128, k: u64) -> u32 {
     let first = word as u64;
 
     let kp = first.count_ones();
-
     if kp as u64 > k {
         select_in_word(first, k)
     } else {
-        kp + select_in_word((word >> 64) as u64, k - kp as u64)
+        64 + select_in_word((word >> 64) as u64, k - kp as u64)
     }
 }
 

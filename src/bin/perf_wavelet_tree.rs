@@ -1,13 +1,12 @@
 use qwt::perf_and_test_utils::{
-    gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
+    gen_queries, gen_rank_queries, gen_select_queries, load_or_build_and_save_qwt, type_of,
+    TimingQueries,
 };
+use qwt::quadwt::RSforWT;
 use qwt::utils::msb;
 use qwt::utils::text_remap;
-use qwt::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage};
-use qwt::{QWT256, QWT512};
-
-use std::fs;
-use std::path::Path;
+use qwt::{AccessUnsigned, QWaveletTree, RankUnsigned, SelectUnsigned, SpaceUsage};
+use qwt::{QWT256Pfs, QWT512Pfs, QWT256, QWT512};
 
 use clap::Parser;
 
@@ -30,12 +29,15 @@ struct Args {
     access: bool,
     #[arg(short, long)]
     select: bool,
+    #[arg(short, long)]
+    rank_prefetch: bool,
 }
 
-fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
+fn test_rank_latency<T: RankUnsigned<Item = u8> + SpaceUsage>(
     ds: &T,
     n: usize,
     queries: &[(usize, u8)],
+    file: String,
 ) {
     let mut result = 0;
     let mut t = TimingQueries::new(N_RUNS, queries.len());
@@ -51,33 +53,150 @@ fn test_rank_performace<T: RankUnsigned<Item = u8> + SpaceUsage>(
 
     let (t_min, t_max, t_avg) = t.get();
     println!(
-            "[ds_name: {}, exp: rank_latency, n: {}, logn: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbytes): {:.2}, n_queries: {}, n_runs: {}]",
-            type_of(&ds),
-            n,
-            msb(n),
-            t_min,
-            t_max,
-            t_avg,
-            ds.space_usage_bytes(),
-            ds.space_usage_mbytes(),
-            queries.len(),
-            N_RUNS
-        );
+    "RESULT algo={} exp=rank_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        t_min,
+        t_max,
+        t_avg,
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
 
-    println!("fake {}", result);
+    println!("Result: {}", result);
 }
 
-fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
+fn test_rank_throughput<T: RankUnsigned<Item = u8> + SpaceUsage>(
+    ds: &T,
+    n: usize,
+    queries: &[(usize, u8)],
+    file: String,
+) {
+    let mut result = 0;
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(pos, symbol) in queries.iter() {
+            result += unsafe { ds.rank_unchecked(symbol, pos) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=rank_throughput input={} n={} logn={:?} min_throughput_ms={} max_throughput_ms={} avg_throughput_ms={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+
+    println!("Result: {}", result);
+}
+
+fn test_rank_prefetch_latency<RS, const WITH_PREFETCH_SUPPORT: bool>(
+    ds: &QWaveletTree<u8, RS, WITH_PREFETCH_SUPPORT>,
+    n: usize,
+    queries: &[(usize, u8)],
+    file: String,
+) where
+    RS: SpaceUsage,
+    RS: RSforWT,
+{
+    let mut result = 0;
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(pos, symbol) in queries.iter() {
+            let i = (pos + result) % n;
+            result = unsafe { ds.rank_prefetch_unchecked(symbol, i) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=rank_prefetch_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        t_min,
+        t_max,
+        t_avg,
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+
+    println!("Result: {}", result);
+}
+
+fn test_rank_prefetch_throughput<RS, const WITH_PREFETCH_SUPPORT: bool>(
+    ds: &QWaveletTree<u8, RS, WITH_PREFETCH_SUPPORT>,
+    n: usize,
+    queries: &[(usize, u8)],
+    file: String,
+) where
+    RS: SpaceUsage,
+    RS: RSforWT,
+{
+    let mut result = 0;
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(pos, symbol) in queries.iter() {
+            result += unsafe { ds.rank_prefetch_unchecked(symbol, pos) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=rank_prefetch_throughput input={} n={} logn={:?} min_throughput_ms={} max_throughput_ms={} avg_throughput_ms={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+
+    println!("Result: {}", result);
+}
+
+fn test_access_latency<T: AccessUnsigned<Item = u8> + SpaceUsage>(
     ds: &T,
     n: usize,
     queries: &[usize],
+    file: String,
 ) {
     let mut t = TimingQueries::new(N_RUNS, queries.len());
     let mut result: u8 = 0;
     for _ in 0..N_RUNS {
         t.start();
         for &pos in queries.iter() {
-            let i = ((pos + 42) * (result as usize)) % n;
+            let i = (pos * ((result as usize) + 42)) % n;
             result = unsafe { ds.get_unchecked(i) };
         }
         t.stop()
@@ -85,25 +204,61 @@ fn test_access_performace<T: AccessUnsigned<Item = u8> + SpaceUsage>(
 
     let (t_min, t_max, t_avg) = t.get();
     println!(
-        "[ds_name: {}, exp: access_latency, n: {}, logn: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbytes): {:.2}, n_queries: {}, n_runs: {}]",
-        type_of(&ds),
+	"RESULT algo={} exp=access_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+	file,
         n,
         msb(n),
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes(),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
         queries.len(),
         N_RUNS
     );
-    println!("Fake {result}");
+    println!("Result: {result}");
 }
 
-fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
+fn test_access_throughput<T: AccessUnsigned<Item = u8> + SpaceUsage>(
+    ds: &T,
+    n: usize,
+    queries: &[usize],
+    file: String,
+) {
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+    let mut result: u8 = 0;
+    for _ in 0..N_RUNS {
+        t.start();
+        for &pos in queries.iter() {
+            result += unsafe { ds.get_unchecked(pos) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+	"RESULT algo={} exp=access_throughput input={} n={} logn={:?} min_throughput_ms={} max_throughput_ms={} avg_throughput_ms={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+	file,
+        n,
+        msb(n),
+        (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+    println!("Result: {result}");
+}
+
+fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
     ds: &T,
     n: usize,
     queries: &[(usize, u8)],
+    file: String,
 ) {
     let mut t = TimingQueries::new(N_RUNS, queries.len());
 
@@ -120,20 +275,57 @@ fn test_select_performace<T: SelectUnsigned<Item = u8> + SpaceUsage>(
 
     let (t_min, t_max, t_avg) = t.get();
     println!(
-        "[ds_name: {}, exp: select_latency, n: {}, logn: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbytes): {:.2}, n_queries: {}, n_runs: {}]",
-        type_of(&ds),
+	"RESULT algo={} exp=select_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+	file,
         n,
         msb(n),
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_bytes(),
-        ds.space_usage_mbytes(),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
         queries.len(),
         N_RUNS
     );
 
-    println!("fake {}", result);
+    println!("Result: {}", result);
+}
+
+fn test_select_throughput<T: SelectUnsigned<Item = u8> + SpaceUsage>(
+    ds: &T,
+    n: usize,
+    queries: &[(usize, u8)],
+    file: String,
+) {
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    let mut result = 0;
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(pos, symbol) in queries.iter() {
+            result += unsafe { ds.select_unchecked(symbol, pos) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+	"RESULT algo={} exp=select_throughput input={} n={} logn={:?} min_throughput_ms={} max_throughput_ms={} avg_throughput_ms={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+	file,
+        n,
+        msb(n),
+        (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+
+    println!("Result: {}", result);
 }
 
 fn test_correctness<
@@ -168,84 +360,111 @@ fn main() {
     let select_queries = gen_select_queries(args.n_queries, &text);
 
     let output_filename = input_filename.clone() + ".256.qwt";
-    let ds: QWT256<_>;
-    let path = Path::new(&output_filename);
-    if path.exists() {
-        println!(
-            "Wavelet tree already exists. Filename: {}. I'm going to read it ...",
-            output_filename
-        );
-        let serialized = fs::read(path).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        ds = bincode::deserialize::<QWT256<u8>>(&serialized).unwrap();
-    } else {
-        let mut t = TimingQueries::new(1, 1); // measure building time
-        t.start();
-        ds = QWT256::from(text.clone());
-        t.stop();
-        let (t_min, _, _) = t.get();
-        println!("Construction time {:?} millisecs", t_min / 1000000);
-
-        let serialized = bincode::serialize(&ds).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        fs::write(path, serialized).unwrap();
-    }
+    let ds = load_or_build_and_save_qwt::<QWT256<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);
     }
 
     if args.rank {
-        test_rank_performace(&ds, n, &rank_queries);
+        // test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     if args.access {
-        test_access_performace(&ds, n, &access_queries);
+        // test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
     }
 
     if args.select {
-        test_select_performace(&ds, n, &select_queries);
+        // test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
 
+    if args.rank_prefetch {
+        // test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
     // TODO: make this a macro!
 
-    let output_filename = input_filename + ".512.qwt";
-    let ds: QWT512<_>;
-    let path = Path::new(&output_filename);
-    if path.exists() {
-        println!(
-            "Wavelet tree already exists. Filename: {}. I'm going to read it ...",
-            output_filename
-        );
-        let serialized = fs::read(path).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        ds = bincode::deserialize::<QWT512<u8>>(&serialized).unwrap();
-    } else {
-        let mut t = TimingQueries::new(1, 1); // measure building time
-        t.start();
-        ds = QWT512::from(text.clone());
-        t.stop();
-        let (t_min, _, _) = t.get();
-        println!("Construction time {:?} millisecs", t_min / 1000000);
-
-        let serialized = bincode::serialize(&ds).unwrap();
-        println!("Serialized size: {:?} bytes", serialized.len());
-        fs::write(path, serialized).unwrap();
-    }
+    let output_filename = input_filename.clone() + ".256Pfs.qwt";
+    let ds = load_or_build_and_save_qwt::<QWT256Pfs<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);
     }
 
     if args.rank {
-        test_rank_performace(&ds, n, &rank_queries);
+        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     if args.access {
-        test_access_performace(&ds, n, &access_queries);
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
     }
 
     if args.select {
-        test_select_performace(&ds, n, &select_queries);
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    let output_filename = input_filename.clone() + ".512.qwt";
+    let ds = load_or_build_and_save_qwt::<QWT512<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    let output_filename = input_filename.clone() + ".512Pfs.qwt";
+    let ds = load_or_build_and_save_qwt::<QWT512Pfs<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 }

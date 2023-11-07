@@ -29,9 +29,16 @@ fn test_small() {
     assert!(qwt.into_iter().eq(data.iter().copied()));
 
     // test from_iterator
-    let qwt: QWT256<_> = (0..10_u32).into_iter().cycle().take(1000).collect();
+    let qwt: QWT256<_> = (0..10_u32).cycle().take(1000).collect();
 
     assert_eq!(qwt.len(), 1000);
+}
+
+#[test]
+fn test_from_iterator() {
+    let qwt: QWT256<_> = (0..10u32).cycle().take(100).collect();
+
+    assert!(qwt.into_iter().eq((0..10u32).cycle().take(100)));
 }
 
 #[test]

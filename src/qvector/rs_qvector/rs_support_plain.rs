@@ -2,6 +2,7 @@
 //! symbols of a quad sequence up to the beginning of blocks of a fixed size
 //! `Self::BLOCK_SIZE`.
 
+use crate::utils::prefetch_read_NTA;
 use crate::QVector;
 use crate::SpaceUsage; // Traits
 
@@ -21,12 +22,12 @@ pub struct RSSupportPlain<const B_SIZE: usize = 256> {
 
 impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
     /// Gives the space usage in bytes of the struct.
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         let mut select_space = 0;
         for c in 0..4 {
-            select_space += self.select_samples[c].space_usage_bytes();
+            select_space += self.select_samples[c].space_usage_byte();
         }
-        self.superblocks.space_usage_bytes() + select_space
+        self.superblocks.space_usage_byte() + select_space
     }
 }
 
@@ -132,22 +133,20 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
         }
     }
 
-    /// Returns the number of occurrences of `SYMBOL` up to the beginning
+    /// Returns the number of occurrences of `symbol` up to the beginning
     /// of the block that contains position `i`.
-    ///
-    /// We use a const generic to have a specialized method for each symbol.
     #[inline(always)]
-    fn rank_block<const SYMBOL: u8>(&self, i: usize) -> usize {
-        debug_assert!(SYMBOL <= 3, "Symbols are in [0, 3].");
+    fn rank_block(&self, symbol: u8, i: usize) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
 
         let superblock_index = Self::superblock_index(i);
         let block_index = Self::block_index(i);
 
-        let mut result = self.superblocks[superblock_index].get_superblock_counter(SYMBOL);
-
-        result += self.superblocks[superblock_index].get_block_counter(SYMBOL, block_index % 8);
-
-        result
+        unsafe {
+            self.superblocks
+                .get_unchecked(superblock_index)
+                .get_rank(symbol, block_index & 7)
+        }
     }
 
     /// Returns a pair `(position, rank)` where the position is the beginning of the block
@@ -194,6 +193,13 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
 
         (position, rank)
     }
+
+    #[inline(always)]
+    fn prefetch(&self, pos: usize) {
+        let superblock_index = Self::superblock_index(pos);
+
+        prefetch_read_NTA(&self.superblocks, superblock_index);
+    }
 }
 
 impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
@@ -217,13 +223,14 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[repr(C, align(64))]
 struct SuperblockPlain {
     counters: [u128; 4],
 }
 
 impl SpaceUsage for SuperblockPlain {
     /// Gives the space usage in bytes of the struct.
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         4 * 128 / 8
     }
 }
@@ -243,8 +250,19 @@ impl SuperblockPlain {
     }
 
     #[inline(always)]
+    fn get_rank(&self, symbol: u8, block_id: usize) -> usize {
+        let data = unsafe { *self.counters.get_unchecked(symbol as usize) };
+        let sb = (data >> 84) as usize;
+
+        // We avoid a branch here. We want b be 0 if block_id is 0, real counter extracted from data otherwise
+        let not_first = (block_id > 0) as usize;
+        let b = ((data >> ((block_id - not_first) * 12)) as usize & 0b111111111111) * not_first;
+
+        sb + b
+    }
+
     fn get_superblock_counter(&self, symbol: u8) -> usize {
-        (self.counters[symbol as usize] >> 84) as usize
+        (unsafe { *self.counters.get_unchecked(symbol as usize) } >> 84) as usize
     }
 
     fn set_block_counters(&mut self, block_id: usize, counters: &[usize; 4]) {
@@ -262,9 +280,9 @@ impl SuperblockPlain {
         }
     }
 
-    #[inline(always)]
     fn get_block_counter(&self, symbol: u8, block_id: usize) -> usize {
         debug_assert!(block_id < Self::BLOCKS_IN_SUPERBLOCK);
+
         if block_id == 0 {
             0
         } else {
@@ -276,8 +294,8 @@ impl SuperblockPlain {
     /// such that its counter is smaller than `target` value.
     ///
     /// # TODO
-    /// The loop is not (auto)vectorized but we know we are just searching for the predecessor
-    ///x of a 12bit value in the last 84 bits of a u128.
+    /// The loop is not (auto)vectorized but we know we are just searching for the
+    /// predecessor x of a 12bit value in the last 84 bits of a u128.
     #[inline(always)]
     pub fn block_predecessor(&self, symbol: u8, target: usize) -> (usize, usize) {
         let mut cnt = self.counters[symbol as usize];

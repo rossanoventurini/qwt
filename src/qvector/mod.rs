@@ -1,28 +1,145 @@
-//! This module implements a quad vector to store a sequence with values from [0..3], i.e., two bits symbols.
+//! This module implements a quad vector to store a sequence with values from [0..3],
+//! i.e., two bits symbols.
 //!
-//! This implementation uses a vector of `u128`. Each `u128` stores (up to) 64
-//! symbols. The upper 64 bits of each `u128` store the first bit of the symbols while
-//! the lower 64 bits store the second bit of each symbol.
-//! This is very convenient for computing `rank` and `select` queries within a word.
-//! Indeed, we take the upper and lower parts and, via boolean operation), we obtain
-//! a 64 bit word with a 1 in any position containing a given symbol.
-//! This way, a popcount operation counts the number of occurrences of that symbol
-//! in the word.
-//! Note that using `u128` instead of `u64` is convenient here because the popcount
-//! operates on 64 bits. So, the use of `u128` fully uses every popcount.
+//! This implementation uses a vector of `DataLine`. Each `DataLine` is an array of four `u128`
+//! and stores (up to) 256 symbols.
 
-use crate::{AccessUnsigned, SpaceUsage}; // Traits
+use crate::{AccessQuad, RankQuad, SpaceUsage}; // Traits
+
+use num_traits::int::PrimInt;
+use num_traits::AsPrimitive;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+// A quad vector is made of `DataLine`s. Each line consists of
+// four u128, so each `DataLine` is 512 bits and fits in a cache line.
+// This way, it is easier to force the alignment to 64 bytes.
+//
+// We support `access`, `rank`, and `select queries for each line.
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[repr(C, align(64))]
+struct DataLine {
+    words: [u128; 4],
+}
+
+impl DataLine {
+    const MASK: u128 = 3;
+
+    const REPEATEDSYMB: [u128; 2] = [
+        u128::MAX, // !bit repeated
+        0,
+    ];
+
+    #[inline(always)]
+    fn normalize(&self, symbol: u8) -> (u128, u128) {
+        let mask_high = Self::REPEATEDSYMB[(symbol >> 1) as usize];
+        let mask_low = Self::REPEATEDSYMB[(symbol & 1) as usize];
+
+        let word_high_0 = self.words[0] ^ mask_high;
+        let word_low_0 = self.words[2] ^ mask_low;
+        let word_high_1 = self.words[1] ^ mask_high;
+        let word_low_1 = self.words[3] ^ mask_low;
+
+        (word_high_0 & word_low_0, word_high_1 & word_low_1)
+    }
+
+    // Set the position `i` to `symbol`
+    #[inline]
+    fn set_symbol(&mut self, symbol: u8, i: u8) {
+        // The higher bit is placed in the first two words,
+        // the lower bit is placed in the second two words.
+
+        let word_id_high = i >> 7;
+        let word_id_low = word_id_high + 2;
+        let cur_shift = i & 127;
+
+        let symbol = (symbol as u128) & Self::MASK;
+
+        self.words[word_id_high as usize] |= (symbol >> 1) << cur_shift;
+        self.words[word_id_low as usize] |= (symbol & 1) << cur_shift;
+    }
+}
+
+impl AccessQuad for DataLine {
+    #[inline(always)]
+    fn get(&self, i: usize) -> Option<u8> {
+        assert!(i < 256);
+        // SAFETY: bounds already checked
+        Some(unsafe { self.get_unchecked(i) })
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, i: usize) -> u8 {
+        let word_id_high = i >> 7;
+        let word_id_low = word_id_high + 2;
+        let cur_shift = i & 127;
+
+        let word_high = unsafe { *self.words.get_unchecked(word_id_high) };
+        let word_low = unsafe { *self.words.get_unchecked(word_id_low) };
+
+        ((word_high >> (cur_shift) & 1) << 1 | (word_low >> cur_shift) & 1) as u8
+    }
+}
+
+impl RankQuad for DataLine {
+    #[inline(always)]
+    fn rank(&self, symbol: u8, i: usize) -> Option<usize> {
+        if symbol >= 4 || i > 256 {
+            return None;
+        }
+
+        // SAFETY: checks above guarantee correctness
+        Some(unsafe { self.rank_unchecked(symbol, i) })
+    }
+
+    #[inline(always)]
+    unsafe fn rank_unchecked(&self, symbol: u8, i: usize) -> usize {
+        debug_assert!(symbol <= 3, "Only the four symbols in [0, 3] are possible.");
+        debug_assert!(i <= 256, "Only positions up to 256 are possible");
+
+        let (word_0, word_1) = self.normalize(symbol);
+
+        let last_word = i >> 7;
+        let offset = i & 127; // offset within the last word
+
+        let mask_full = u128::MAX;
+        let mask_offset = (1_u128 << offset) - 1;
+
+        let mask = if last_word == 0 {
+            mask_offset
+        } else {
+            mask_full
+        };
+        let mut rank = (word_0 & mask).count_ones();
+
+        let mask = if last_word == 1 {
+            mask_offset
+        } else {
+            mask_full * (last_word == 2) as u128
+        };
+
+        rank += (word_1 & mask).count_ones();
+
+        rank as usize
+    }
+}
+
+// The trait SelectQuad is not implemented because RSSupport needs to it by hand :-)
+
+impl SpaceUsage for DataLine {
+    fn space_usage_byte(&self) -> usize {
+        64
+    }
+}
+
+#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct QVector {
-    data: Box<[u128]>,
+    data: Box<[DataLine]>,
     position: usize,
 }
 
 impl QVector {
-    /// Checks if the vector is empty.
+    /// Check if the vector is empty.
     ///
     /// # Examples
     /// ```
@@ -35,7 +152,7 @@ impl QVector {
         self.position == 0
     }
 
-    /// Returns the number of symbols in the quaternary vector.
+    /// Return the number of symbols in the quaternary vector.
     ///
     /// # Examples
     /// ```
@@ -48,29 +165,7 @@ impl QVector {
         self.position >> 1
     }
 
-    /* TODO: More tests are needed to understand if align is worth.
-    /// Aligns data in the `qvector` to 64 bytes.
-    ///
-    /// Todo: make this safe by checking invariants.
-    ///
-    /// # Safety
-    /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
-    pub unsafe fn align_to_64(&mut self) {
-        use crate::utils::get_64byte_aligned_vector;
-
-        let mut v = get_64byte_aligned_vector::<u128>(self.data.len());
-        for &word in self.data.iter() {
-            v.push(word);
-        }
-        self.data = v.into_boxed_slice();
-    }*/
-
-    /// Gets access to the internal data.
-    pub fn get_data(&self) -> &[u128] {
-        &self.data
-    }
-
-    /// Returns an iterator over the values in the quad vector.
+    /// Return an iterator over the values in the quad vector.
     ///
     /// # Examples
     ///
@@ -88,19 +183,15 @@ impl QVector {
     }
 }
 
-impl AccessUnsigned for QVector {
-    type Item = u8;
-
-    /// Accesses the `i`th value in the quaternary vector.
-    /// The caller must guarantee that the position `i` is
-    /// valid.
+impl AccessQuad for QVector {
+    /// Access the `i`th value in the quaternary vector.
     ///
     /// # Safety
     /// Calling this method with an out-of-bounds index is undefined behavior.
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QVector, AccessUnsigned};
+    /// use qwt::{QVector, AccessQuad};
     ///
     /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     /// unsafe {
@@ -108,24 +199,23 @@ impl AccessUnsigned for QVector {
     /// }
     /// ```
     #[inline(always)]
-    unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
+    unsafe fn get_unchecked(&self, i: usize) -> u8 {
         debug_assert!(i < self.position / 2);
 
-        let block = i >> 6;
-        let shift = i & 63;
-        // SAFETY: Caller has to guarantee that `block` is a valid index.
-        let word = *self.data.get_unchecked(block);
+        let line = i >> 8;
+        let pos_in_last_line = i & 255;
+        let line = self.data.get_unchecked(line);
 
-        ((word >> (64 + shift - 1)) & 2 | (word >> shift) & 1) as u8
+        line.get_unchecked(pos_in_last_line)
     }
 
-    /// Accesses the `i`th value in the quaternary vector
-    /// or `None` if out of bounds.
+    /// Access the `i`th value in the quaternary vector
+    /// or `None` if `i` is out of bounds.
     ///
     /// # Examples
     /// ```
     /// use qwt::QVector;
-    /// use qwt::AccessUnsigned;
+    /// use qwt::AccessQuad;
     ///
     /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     ///
@@ -133,7 +223,7 @@ impl AccessUnsigned for QVector {
     /// assert_eq!(qv.get(10), None);
     /// ```
     #[inline(always)]
-    fn get(&self, i: usize) -> Option<Self::Item> {
+    fn get(&self, i: usize) -> Option<u8> {
         if i >= self.position >> 1 {
             return None;
         }
@@ -143,8 +233,8 @@ impl AccessUnsigned for QVector {
 }
 
 impl SpaceUsage for QVector {
-    fn space_usage_bytes(&self) -> usize {
-        self.data.space_usage_bytes() + 8
+    fn space_usage_byte(&self) -> usize {
+        self.data.space_usage_byte() + 8
     }
 }
 
@@ -187,31 +277,17 @@ impl<'a> IntoIterator for &'a QVector {
     }
 }
 
-macro_rules! impl_from_iterator_qvector {
-    ($($t:ty),*) => {
-        $(impl FromIterator<$t> for QVector {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    let mut qvb = QVectorBuilder::default();
-                    qvb.extend(iter);
-                    qvb.build()
-                }
-            })*
-    }
-}
-
-impl_from_iterator_qvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
-
-impl std::fmt::Debug for QVector {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let data_str: Vec<String> = self.data.iter().map(|x| format!("{:b}", x)).collect();
-        write!(
-            fmt,
-            "QVector {{ position:{:?}, data:{:?}}}",
-            self.position, data_str,
-        )
+impl<T> FromIterator<T> for QVector
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut qvb = QVectorBuilder::default();
+        qvb.extend(iter);
+        qvb.build()
     }
 }
 
@@ -223,13 +299,12 @@ impl std::fmt::Debug for QVector {
 ///   them using 2 bits each.
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct QVectorBuilder {
-    data: Vec<u128>,
+    data: Vec<DataLine>,
     position: usize,
 }
 
 impl QVectorBuilder {
-    const MASK: u128 = 3;
-    const N_BITS_WORD: usize = 128;
+    const N_BITS_WORD: usize = 128 * 4;
 
     /// Build the `qvector`.
     pub fn build(self) -> QVector {
@@ -256,56 +331,60 @@ impl QVectorBuilder {
         }
     }
 
-    /// Appends the (last 2 bits of the) value `v` at the end
+    /// Appends the (last 2 bits of the) value `symbol` at the end
     /// of the quad vector.
     ///
-    /// It does not check if the value `v` fits is actually in [0..3].
+    /// It does not check if the value `symbol` fits is actually in [0..3].
     /// The value is truncated to the two least significant bits.
     ///
     /// # Panics
     /// Panics if the new capacity exceeds `isize::MAX` bytes.
-    pub fn push(&mut self, v: u8) {
-        let cur_shift = (self.position / 2) % 64;
-        let v = (v as u128) & Self::MASK;
-        if cur_shift == 0 {
-            self.data.push(0);
+    pub fn push(&mut self, symbol: u8) {
+        let pos_in_last_line = (self.position / 2) & 255;
+        if pos_in_last_line == 0 {
+            // no more space in the current line
+            self.data.push(DataLine::default());
         }
 
-        let last = self.data.last_mut().unwrap();
-        *last |= (v >> 1) << (64 + cur_shift) | ((v & 1) << cur_shift);
+        self.data
+            .last_mut()
+            .unwrap()
+            .set_symbol(symbol, pos_in_last_line as u8);
 
         self.position += 2;
     }
 }
 
-macro_rules! impl_from_iterator_qvector_builder {
-    ($($t:ty),*) => {
-        $(impl FromIterator<$t> for QVectorBuilder {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    let mut qvb = QVectorBuilder::default();
-                    qvb.extend(iter);
-                    qvb
-                }
-            }
-
-        impl Extend<$t> for QVectorBuilder {
-            fn extend<T>(&mut self, iter: T)
-            where
-                T: IntoIterator<Item = $t>
-            {
-                for value in iter {
-                    debug_assert!((0..4).contains(&value));
-                    self.push(value as u8);
-                }
-            }
-        })*
+impl<T> FromIterator<T> for QVectorBuilder
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut qvb = QVectorBuilder::default();
+        qvb.extend(iter);
+        qvb
     }
 }
 
-impl_from_iterator_qvector_builder![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
+impl<T> Extend<T> for QVectorBuilder
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        for value in iter {
+            //debug_assert!((0..4).contains(&value));
+            self.push(value.as_());
+        }
+    }
+}
+
+pub mod rs_qvector;
 
 #[cfg(test)]
 mod tests;

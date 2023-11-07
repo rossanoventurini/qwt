@@ -1,33 +1,35 @@
-//! This module provides support for `rank` and `select queries on a quad vector.
+//! This module provides support for `rank` and `select` queries on a quad vector.
 
-use crate::qvector::QVectorIterator;
-use crate::utils::select_in_word;
-use crate::QVector;
+use super::{QVector, QVectorIterator};
+
+use crate::utils::{prefetch_read_NTA, select_in_word_u128};
+
+use num_traits::int::PrimInt;
+use num_traits::{AsPrimitive, Unsigned};
 
 use serde::{Deserialize, Serialize};
 
 // Traits
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, SymbolsStats};
-use num_traits::Unsigned;
+use crate::{AccessQuad, RankQuad, SelectQuad, SpaceUsage, WTSupport};
 
 /// Alternative representations to support Rank/Select queries at the level of blocks
 mod rs_support_plain;
-use crate::rs_qvector::rs_support_plain::RSSupportPlain;
+use crate::qvector::rs_qvector::rs_support_plain::RSSupportPlain;
 
 /// Possible specializations which provide different space/time trade-offs.
 pub type RSQVector256 = RSQVector<RSSupportPlain<256>>;
 pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 
-/// The generic `S` is the data structure used to
-/// provide rank/select support at the level of blocks.
-#[derive(Default, Clone, Serialize, Deserialize, PartialEq, Debug)]
-pub struct RSQVector<S: RSSupport + SpaceUsage> {
+/// The generic `S` is the data structure used to provide rank/select
+/// support at the level of blocks.
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
     n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
 }
 
-impl<S: RSSupport + SpaceUsage> RSQVector<S> {
+impl<S> RSQVector<S> {
     /// Returns an iterator over the values in the quad vector.
     ///
     /// # Examples
@@ -46,16 +48,16 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> SpaceUsage for RSQVector<S> {
+impl<S: SpaceUsage> SpaceUsage for RSQVector<S> {
     /// Gives the space usage in bytes of the data structure.
-    fn space_usage_bytes(&self) -> usize {
-        self.qv.space_usage_bytes() + self.rs_support.space_usage_bytes() + 5 * 8
+    fn space_usage_byte(&self) -> usize {
+        self.qv.space_usage_byte() + self.rs_support.space_usage_byte() + 5 * 8
     }
 }
 
-impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
-    /// Converts a given quad vector `qv` to a `RSQVector` with support
-    /// for `Rank` and `Select` queries.
+impl<S: RSSupport> From<QVector> for RSQVector<S> {
+    /// Converts a given quad vector `qv` into a `RSQVector` with support
+    /// for `rank` and `select` queries.
     ///
     /// # Examples
     /// ```
@@ -89,9 +91,9 @@ impl<S: RSSupport + SpaceUsage> From<QVector> for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> RSQVector<S> {
-    /// Creates a quad vector with support for `RankUnsigned` and `SelectUnsigned`
-    /// queries for a sequence of unsigned integers in the range [0, 3].
+impl<S: RSSupport> RSQVector<S> {
+    /// Creates a quad vector with support for `RankQuad` and `SelectQuad`
+    /// queries for a sequence of integers in the range [0, 3].
     ///
     /// # Panics
     /// Panics if the vector is longer than the largest possible length 2^{43}-1 symbols.
@@ -120,94 +122,91 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
         Self::from(qv)
     }
 
-    #[inline(always)]
-    fn rank_word<const SYMBOL: u8>(word: u128, mask: u64) -> usize {
-        assert!(
-            SYMBOL <= 3,
-            "RSQVector indexes only four symbols in [0, 3]."
-        );
-        let word_high = (word >> 64) as u64;
-        let word_low = word as u64;
+    #[inline]
+    fn select_intra_block(&self, symbol: u8, i: usize, pos: usize) -> usize {
+        let line_id = pos >> 8;
+        let mut result = 0;
+        let mut i = i - 1;
 
-        let r = match SYMBOL {
-            0 => (!word_high & !word_low) & mask,
-            1 => (!word_high & word_low) & mask,
-            2 => (word_high & !word_low) & mask,
-            _ => (word_high & word_low) & mask, // only 3 is possible here!
-        };
-        r.count_ones() as usize
-    }
+        for j in 0..if S::BLOCK_SIZE == 256 { 1 } else { 2 } {
+            // May need two iterations for blocks of size 512
+            let (word_0, word_1) =
+                unsafe { self.qv.data.get_unchecked(line_id + j).normalize(symbol) };
 
-    #[inline(always)]
-    fn select_intra_block<const SYMBOL: u8>(&self, i: usize, first_word: usize) -> usize {
-        assert!(
-            SYMBOL <= 3,
-            "RSQVector indexes only four symbols in [0, 3]."
-        );
+            let cnt_0 = word_0.count_ones() as usize;
+            if cnt_0 > i {
+                let p = select_in_word_u128(word_0, i as u64) as usize;
+                return result + p;
+            } else {
+                i -= cnt_0;
+                result += 128;
+            }
 
-        let mut cnt = 0;
-        let mut prev_cnt;
-
-        let data = self.qv.get_data();
-
-        for k in 0..S::BLOCK_SIZE * 2 / 128 {
-            prev_cnt = cnt;
-            let word = unsafe { *data.get_unchecked(first_word + k) };
-            let word_high = (word >> 64) as u64;
-            let word_low = word as u64;
-
-            let word = match SYMBOL {
-                0 => !word_high & !word_low,
-                1 => !word_high & word_low,
-                2 => word_high & !word_low,
-                _ => word_high & word_low, // only 3 is possible here!
-            };
-
-            cnt += word.count_ones() as usize;
-
-            if cnt >= i {
-                // previous word is the target
-                let residual = i - prev_cnt;
-                let mut result = k * 64;
-                result += if residual == 0 {
-                    0
-                } else {
-                    select_in_word(word, (residual - 1) as u64) as usize
-                    // -1 because select_in_words starts counting occurrences from 0
-                };
-                return result;
+            let cnt_1 = word_1.count_ones() as usize;
+            if cnt_1 > i {
+                return result + select_in_word_u128(word_1, i as u64) as usize;
+            } else {
+                i -= cnt_1;
+                result += 128;
             }
         }
-
         0
     }
 
-    #[inline(always)]
-    fn rank_intra_block<const SYMBOL: u8>(&self, i: usize) -> usize {
-        assert!(
-            SYMBOL <= 3,
+    #[inline]
+    fn rank_intra_block(&self, symbol: u8, i: usize) -> usize {
+        debug_assert!(
+            symbol <= 3,
             "RSQVector indexes only four symbols in [0, 3]."
         );
 
-        let mut rank = 0;
-        let data = self.qv.get_data();
-        let first_word = i / S::BLOCK_SIZE * (S::BLOCK_SIZE * 2 / 128);
-        let offset = i % S::BLOCK_SIZE; // offset (in symbols) within the block
-        let last_word = first_word + offset / 64;
+        debug_assert!(
+            S::BLOCK_SIZE == 256 || S::BLOCK_SIZE == 512,
+            "RSQVector supports only blocks of size 256 or 512."
+        );
 
-        for i in first_word..last_word {
-            let word = unsafe { *data.get_unchecked(i) };
-            rank += Self::rank_word::<SYMBOL>(word, u64::MAX);
+        if S::BLOCK_SIZE == 256 {
+            let data_line_id = i >> 8;
+            let offset = i & 255;
+
+            return unsafe {
+                self.qv
+                    .data
+                    .get_unchecked(data_line_id)
+                    .rank_unchecked(symbol, offset)
+            };
         }
 
-        let offset = offset % 64; // offset within the last word
-        if offset > 0 {
-            let mask = (1_u64 << offset) - 1;
-            let word = unsafe { *data.get_unchecked(last_word) };
-            rank += Self::rank_word::<SYMBOL>(word, mask);
+        if S::BLOCK_SIZE == 512 {
+            let block_id = i >> 9;
+            let offset_in_block = i & 511;
+
+            let offset_in_first_block = if offset_in_block <= 256 {
+                offset_in_block
+            } else {
+                256
+            };
+
+            let mut rank = unsafe {
+                self.qv
+                    .data
+                    .get_unchecked(block_id * 2)
+                    .rank_unchecked(symbol, offset_in_first_block)
+            };
+
+            if offset_in_block > 256 {
+                rank += unsafe {
+                    self.qv
+                        .data
+                        .get_unchecked(block_id * 2 + 1)
+                        .rank_unchecked(symbol, offset_in_block - 256)
+                };
+            }
+
+            return rank;
         }
 
-        rank
+        0
     }
 
     // Returns the number of symbols in the quad vector.
@@ -219,23 +218,9 @@ impl<S: RSSupport + SpaceUsage> RSQVector<S> {
     pub fn is_empty(&self) -> bool {
         self.qv.len() == 0
     }
-
-    /*
-    /// Aligns data to 64-byte.
-    ///
-    /// Todo: make this safe by checking invariants.
-    ///
-    /// # Safety
-    /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
-    pub unsafe fn align_to_64(&mut self) {
-        self.qv.align_to_64();
-    }
-    */
 }
 
-impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
-    type Item = u8;
-
+impl<S> AccessQuad for RSQVector<S> {
     /// Accesses the `i`-th value in the quad vector.
     /// The caller must guarantee that the position `i` is valid.
     ///
@@ -244,15 +229,15 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, QVector, AccessUnsigned};
+    /// use qwt::{RSQVector256, AccessQuad};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// assert_eq!(unsafe { rsqv.get_unchecked(0) }, 0);
     /// assert_eq!(unsafe { rsqv.get_unchecked(1) }, 1);
     /// ```
-    #[inline(always)]
-    unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
+    #[inline]
+    unsafe fn get_unchecked(&self, i: usize) -> u8 {
         self.qv.get_unchecked(i)
     }
 
@@ -261,7 +246,7 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, AccessUnsigned};
+    /// use qwt::{RSQVector256, AccessQuad};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
@@ -269,19 +254,19 @@ impl<S: RSSupport + SpaceUsage> AccessUnsigned for RSQVector<S> {
     /// assert_eq!(rsqv.get(1), Some(1));
     /// assert_eq!(rsqv.get(10), None);
     /// ```
-    #[inline(always)]
-    fn get(&self, i: usize) -> Option<Self::Item> {
+    #[inline]
+    fn get(&self, i: usize) -> Option<u8> {
         self.qv.get(i)
     }
 }
 
-impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
+impl<S: RSSupport> RankQuad for RSQVector<S> {
     /// Returns rank of `symbol` up to position `i` **excluded**.
     /// Returns `None` if out of bounds.
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, RankUnsigned};
+    /// use qwt::{RSQVector256, RankQuad};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
@@ -292,7 +277,7 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     /// assert_eq!(rsqv.rank(0, 11), None);
     /// ```
     #[inline(always)]
-    fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
+    fn rank(&self, symbol: u8, i: usize) -> Option<usize> {
         if i > self.qv.len() {
             return None;
         }
@@ -306,72 +291,20 @@ impl<S: RSSupport + SpaceUsage> RankUnsigned for RSQVector<S> {
     /// Calling this method with a position `i` larger than the length of the vector
     /// is undefined behavior.
     #[inline(always)]
-    unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
+    unsafe fn rank_unchecked(&self, symbol: u8, i: usize) -> usize {
         debug_assert!(symbol <= 3);
-
-        match symbol {
-            0 => self.rs_support.rank_block::<0>(i) + self.rank_intra_block::<0>(i),
-            1 => self.rs_support.rank_block::<1>(i) + self.rank_intra_block::<1>(i),
-            2 => self.rs_support.rank_block::<2>(i) + self.rank_intra_block::<2>(i),
-            _ => self.rs_support.rank_block::<3>(i) + self.rank_intra_block::<3>(i),
-        }
+        self.rs_support.rank_block(symbol, i) + self.rank_intra_block(symbol, i)
     }
 }
 
-impl<S: RSSupport + SpaceUsage> SymbolsStats for RSQVector<S> {
-    /// Returns the number of occurrences of `symbol` in the indexed sequence,
-    /// `None` if `symbol` is not in [0..3].  
-    #[inline(always)]
-    fn occs(&self, symbol: Self::Item) -> Option<usize> {
-        if symbol > 3 {
-            return None;
-        }
-
-        Some(unsafe { self.occs_unchecked(symbol) })
-    }
-
-    /// Returns the number of occurrences of `symbol` in the indexed sequence.
-    ///
-    /// # Safety
-    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
-    #[inline(always)]
-    unsafe fn occs_unchecked(&self, symbol: Self::Item) -> usize {
-        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
-
-        self.n_occs_smaller[(symbol + 1) as usize] - self.n_occs_smaller[symbol as usize]
-    }
-
-    /// Returns the number of occurrences of all the symbols smaller than the input
-    /// `symbol`, `None` if `symbol` is not in [0..3].
-    #[inline(always)]
-    fn occs_smaller(&self, symbol: Self::Item) -> Option<usize> {
-        if symbol > 3 {
-            return None;
-        }
-        Some(unsafe { self.occs_smaller_unchecked(symbol) })
-    }
-
-    /// Returns the number of occurrences of all the symbols smaller than the input
-    /// `symbol` in the indexed sequence.
-    ///
-    /// # Safety
-    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
-    #[inline(always)]
-    unsafe fn occs_smaller_unchecked(&self, symbol: Self::Item) -> usize {
-        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
-
-        self.n_occs_smaller[symbol as usize]
-    }
-}
-
-impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
+impl<S: RSSupport> SelectQuad for RSQVector<S> {
     /// Returns the position of the `i`th occurrence of `symbol`.
     /// Returns `None` if i is not valid, i.e., if i == 0 or i is larger than
     /// the number of occurrences of `symbol`, or if `symbol` is not in [0..3].
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, SelectUnsigned};
+    /// use qwt::{RSQVector256, SelectQuad};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
@@ -381,8 +314,8 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     /// assert_eq!(rsqv.select(0, 0), None);
     /// assert_eq!(rsqv.select(0, 4), None);
     /// ```
-    #[inline(always)]
-    fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
+    #[inline]
+    fn select(&self, symbol: u8, i: usize) -> Option<usize> {
         if symbol > 3 || i == 0 || unsafe { self.occs_unchecked(symbol) } < i {
             return None;
         }
@@ -393,14 +326,7 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
             return Some(pos);
         }
 
-        let first_word = pos * 2 / 128;
-
-        pos += match symbol {
-            0 => self.select_intra_block::<0>(i - rank, first_word),
-            1 => self.select_intra_block::<1>(i - rank, first_word),
-            2 => self.select_intra_block::<2>(i - rank, first_word),
-            _ => self.select_intra_block::<3>(i - rank, first_word),
-        };
+        pos += self.select_intra_block(symbol, i - rank, pos);
 
         Some(pos)
     }
@@ -414,8 +340,8 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     ///
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.
-    #[inline(always)]
-    unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
+    #[inline]
+    unsafe fn select_unchecked(&self, symbol: u8, i: usize) -> usize {
         debug_assert!(symbol <= 3);
         debug_assert!(i > 0);
         debug_assert!(self.occs(symbol) <= Some(i));
@@ -424,13 +350,87 @@ impl<S: RSSupport + SpaceUsage> SelectUnsigned for RSQVector<S> {
     }
 }
 
-impl<S: RSSupport + SpaceUsage> AsRef<RSQVector<S>> for RSQVector<S> {
+impl<S: RSSupport> WTSupport for RSQVector<S> {
+    /// Returns the number of occurrences of `symbol` in the indexed sequence,
+    /// `None` if `symbol` is not in [0..3].  
+    #[inline(always)]
+    fn occs(&self, symbol: u8) -> Option<usize> {
+        if symbol > 3 {
+            return None;
+        }
+
+        Some(unsafe { self.occs_unchecked(symbol) })
+    }
+
+    /// Returns the number of occurrences of `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
+    #[inline(always)]
+    unsafe fn occs_unchecked(&self, symbol: u8) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
+
+        self.n_occs_smaller[(symbol + 1) as usize] - self.n_occs_smaller[symbol as usize]
+    }
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol`, `None` if `symbol` is not in [0..3].
+    #[inline(always)]
+    fn occs_smaller(&self, symbol: u8) -> Option<usize> {
+        if symbol > 3 {
+            return None;
+        }
+        Some(unsafe { self.occs_smaller_unchecked(symbol) })
+    }
+
+    /// Returns the number of occurrences of all the symbols smaller than the input
+    /// `symbol` in the indexed sequence.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is not in [0..3] is undefined behavior.
+    #[inline(always)]
+    unsafe fn occs_smaller_unchecked(&self, symbol: u8) -> usize {
+        debug_assert!(symbol <= 3, "Symbols are in [0, 3].");
+
+        self.n_occs_smaller[symbol as usize]
+    }
+
+    /// Returns the rank of `symbol` up to the block that contains the position
+    /// `i`.
+    ///
+    /// # Safety
+    /// Calling this method if the `symbol` is larger than 3 of
+    /// if the position `i` is out of bound is undefined behavior.
+    #[inline(always)]
+    unsafe fn rank_block_unchecked(&self, symbol: u8, i: usize) -> usize {
+        self.rs_support.rank_block(symbol, i)
+    }
+
+    /// Prefetches counters of the superblock and blocks containing the position `pos`.
+    #[inline(always)]
+    fn prefetch_info(&self, pos: usize) {
+        self.rs_support.prefetch(pos)
+    }
+
+    /// Prefetches data containing the position `pos`.
+    #[inline(always)]
+    fn prefetch_data(&self, pos: usize) {
+        let line_id = pos >> 8;
+
+        prefetch_read_NTA(&self.qv.data, line_id);
+        if S::BLOCK_SIZE == 512 {
+            prefetch_read_NTA(&self.qv.data, if line_id > 0 { line_id - 1 } else { 0 });
+        }
+    }
+}
+
+impl<S> AsRef<RSQVector<S>> for RSQVector<S> {
     fn as_ref(&self) -> &RSQVector<S> {
         self
     }
 }
 
-impl<S: RSSupport + SpaceUsage> IntoIterator for RSQVector<S> {
+impl<S> IntoIterator for RSQVector<S> {
     type IntoIter = QVectorIterator<QVector>;
     type Item = u8;
 
@@ -439,7 +439,7 @@ impl<S: RSSupport + SpaceUsage> IntoIterator for RSQVector<S> {
     }
 }
 
-impl<'a, S: RSSupport + SpaceUsage> IntoIterator for &'a RSQVector<S> {
+impl<'a, S> IntoIterator for &'a RSQVector<S> {
     type IntoIter = QVectorIterator<&'a QVector>;
     type Item = u8;
 
@@ -459,28 +459,27 @@ pub trait RSSupport {
     /// of the block that contains position `i`.
     ///
     /// We use a const generic to have a specialized method for each symbol.
-    fn rank_block<const SYMBOL: u8>(&self, i: usize) -> usize;
+    fn rank_block(&self, symbol: u8, i: usize) -> usize;
 
     /// Returns a pair `(position, rank)` where the position is the beginning of the block
     /// that contains the `i`th occurrence of `symbol`, and `rank` is the number of
     /// occurrences of `symbol` up to the beginning of this block.
     fn select_block(&self, symbol: u8, i: usize) -> (usize, usize);
+
+    fn prefetch(&self, pos: usize);
 }
 
-macro_rules! impl_from_iterator_rsqvector {
-    ($($t:ty),*) => {
-        $(impl<S: RSSupport + SpaceUsage> FromIterator<$t> for RSQVector<S> {
-                fn from_iter<T>(iter: T) -> Self
-                where
-                    T: IntoIterator<Item = $t>,
-                {
-                    Self::from(QVector::from_iter(iter))
-                }
-            })*
+impl<T, S: RSSupport> FromIterator<T> for RSQVector<S>
+where
+    T: PrimInt + AsPrimitive<u8>,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        Self::from(QVector::from_iter(iter))
     }
 }
-
-impl_from_iterator_rsqvector![i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize];
 
 #[cfg(test)]
 #[generic_tests::define]
@@ -489,9 +488,23 @@ mod tests {
     use std::iter;
 
     #[test]
+    fn test_just_one_data_line<D>()
+    where
+        D: From<QVector> + AccessQuad + RankQuad + SelectQuad + WTSupport,
+    {
+        let qv: QVector = [0].into_iter().cycle().take(256).collect(); // a full DataLine
+        let rsqv = D::from(qv);
+
+        assert_eq!(rsqv.rank(0, 256), Some(256));
+        assert_eq!(rsqv.rank(1, 256), Some(0));
+        assert_eq!(rsqv.rank(2, 256), Some(0));
+        assert_eq!(rsqv.rank(3, 256), Some(0));
+    }
+
+    #[test]
     fn test_small<D>()
     where
-        D: From<QVector> + AccessUnsigned<Item = u8> + RankUnsigned + SelectUnsigned + SymbolsStats,
+        D: From<QVector> + AccessQuad + RankQuad + SelectQuad + WTSupport,
     {
         let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10000).collect();
         let rsqv = D::from(qv.clone());
@@ -528,7 +541,6 @@ mod tests {
         for (i, c) in qv.iter().enumerate() {
             let rank = rsqv.rank(c, i + 1).unwrap();
             let s = rsqv.select(c, rank).unwrap();
-
             assert_eq!(s, i);
         }
     }
@@ -536,7 +548,7 @@ mod tests {
     #[test]
     fn test_boundaries<D>()
     where
-        D: From<QVector> + AccessUnsigned<Item = u8> + RankUnsigned + SelectUnsigned,
+        D: From<QVector> + AccessQuad + RankQuad + SelectQuad,
     {
         for n in [
             100,
@@ -562,7 +574,6 @@ mod tests {
                 let qv: QVector = iter::repeat(symbol).take(n).collect();
                 let rsqv = D::from(qv.clone());
                 for i in 0..qv.len() + 1 {
-                    dbg!(i, symbol, n);
                     if i < qv.len() {
                         assert_eq!(rsqv.get(i), Some(symbol));
                     }
@@ -576,7 +587,7 @@ mod tests {
     #[test]
     fn test_from_wt<D>()
     where
-        D: From<QVector> + AccessUnsigned<Item = u8> + RankUnsigned + SelectUnsigned,
+        D: From<QVector> + AccessQuad + RankQuad + SelectQuad,
     {
         // a bug in wt gives a test like this
         let n = 1025 * 2;

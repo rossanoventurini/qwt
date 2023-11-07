@@ -4,8 +4,12 @@
 //! In particular, it provides functions to generate random increasing sequences and
 //! random queries, to measure rank and select queries, and so on.
 
+use crate::AccessUnsigned;
 use num_traits::Unsigned;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use std::time::Instant;
 
 /// Returns the type name of its argument.
@@ -171,4 +175,60 @@ pub fn negate_vector(v: &[usize]) -> Vec<usize> {
     }
     assert_eq!(max - v.len() + 1, vv.len());
     vv
+}
+
+pub fn load_or_build_and_save_qwt<DS>(
+    output_filename: &str,
+    text: &[<DS as AccessUnsigned>::Item],
+) -> DS
+where
+    DS: Serialize
+        + for<'a> Deserialize<'a>
+        + From<Vec<<DS as AccessUnsigned>::Item>>
+        + AccessUnsigned,
+    <DS as AccessUnsigned>::Item: Clone,
+{
+    let ds: DS;
+    let path = Path::new(&output_filename);
+    if path.exists() {
+        println!(
+            "The data structure already exists. Filename: {}. I'm going to load it ...",
+            output_filename
+        );
+        let serialized = fs::read(path).unwrap();
+        println!("Serialized size: {:?} bytes", serialized.len());
+        ds = bincode::deserialize::<DS>(&serialized).unwrap();
+    } else {
+        let mut t = TimingQueries::new(1, 1); // measure building time
+        t.start();
+        ds = DS::from(text.to_owned());
+        t.stop();
+        let (t_min, _, _) = t.get();
+        println!("Construction time {:?} millisecs", t_min / 1000000);
+
+        let serialized = bincode::serialize(&ds).unwrap();
+        println!("Serialized size: {:?} bytes", serialized.len());
+        fs::write(path, serialized).unwrap();
+    }
+
+    ds
+}
+
+pub fn build_qwt<DS>(text: &[<DS as AccessUnsigned>::Item]) -> DS
+where
+    DS: Serialize
+        + for<'a> Deserialize<'a>
+        + From<Vec<<DS as AccessUnsigned>::Item>>
+        + AccessUnsigned,
+    <DS as AccessUnsigned>::Item: Clone,
+{
+    let ds: DS;
+    let mut t = TimingQueries::new(1, 1); // measure building time
+    t.start();
+    ds = DS::from(text.to_owned());
+    t.stop();
+    let (t_min, _, _) = t.get();
+    println!("Construction time {:?} millisecs", t_min / 1000000);
+
+    ds
 }

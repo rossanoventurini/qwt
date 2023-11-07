@@ -2,12 +2,16 @@ use qwt::perf_and_test_utils::{
     gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
 };
 use qwt::utils::{msb, text_remap};
-use qwt::{QWT256, QWT512};
+use qwt::{QWT256Pfs, QWT512Pfs, QWT256, QWT512};
 
 use sucds::bit_vectors::{Access, Build, NumBits, Rank, Rank9Sel, Select};
 use sucds::char_sequences::WaveletMatrix;
 use sucds::int_vectors::CompactVector;
 use sucds::Serializable;
+
+use simple_sds::ops::Access as simple_sds_Access;
+use simple_sds::ops::VectorIndex;
+use simple_sds::wavelet_matrix::WaveletMatrix as simple_sds_WM;
 
 // use sdsl::int_vectors;
 // use sdsl::wavelet_trees::WtInt;
@@ -16,14 +20,14 @@ use clap::Parser;
 
 const N_RUNS: usize = 3;
 
-// Use this just to have a common interface between qwt and sucds libraries
+// Use this trait just to have a common interface between qwts, sucds, and simple_sds libraries
 pub trait Operations {
     fn rank(&self, s: u8, i: usize) -> usize;
     fn select(&self, s: u8, i: usize) -> usize;
     fn get(&self, i: usize) -> u8;
-    fn space_usage_bytes(&self) -> usize;
+    fn space_usage_byte(&self) -> usize;
     fn space_usage_mib(&self) -> f32 {
-        (self.space_usage_bytes() as f32) / ((1024 * 1024) as f32)
+        (self.space_usage_byte() as f32) / ((1024 * 1024) as f32)
     }
 }
 
@@ -40,7 +44,7 @@ where
     fn get(&self, i: usize) -> u8 {
         self.access(i).unwrap() as u8
     }
-    fn space_usage_bytes(&self) -> usize {
+    fn space_usage_byte(&self) -> usize {
         self.size_in_bytes()
     }
 }
@@ -56,7 +60,7 @@ where
 //     fn get(&self, i: usize) -> u8 {
 //         self.get(i) as u8
 //     }
-//     fn space_usage_bytes(&self) -> usize {
+//     fn space_usage_byte(&self) -> usize {
 //         0
 //     }
 // }
@@ -72,8 +76,23 @@ impl Operations for QWT256<u8> {
     fn get(&self, i: usize) -> u8 {
         unsafe { self.get_unchecked(i) }
     }
-    fn space_usage_bytes(&self) -> usize {
-        SpaceUsage::space_usage_bytes(self)
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
+impl Operations for QWT256Pfs<u8> {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        unsafe { self.rank_prefetch_unchecked(s, i) }
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        unsafe { self.select_unchecked(s, i) }
+    }
+    fn get(&self, i: usize) -> u8 {
+        unsafe { self.get_unchecked(i) }
+    }
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
     }
 }
 
@@ -87,8 +106,38 @@ impl Operations for QWT512<u8> {
     fn get(&self, i: usize) -> u8 {
         unsafe { self.get_unchecked(i) }
     }
-    fn space_usage_bytes(&self) -> usize {
-        SpaceUsage::space_usage_bytes(self)
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
+impl Operations for QWT512Pfs<u8> {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        unsafe { self.rank_prefetch_unchecked(s, i) }
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        unsafe { self.select_unchecked(s, i) }
+    }
+    fn get(&self, i: usize) -> u8 {
+        unsafe { self.get_unchecked(i) }
+    }
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
+impl Operations for simple_sds_WM {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        VectorIndex::rank(self, i, s as u64)
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        VectorIndex::select(self, i, s as u64).unwrap()
+    }
+    fn get(&self, i: usize) -> u8 {
+        simple_sds_Access::get(self, i) as u8
+    }
+    fn space_usage_byte(&self) -> usize {
+        0
     }
 }
 
@@ -205,6 +254,10 @@ fn main() {
 
     let qwt256 = QWT256::from(text.clone());
     let qwt512 = QWT512::from(text.clone());
+    let qwt256pfs = QWT256Pfs::from(text.clone());
+    let qwt512pfs = QWT512Pfs::from(text.clone());
+
+    let simple_sds = simple_sds_WM::from(text.clone());
 
     // let mut iv = sdsl::int_vectors::IntVector::<0>::new(n, 0, Some(n_levels as u8)).unwrap();
     // text.iter()
@@ -217,21 +270,30 @@ fn main() {
     if args.rank {
         test_rank_performace(&sucds_wm, n, &rank_queries);
         test_rank_performace(&qwt256, n, &rank_queries);
+        test_rank_performace(&qwt256pfs, n, &rank_queries);
         test_rank_performace(&qwt512, n, &rank_queries);
+        test_rank_performace(&qwt512pfs, n, &rank_queries);
+        test_rank_performace(&simple_sds, n, &rank_queries);
         //test_rank_performace(&sdsl_wt, n, &rank_queries);
     }
 
     if args.access {
         test_access_performace(&sucds_wm, n, &access_queries);
         test_access_performace(&qwt256, n, &access_queries);
+        test_access_performace(&qwt256pfs, n, &access_queries);
         test_access_performace(&qwt512, n, &access_queries);
+        test_access_performace(&qwt512pfs, n, &access_queries);
+        test_access_performace(&simple_sds, n, &access_queries);
         //test_access_performace(&sdsl_wt, n, &access_queries);
     }
 
     if args.select {
         test_select_performace(&sucds_wm, n, &select_queries);
         test_select_performace(&qwt256, n, &select_queries);
+        test_select_performace(&qwt256pfs, n, &select_queries);
         test_select_performace(&qwt512, n, &select_queries);
+        test_select_performace(&qwt512pfs, n, &select_queries);
+        test_select_performace(&simple_sds, n, &select_queries);
         //test_access_performace(&sdsl_wt, n, &access_queries);
     }
 }
