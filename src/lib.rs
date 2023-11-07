@@ -1,24 +1,4 @@
-//! The crate provides an efficient implementation of [Wavelet Trees](https://en.wikipedia.org/wiki/Wavelet_Tree).
-//!
-//! A wavelet tree [[1](#bib)] is a compact data structure that for a text of length
-//! $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$
-//! bits of space and can answer `rank` and `select` queries in $\Theta(\log \sigma)$ time.
-//!
-//! Given a static sequence `S[0,n-1]`, a wavelet tree indexes the sequence `S` and
-//! supports three operations:
-//! - `get(i)` returns S[i];
-//! - `rank(c, i)` returns the number of occurrences of the symbol `c` in the prefix S[0...i-1];
-//! - `select(c, i)` returns the position in S of the `i`th occurrence of the symbol `c`.
-//!  
-//! Our implementation of Wavelet Tree [2] improves query performance by using a 4-ary
-//! tree instead of a binary tree as the basis of the wavelet tree.
-//! The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses
-//! during queries and thus reduces the query latency. This way we are roughly 2 times
-//! faster than other existing implementations (e.g., SDSL).
-//!
-//! ## <a name="bib">Bibliography</a>
-//! 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
-//! 2. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. Faster Wavelet Trees with Quad Vectors. Arxiv, 2023.
+#![doc = include_str!("../README.md")]
 
 pub mod perf_and_test_utils;
 pub mod qvector;

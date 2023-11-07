@@ -48,7 +48,7 @@ The former is used to measure the performance of QuadVectors, which are the buil
 
 The latter is used to measure the performance of a Quad Wavelet Tree built on a given input text.
 
-We can now download and uncompress in the current directory the [English](http://pizzachili.dcc.uchile.cl/texts/nlang/english.gz) collection from [Pizza&Chili corpus](http://pizzachili.dcc.uchile.cl/). Then, we take its prefix of length 2 GiB.
+We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 8 GiB.
 
 ```bash
 wget http://pages.di.unipi.it/rossano/big_english.gz
@@ -56,7 +56,7 @@ gunzip big_english.gz
 head -c 8589934592 english > big_english.8GiB
 ```
 
-The following command builds the wavelet trees (QWT 256 and 512) on this input text and runs 1 million random *access*, *rank*, and *select* queries.
+The following command builds the wavelet trees (QWT 256 and 512 with or witout prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
 ./target/release/perf_wavelet_tree --input-file big_english.8GiB --access --rank --select
@@ -65,6 +65,13 @@ The following command builds the wavelet trees (QWT 256 and 512) on this input t
 We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries` (default 10,000,000 is queries).
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
+
+To repeat the comparison against other Rust libraries, please check out the branch `benchmark`.
+Then, run the benchmark `perf_wt_bench` using the following command:
+
+```bash
+/target/release/perf_wt_bench --input-file big_english.8GiB --rank --select --access
+```
 
 ## Examples
 
