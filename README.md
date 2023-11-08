@@ -23,15 +23,19 @@ We report here a few experiments to compare our implementation with other state-
 The experiments use a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Ubuntu 23.04 LTS kernel version 6.2.0-36. The code is compiled with Rust 1.73.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
 A more detailed experimental evaluation (on different machines) can be found in [[3](#bib)].
 
-The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 8 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
+The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
+
 
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
-| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 | C++ |
-| [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 | C++ |
-| [Sucds 0.6.0](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 | Rust |
-| Qwt256                                       |           436 |         441 |          1135 |        2308 | C++/Rust |
-| Qwt512                                       |           451 |         460 |          1100 |        2180 | C++/Rust |
+| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          2900 |        6089 | C++ |
+| [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          5197 |       4112 | C++ |
+| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
+| [SimpleS](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
+| Qwt256                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
+| Qwt256Pfs                                    |          515 |         363 |          1226 |        4626 | Rust |
+| Qwt512                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
+| Qwt512Pfs                                    |          526 |         398 |         1197 |        4369 | Rust |
 
 We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols is likely to fit in the cache.
 
@@ -41,7 +45,6 @@ To run the experiments, we need to compile the binary executables with
 
 ```bash
 RUSTFLAGS="-C target-cpu=native" cargo build --release
-RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
 This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
@@ -50,7 +53,7 @@ The former is used to measure the performance of QuadVectors, which are the buil
 
 The latter is used to measure the performance of a Quad Wavelet Tree built on a given input text.
 
-We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 8 GiB.
+We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 4 GiB.
 
 ```bash
 wget http://pages.di.unipi.it/rossano/big_english.gz
