@@ -23,7 +23,7 @@ We report here a few experiments to compare our implementation with other state-
 The experiments use a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Ubuntu 23.04 LTS kernel version 6.2.0-36. The code is compiled with Rust 1.73.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
 A more detailed experimental evaluation (on different machines) can be found in [[3](#bib)].
 
-The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
+The dataset, named `Big English`, is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
 
 
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
@@ -49,7 +49,7 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
 
-The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. We can safely ignore it.
+The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
 
 The latter is used to measure the performance of a Quad Wavelet Tree built on a given input text.
 
@@ -61,7 +61,7 @@ gunzip big_english.gz
 head -c 4294967296 english > big_english.4GiB
 ```
 
-The following command builds the wavelet trees (QWT 256 and 512 with or witout prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
+The following command builds the wavelet trees (QWT 256 and 512 with or without prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
 ./target/release/perf_wavelet_tree --input-file big_english.4GiB --access --rank --select
