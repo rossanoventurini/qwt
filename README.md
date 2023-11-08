@@ -8,7 +8,7 @@ This repository provides a very fast implementation of wavelet trees in Rust. A 
 
 The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as the basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
-An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
+An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank, and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
 
 ## <a name="faste">Even faster rank query</a>
 
