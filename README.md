@@ -25,13 +25,12 @@ A more detailed experimental evaluation (on different machines) can be found in 
 
 The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 171 distinct symbols. Below we report details to download the dataset.
 
-
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
-| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          5301 |        6089 | C++ |
+| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          2900 |        6089 | C++ |
 | [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          5197 |       4112 | C++ |
-| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           a |         r |          s |        space| Rust |
-| [SimpleS](https://github.com/jltsiren/simple-sds) 
+| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
+| [SimpleS](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
 | Qwt256                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
 | Qwt256Pfs                                    |          515 |         363 |          1226 |        4626 | Rust |
 | Qwt512                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
@@ -51,7 +50,9 @@ This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` 
 
 The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
 
-The latter is used to measure the performance of a Quad Wavelet Tree built on a given input text.
+The bin `perf_wavelet_tree`  is used to measure the performance of a Quad Wavelet Tree built on a given input text.
+
+Finally, `perf_wt_bench` compares QWT against other implementations (only [Sucds 0.6.0](https://github.com/kampersanda/sucds) for the moment). 
 
 We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 8 GiB.
 
