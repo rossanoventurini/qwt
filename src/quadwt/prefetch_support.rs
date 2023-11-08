@@ -42,7 +42,7 @@ impl PrefetchSupport {
         }
 
         Self {
-            samples: bvs.into_iter().map(|bv| RSNarrow::new(bv)).collect(),
+            samples: bvs.into_iter().map(RSNarrow::new).collect(),
             sample_rate_shift,
         }
     }

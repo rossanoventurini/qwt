@@ -4,7 +4,7 @@ use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector
 #[test]
 fn test_is_empty() {
     let bv = BitVector::default();
-    assert_eq!(bv.is_empty(), true);
+    assert!(bv.is_empty());
 }
 
 // Build a bit vector of size n with even positions set to one
@@ -60,16 +60,13 @@ fn test_from_iter() {
     let n = 1024 + 13;
     let bv = build_alternate(n);
 
-    let bv2: BitVector = (0..n)
-        .into_iter()
-        .map(|x| if x % 2 == 0 { true } else { false })
-        .collect();
+    let bv2: BitVector = (0..n).map(|x| x % 2 == 0).collect();
 
     assert_eq!(bv, bv2);
 
     /* Note: if last bits are zero, the bit vector may differ
     because we are inserting only position of ones */
-    let bv2: BitVector = (0..n).into_iter().filter(|x| x % 2 == 0).collect();
+    let bv2: BitVector = (0..n).filter(|x| x % 2 == 0).collect();
 
     assert_eq!(bv, bv2);
 }

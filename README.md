@@ -102,9 +102,14 @@ assert_eq!(qwt.len(), 8);
 We can print the space usage of the wavelet tree with 
 
 ```rust
+use qwt::QWT256;
 use qwt::SpaceUsage;
 
-println!( qwt.space_usage_bytes() );
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+
+let qwt = QWT256::from(data);
+
+println!("{}", qwt.space_usage_byte() );
 ```
 
 A wavelet tree implements `FromIterator` and, thus, we can use `.collect()`.
@@ -202,8 +207,8 @@ As the space usage depends on the largest value in the sequence, it could be wor
 
 Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
 
-```
-@misc{QWT,
+```bibtex
+@misc{QWT,  
   author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
   title = {Faster Wavelet Trees with Quad Vectors},
   publisher = {arXiv},
