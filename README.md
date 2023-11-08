@@ -204,7 +204,7 @@ As the space usage depends on the largest value in the sequence, it could be wor
 
 Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
 
-```
+```bibtex
 @misc{QWT,
   author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
   title = {Faster Wavelet Trees with Quad Vectors},
