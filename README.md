@@ -16,7 +16,7 @@ As previously highlighted, the Quad Wavelet Tree (QWT) enhances query performanc
 
 When working with moderately large sequences, the primary factor affecting query performance is the cost of the cache misses, which occur at each level of the wavelet tree. However, by utilizing a 4-ary tree structure, we effectively reduce the tree's height by half. Consequently, this reduction in height leads to a proportional decrease in the number of cache misses, resulting in the ~2x improvement in query time.
 
-The **rank** queries can be further improved by means of a **small prediction model** designed to anticipate and pre-fetch the cache lines required for rank queries. This could give a further improvement up to 2x for rank query.
+The **rank** queries can be further improved by means of a **small prediction model** designed to anticipate and pre-fetch the cache lines required for rank queries. This could give a further improvement up to a factor 1.6 for rank query.
 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
