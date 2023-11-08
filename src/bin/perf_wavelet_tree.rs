@@ -368,22 +368,22 @@ fn main() {
 
     if args.rank {
         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     if args.access {
         test_access_latency(&ds, n, &access_queries, input_filename.clone());
-        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
     }
 
     if args.select {
         test_select_latency(&ds, n, &select_queries, input_filename.clone());
-        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
 
     if args.rank_prefetch {
         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
     // TODO: make this a macro!
 
@@ -395,23 +395,23 @@ fn main() {
     }
 
     if args.rank {
-        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     if args.access {
         test_access_latency(&ds, n, &access_queries, input_filename.clone());
-        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
     }
 
     if args.select {
         test_select_latency(&ds, n, &select_queries, input_filename.clone());
-        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
 
     if args.rank_prefetch {
         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     let output_filename = input_filename.clone() + ".512.qwt";
@@ -423,22 +423,22 @@ fn main() {
 
     if args.rank {
         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     if args.access {
         test_access_latency(&ds, n, &access_queries, input_filename.clone());
-        test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
     }
 
     if args.select {
         test_select_latency(&ds, n, &select_queries, input_filename.clone());
-        test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
 
     if args.rank_prefetch {
         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-        test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
     let output_filename = input_filename.clone() + ".512Pfs.qwt";
@@ -449,7 +449,7 @@ fn main() {
     }
 
     if args.rank {
-        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
         test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 

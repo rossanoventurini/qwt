@@ -230,6 +230,7 @@ where
             self.qvs[0].prefetch_info(range.start);
             self.qvs[0].prefetch_info(range.end);
 
+            #[allow(clippy::needless_range_loop)]
             for level in 0..self.n_levels - 1 {
                 let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
 

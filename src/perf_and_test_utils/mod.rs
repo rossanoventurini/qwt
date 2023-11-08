@@ -222,10 +222,9 @@ where
         + AccessUnsigned,
     <DS as AccessUnsigned>::Item: Clone,
 {
-    let ds: DS;
     let mut t = TimingQueries::new(1, 1); // measure building time
     t.start();
-    ds = DS::from(text.to_owned());
+    let ds = DS::from(text.to_owned());
     t.stop();
     let (t_min, _, _) = t.get();
     println!("Construction time {:?} millisecs", t_min / 1000000);
