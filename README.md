@@ -23,7 +23,7 @@ We report here a few experiments to compare our implementation with other state-
 The experiments use a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Ubuntu 23.04 LTS kernel version 6.2.0-36. The code is compiled with Rust 1.73.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
 A more detailed experimental evaluation (on different machines) can be found in [[3](#bib)].
 
-The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 8 GiB was used. The text has an alphabet with 171 distinct symbols. Below we report details to download the dataset.
+The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 8 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
 
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
