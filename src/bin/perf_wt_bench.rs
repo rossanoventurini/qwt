@@ -11,6 +11,7 @@ use sucds::Serializable;
 
 use simple_sds::ops::Access as simple_sds_Access;
 use simple_sds::ops::VectorIndex;
+use simple_sds::serialize::Serialize as simple_sds_Serialize;
 use simple_sds::wavelet_matrix::WaveletMatrix as simple_sds_WM;
 
 // use sdsl::int_vectors;
@@ -137,7 +138,7 @@ impl Operations for simple_sds_WM {
         simple_sds_Access::get(self, i) as u8
     }
     fn space_usage_byte(&self) -> usize {
-        0
+        simple_sds_Serialize::size_in_bytes(self)
     }
 }
 
