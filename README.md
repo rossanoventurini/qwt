@@ -31,7 +31,7 @@ The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.
 | [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          2900 |        6089 | C++ |
 | [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          5197 |       4112 | C++ |
 | [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
-| [SimpleS](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
+| [Simple sds](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
 | Qwt256                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
 | Qwt256Pfs                                    |          515 |         363 |          1226 |        4626 | Rust |
 | Qwt512                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
