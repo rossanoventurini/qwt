@@ -212,8 +212,9 @@ Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use th
 @misc{QWT,
   author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
   title = {Faster Wavelet Trees with Quad Vectors},
-  publisher = {arXiv},
-  year = {2023},
+  booktitle = {Data Compression Conference ({DCC})}
+  publisher = {IEEE},
+  year = {2024},
   doi = {10.48550/ARXIV.2302.09239},
   url = {http://arxiv.org/abs/2302.09239}
 }
