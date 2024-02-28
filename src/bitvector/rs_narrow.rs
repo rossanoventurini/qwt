@@ -5,7 +5,7 @@
 
 use super::*;
 
-use crate::{AccessBin, RankBin};
+use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin};
 
 use serde::{Deserialize, Serialize};
 
@@ -105,6 +105,50 @@ impl RSNarrow {
         result += self.sub_block_ranks(block) >> ((7 - left) * 9) & 0x1FF;
         result
     }
+    
+    #[inline(always)]
+    //returns index of block with biggest rank_1 < i  
+    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i` 
+    /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
+    ///
+    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    fn select1_subblock(&self, i: usize) -> (usize, usize) {
+
+        let mut position = 0;
+        let mut rank = 0;
+
+        println!("block rank pairs len = {}", self.block_rank_pairs.len());
+        let n_blocks = self.block_rank_pairs.len() / 2;
+        
+        for j in 0..n_blocks {
+            println!("{}: {}", j, self.block_rank(j));
+            if self.block_rank(j) > i {
+                position = j - 1;
+                break;
+            } 
+        }
+        rank = self.block_rank(position);
+        println!("selected block {} with rank {}", position, rank);
+        //position is now superblock
+
+        //now we examine sub_blocks
+        position = position * BLOCK_SIZE;
+
+        println!("now sub_blocks");
+        for j in 0..BLOCK_SIZE {
+            println!("{}: {}", j, self.sub_block_rank(position + j));
+            if self.sub_block_rank(position + j) > i {
+                position += j - 1;
+                break;
+            }
+        }
+        rank = self.sub_block_rank(position);
+
+        (position, rank)
+    }
+
+
+
 }
 
 impl AccessBin for RSNarrow {
@@ -160,6 +204,29 @@ impl RankBin for RSNarrow {
         };
 
         result
+    }
+}
+
+impl SelectBin for RSNarrow {
+    fn select1(&self, i: usize) -> Option<usize> {
+        if i == 0 {
+            return None;
+        }
+
+        Some(self.select1_unchecked(i))    
+    }
+
+    fn select1_unchecked(&self, i: usize) -> usize{
+        //todo: check block and then look for the word if the rank is not alredy right
+        
+        //block_rank_pairs layout
+        //|superblock0|blocks0|superblock1|blocks1...
+
+        let (block, rank) = self.select1_subblock(i);
+        println!("selected block {}, rank {}", block, rank);
+
+        block * 64 + select_in_word(self.bv.get_word(block), (i-rank) as u64) as usize
+        
     }
 }
 
