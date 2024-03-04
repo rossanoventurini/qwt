@@ -2,13 +2,12 @@
 //! symbols of a quad sequence up to the beginning of blocks of a fixed size
 //! `Self::BLOCK_SIZE`.
 
+use crate::qvector::rs_qvector::RSSupport;
 use crate::utils::prefetch_read_NTA;
 use crate::QVector;
-use crate::SpaceUsage; // Traits
+use crate::{AccessQuad, SpaceUsage}; // Traits
 
 use serde::{Deserialize, Serialize};
-
-use super::*;
 
 /// The generic const `B_SIZE` specifies the number of symbols in each block.
 /// The possible values are 256 (default) and 512.

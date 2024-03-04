@@ -3,9 +3,7 @@
 //!
 //! This implementation is inspired by the C++ implementation by [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/rs_bit_vector.cpp).
 
-use super::*;
-
-use crate::{AccessBin, RankBin};
+use crate::{AccessBin, BitVector, RankBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 

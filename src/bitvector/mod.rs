@@ -2,7 +2,7 @@
 //! to append bits, and to modify bits at arbitrary positions.
 //!
 //! It is possible to iterate over bits or positions of bits set
-//! either to zero or one.
+//! either to zero or to one.
 
 use crate::{AccessBin, SpaceUsage};
 
@@ -166,7 +166,7 @@ impl BitVector {
     /// # Panics
     /// Panics if `index`+`len` is out of bounds or
     /// `len` > 64 or if most significant bit in `bits`
-    /// ia at a position larger than of equal to `len`.
+    /// is at a position larger than of equal to `len`.
     #[inline]
     pub fn set_bits(&mut self, index: usize, len: usize, bits: u64) {
         assert!(index + len <= self.position);
@@ -195,6 +195,13 @@ impl BitVector {
         }
     }
 
+    /// Gets a whole 64bit word.
+    #[must_use]
+    #[inline(always)]
+    pub fn get_word(&self, i: usize) -> u64 {
+        self.data[i]
+    }
+
     /// Returns an iterator over positions of bit set to 1 in the bit vector.
     ///
     /// # Examples
@@ -207,28 +214,20 @@ impl BitVector {
     /// assert_eq!(v, vv);
     /// ```
     pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
-        BitVectorBitPositionsIter {
-            bv: self,
-            curr_position: 0,
-            curr_word_pos: 0,
-            curr_word: 0,
-        }
+        BitVectorBitPositionsIter::new(self)
+    }
+
+    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
+        BitVectorBitPositionsIter::with_pos(self, pos)
     }
 
     /// Gives an iterator over positions of bit set to 0 in the bit vector.
     pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
-        BitVectorBitPositionsIter {
-            bv: self,
-            curr_position: 0,
-            curr_word_pos: 0,
-            curr_word: 0,
-        }
+        BitVectorBitPositionsIter::new(self)
     }
 
-    /// Gets a whole 64bit word.
-    #[inline(always)]
-    pub fn get_word(&self, i: usize) -> u64 {
-        self.data[i]
+    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
+        BitVectorBitPositionsIter::with_pos(self, pos)
     }
 
     /// Shrinks the underlying vector of 64bit words to fit.
@@ -294,45 +293,83 @@ impl SpaceUsage for BitVector {
 
 pub struct BitVectorBitPositionsIter<'a, const BIT: bool> {
     bv: &'a BitVector,
-    curr_position: usize,
-    curr_word_pos: usize,
-    curr_word: u64,
+    cur_position: usize,
+    cur_word_pos: usize,
+    cur_word: u64,
+}
+
+impl<'a, const BIT: bool> BitVectorBitPositionsIter<'a, BIT> {
+    #[must_use]
+    #[inline(always)]
+    pub fn new(bv: &'a BitVector) -> Self {
+        BitVectorBitPositionsIter {
+            bv,
+            cur_position: 0,
+            cur_word_pos: 0, // points the the next word to read
+            cur_word: 0,     // last word we read
+        }
+    }
+
+    #[must_use]
+    #[inline(always)]
+    pub fn with_pos(bv: &'a BitVector, pos: usize) -> Self {
+        let cur_word_pos = pos >> 6;
+        let cur_word = if cur_word_pos < bv.data.len() {
+            if BIT {
+                bv.data[cur_word_pos]
+            } else {
+                // for zeros, just negate the word and report the positions of bit set to one!
+                !bv.data[cur_word_pos]
+            }
+        } else {
+            0
+        };
+        let l = pos % 64;
+
+        let cur_word = cur_word >> l;
+
+        dbg!(pos, l);
+
+        BitVectorBitPositionsIter {
+            bv,
+            cur_position: pos,
+            cur_word_pos: cur_word_pos + 1,
+            cur_word,
+        }
+    }
 }
 
 /// Iterator over the positions of bits set to BIT (false for zeros,
 /// true for ones) in the bit vector.
 impl<'a, const BIT: bool> Iterator for BitVectorBitPositionsIter<'a, BIT> {
     type Item = usize;
+
     fn next(&mut self) -> Option<Self::Item> {
-        if self.curr_position >= self.bv.position {
+        if self.cur_position >= self.bv.position {
             return None;
         }
 
-        while self.curr_word == 0 {
-            if self.curr_word_pos < self.bv.data.len() {
+        while self.cur_word == 0 {
+            if self.cur_word_pos < self.bv.data.len() {
                 if BIT {
-                    self.curr_word = self.bv.data[self.curr_word_pos];
+                    self.cur_word = self.bv.data[self.cur_word_pos];
                 } else {
                     // for zeros, just negate the word and report the positions of bit set to one!
-                    self.curr_word = !self.bv.data[self.curr_word_pos];
+                    self.cur_word = !self.bv.data[self.cur_word_pos];
                 }
-                self.curr_position = self.curr_word_pos << 6;
+                self.cur_position = self.cur_word_pos << 6;
             } else {
                 return None;
             }
-            self.curr_word_pos += 1;
+            self.cur_word_pos += 1;
         }
-        let l = self.curr_word.trailing_zeros() as usize;
-        self.curr_position += l;
-        let pos = self.curr_position;
+        let l = self.cur_word.trailing_zeros() as usize;
+        self.cur_position += l;
+        let pos = self.cur_position;
 
-        self.curr_word = if l >= 63 {
-            0
-        } else {
-            self.curr_word >> (l + 1)
-        };
+        self.cur_word = if l >= 63 { 0 } else { self.cur_word >> (l + 1) };
 
-        self.curr_position += 1;
+        self.cur_position += 1;
         if pos >= self.bv.position {
             None
         } else {

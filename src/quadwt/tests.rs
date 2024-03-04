@@ -107,8 +107,6 @@ fn test_get() {
     }
 }
 
-use bincode;
-
 #[test]
 fn test_serialize() {
     let qwt = QWaveletTree::<_, RSQVector512>::new(&mut [0_u8; 10]);
