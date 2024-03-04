@@ -78,7 +78,7 @@ const MAX_IN_BLOCK_DISTACE: usize = 1 << 16;
 /// extra data structures to support fast `select0` queries,
 /// which otherwise are not supported.
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DArray<const SELECT0_SUPPORT: bool = false> {
     bv: BitVector,
     ones_inventories: Inventories<true>,
@@ -88,7 +88,7 @@ pub struct DArray<const SELECT0_SUPPORT: bool = false> {
 // Helper struct for DArray that stores
 // statistics, counters and overflow positions for bits
 // set either to 0 or 1
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Inventories<const BIT: bool> {
     n_sets: usize, // number of bits set to
     block_inventory: Vec<i64>,
