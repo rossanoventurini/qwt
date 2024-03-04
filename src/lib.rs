@@ -19,8 +19,8 @@ pub mod quadwt;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
 
-//pub mod darray;
-//pub use darray::DArray;
+pub mod darray;
+pub use darray::DArray;
 
 pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
 pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
