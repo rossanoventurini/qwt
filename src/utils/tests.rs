@@ -1,7 +1,5 @@
 use super::*;
 
-use num_traits::AsPrimitive;
-
 #[test]
 fn test_select_in_word() {
     assert_eq!(select_in_word(1, 0), 0);

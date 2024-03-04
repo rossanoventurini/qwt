@@ -83,6 +83,10 @@ fn test_iter_zeros() {
     let v: Vec<usize> = bv.zeros().collect();
     assert_eq!(v, negate_vector(&vv));
 
+    let v: Vec<usize> = bv.zeros_with_pos(63).collect();
+    assert_eq!(v[0], 64);
+    assert_eq!(*v.last().unwrap(), 1025);
+
     // do it again but extends with zeros
     bv.extend_with_zeros(100);
 
@@ -101,6 +105,18 @@ fn test_iter_ones() {
 
     let v: Vec<usize> = bv.ones().collect();
     assert_eq!(v, vv);
+
+    let v: Vec<usize> = bv.ones_with_pos(127).collect();
+    assert_eq!(v, vec![128, 129, 254, 1026]);
+
+    let v: Vec<usize> = bv.ones_with_pos(129).collect();
+    assert_eq!(v, vec![129, 254, 1026]);
+
+    let v: Vec<usize> = bv.ones_with_pos(130).collect();
+    assert_eq!(v, vec![254, 1026]);
+
+    let v: Vec<usize> = bv.ones_with_pos(1027).collect();
+    assert_eq!(v, vec![]);
 
     let vv: Vec<usize> = (0..1024).collect();
     let bv: BitVector = vv.iter().copied().collect();

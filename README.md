@@ -8,7 +8,7 @@ This repository provides a very fast implementation of wavelet trees in Rust. A 
 
 The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as the basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
-An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
+An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank, and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
 
 ## <a name="faste">Even faster rank query</a>
 
@@ -16,31 +16,35 @@ As previously highlighted, the Quad Wavelet Tree (QWT) enhances query performanc
 
 When working with moderately large sequences, the primary factor affecting query performance is the cost of the cache misses, which occur at each level of the wavelet tree. However, by utilizing a 4-ary tree structure, we effectively reduce the tree's height by half. Consequently, this reduction in height leads to a proportional decrease in the number of cache misses, resulting in the ~2x improvement in query time.
 
-The **rank** queries can be further improved by means of a **small prediction model** designed to anticipate and pre-fetch the cache lines required for rank queries. This could give a further improvement up to 2x for rank query.
+The **rank** queries can be further improved using a **small prediction model** designed to anticipate and pre-fetch the cache lines required for rank queries. This could give a further improvement up to a factor of 1.6 for rank query.
 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
-The experiments are performed using a single thread on a server machine with 64 cores AMD EPYC 7713 running Ubuntu 20.04.3 LTS kernel version 5.4.0-155. The code is compiled with Rust 1.71.0. Cache sizes are  64 KB L1I and 64 KB L1D per core, 512 KB L2I+D per core, and 256 MB L3I+D, with 32 MB per 8 cores.
-A more detailed experimental evaluation can be found in [[3](#bib)].
+The experiments use a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Ubuntu 23.04 LTS kernel version 6.2.0-36. The code is compiled with Rust 1.73.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
+A more detailed experimental evaluation (on different machines) can be found in [[3](#bib)].
 
-The dataset, named 'Big English', is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 8 GiB was used. The text has an alphabet with 171 distinct symbols. Below we report details to download the dataset.
+The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.gz), is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
+
 
 | Implementation                                  | *access* (ns) | *rank* (ns) | *select* (ns) | space (MiB) | Language |
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
-| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |           693 |         786 |          2619 |        3039 | C++ |
-| [Pasta](https://github.com/pasta-toolbox)     |           832 |         846 |          2403 |        2124 | C++ |
-| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           768 |         818 |          2533 |        2688 | Rust |
-| Qwt256                                       |           436 |         441 |          1135 |        2308 | C++/Rust |
-| Qwt512                                       |           451 |         460 |          1100 |        2180 | C++/Rust |
+| [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          2900 |        6089 | C++ |
+| [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          2860 |       4112 | C++ |
+| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
+| [Simple-SDS 0.3.1](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
+| Qwt256                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
+| Qwt256Pfs                                    |          515 |         363 |          1226 |        4626 | Rust |
+| Qwt512                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
+| Qwt512Pfs                                    |          526 |         398 |         1197 |        4369 | Rust |
 
-We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols is likely to fit in the cache.
+We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
 
-There are four instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `pfs` in `Qwt256pfs` and `Qwt512pfs` indicates that they utilize additional space to store a predicting model, which is able to further accelerate 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
+There are four instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `Pfs` in `Qwt256Pfs` and `Qwt512Pfs` indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
 
 To run the experiments, we need to compile the binary executables with
 
 ```bash
-cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
 This produces the two executables `perf_rs_quat_vector`,  `perf_wavelet_tree`, and 
@@ -48,25 +52,25 @@ This produces the two executables `perf_rs_quat_vector`,  `perf_wavelet_tree`, a
 
 The first one is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. We can safely ignore it.
 
-The bin `perf_wavelet_tree`  is used to measure the performance of a Quad Wavelet Tree built on a given input text.
+The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
 
-Finally, `perf_wt_bench` compares QWT against other implementations (only [Sucds 0.6.0](https://github.com/kampersanda/sucds) for the moment). 
+The latter measures the performance of a Quad Wavelet Tree built on a given input text.
 
-We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 8 GiB.
+We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 4 GiB.
 
 ```bash
 wget http://pages.di.unipi.it/rossano/big_english.gz
 gunzip big_english.gz
-head -c 8589934592 english > big_english.8GiB
+head -c 4294967296 big_english > big_english.4GiB
 ```
 
-The following command builds the wavelet trees (QWT 256 and 512 with or witout prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
+The following command builds the wavelet trees (QWT 256 and 512 with or without prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
-./target/release/perf_wavelet_tree --input-file big_english.8GiB --access --rank --select
+./target/release/perf_wavelet_tree --input-file big_english.4GiB --access --rank --select
 ```
 
-We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries`.
+We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries` (default is 10,000,000 queries).
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
 
@@ -74,7 +78,7 @@ To repeat the comparison against other Rust libraries, please check out the bran
 Then, run the benchmark `perf_wt_bench` using the following command:
 
 ```bash
-/target/release/perf_wt_bench --input-file big_english.8GiB --rank --select --access
+/target/release/perf_wt_bench --input-file big_english.4GiB --rank --select --access
 ```
 
 ## Examples
@@ -99,7 +103,7 @@ let qwt = QWT256::from(data);
 assert_eq!(qwt.len(), 8);
 ```
 
-We can print the space usage of the wavelet tree with 
+We can print the space usage of the wavelet tree with
 
 ```rust
 use qwt::QWT256;
@@ -208,11 +212,12 @@ As the space usage depends on the largest value in the sequence, it could be wor
 Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
 
 ```bibtex
-@misc{QWT,  
+@misc{QWT,
   author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
   title = {Faster Wavelet Trees with Quad Vectors},
-  publisher = {arXiv},
-  year = {2023},
+  booktitle = {Data Compression Conference ({DCC})}
+  publisher = {IEEE},
+  year = {2024},
   doi = {10.48550/ARXIV.2302.09239},
   url = {http://arxiv.org/abs/2302.09239}
 }

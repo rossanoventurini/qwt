@@ -19,6 +19,9 @@ pub mod quadwt;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
 
+pub mod darray;
+pub use darray::DArray;
+
 pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
 pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 
@@ -123,6 +126,50 @@ pub trait RankBin {
 }
 
 // TODO: Add SelectBin trait when select will be implemented
+/// A trait for the support of `select` query over the alphabet [0..3].
+pub trait SelectBin {
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `1`.
+    /// We start counting from 1, so that `select1(1)` refers to the first
+    /// occurrence of `1`. `select1(0)` returns `None`.
+    ///
+    /// # Panics
+    /// Panics if the operation is not supported.
+    fn select1(&self, i: usize) -> Option<usize>;
+
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `0`.
+    /// We start counting from 1, so that `select0(1)` refers to the first
+    /// occurrence of `0`. `select1(0)` returns `None`.
+    ///
+    /// # Panics
+    /// Panics if the operation is not supported.
+    fn select0(&self, i: usize) -> Option<usize>;
+
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `1`.
+    /// We start counting from 1, so that `select1_unchecked(1)` refers to the first
+    /// occurrence of `1`.
+    ///
+    /// # Panics
+    /// Panics if the operation is not supported.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `1` does not exist.
+    unsafe fn select1_unchecked(&self, i: usize) -> usize;
+
+    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// `0`.
+    /// We start counting from 1, so that `select0_unchecked(1)` refers to the first
+    /// occurrence of `0`.
+    ///
+    /// # Panics
+    /// Panics if the operation is not supported.
+    ///
+    /// # Safety
+    /// Calling this method if the `i`th occurrence of `0` does not exist.
+    unsafe fn select0_unchecked(&self, i: usize) -> usize;
+}
 
 /// A trait for the support of `get` query over the alphabet [0..3].
 pub trait AccessQuad {
@@ -247,7 +294,7 @@ where
 {
     fn space_usage_byte(&self) -> usize {
         if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.capacity()
+            mem::size_of::<Self>() + self.first().unwrap().space_usage_byte() * self.capacity()
         } else {
             mem::size_of::<Self>() + mem::size_of::<T>() * self.capacity()
         }
@@ -260,7 +307,7 @@ where
 {
     fn space_usage_byte(&self) -> usize {
         if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.len()
+            mem::size_of::<Self>() + self.first().unwrap().space_usage_byte() * self.len()
         } else {
             mem::size_of::<Self>()
         }

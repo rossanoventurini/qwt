@@ -169,12 +169,21 @@ impl<S: RSSupport> RSQVector<S> {
             let data_line_id = i >> 8;
             let offset = i & 255;
 
-            return unsafe {
-                self.qv
-                    .data
-                    .get_unchecked(data_line_id)
-                    .rank_unchecked(symbol, offset)
+            let rank = if let Some(d) = self.qv.data.get(data_line_id) {
+                unsafe { d.rank_unchecked(symbol, offset) }
+            } else {
+                0
             };
+
+            return rank;
+            // dbg!(self.qv.data.len());
+
+            // return unsafe {
+            //     self.qv
+            //         .data //[data_line_id]
+            //         .get_unchecked(data_line_id)
+            //         .rank_unchecked(symbol, offset)
+            // };
         }
 
         if S::BLOCK_SIZE == 512 {
@@ -187,20 +196,32 @@ impl<S: RSSupport> RSQVector<S> {
                 256
             };
 
-            let mut rank = unsafe {
-                self.qv
-                    .data
-                    .get_unchecked(block_id * 2)
-                    .rank_unchecked(symbol, offset_in_first_block)
+            let mut rank = if let Some(d) = self.qv.data.get(block_id * 2) {
+                unsafe { d.rank_unchecked(symbol, offset_in_first_block) }
+            } else {
+                0
             };
 
+            // let mut rank = unsafe {
+            //     self.qv
+            //         .data
+            //         .get_unchecked(block_id * 2)
+            //         .rank_unchecked(symbol, offset_in_first_block)
+            // };
+
             if offset_in_block > 256 {
-                rank += unsafe {
-                    self.qv
-                        .data
-                        .get_unchecked(block_id * 2 + 1)
-                        .rank_unchecked(symbol, offset_in_block - 256)
+                rank += if let Some(d) = self.qv.data.get(block_id * 2 + 1) {
+                    unsafe { d.rank_unchecked(symbol, offset_in_block - 256) }
+                } else {
+                    0
                 };
+
+                // rank += unsafe {
+                //     self.qv
+                //         .data
+                //         .get_unchecked(block_id * 2 + 1)
+                //         .rank_unchecked(symbol, offset_in_block - 256)
+                // };
             }
 
             return rank;
