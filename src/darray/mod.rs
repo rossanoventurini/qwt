@@ -90,7 +90,7 @@ pub struct DArray<const SELECT0_SUPPORT: bool = false> {
 // set either to 0 or 1
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Inventories<const BIT: bool> {
-    n_sets: usize, // number of bits set to
+    n_sets: usize, // number of bits set to BIT
     block_inventory: Vec<i64>,
     subblock_inventory: Vec<u16>,
     overflow_positions: Vec<usize>,
@@ -178,8 +178,16 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         }
     }
 
-    pub fn access(&self, pos: usize) -> Option<bool> {
+    pub fn get(&self, pos: usize) -> Option<bool> {
         self.bv.get(pos)
+    }
+
+    pub fn n_ones(&self) -> usize {
+        self.ones_inventories.n_sets
+    }
+
+    pub fn n_zeros(&self) -> usize {
+        self.bv.len() - self.ones_inventories.n_sets
     }
 
     pub fn len(&self) -> usize {
@@ -189,18 +197,6 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     pub fn is_empty(&self) -> bool {
         self.bv.len() == 0
     }
-
-    // pub fn unary_iter(&self, pos: usize) -> UnaryIter {
-    //     self.bv.unary_iter(pos)
-    // }
-
-    // pub fn ones(&self, pos: usize) -> UnaryIterOnes {
-    //     self.bv.ones(pos)
-    // }
-
-    // pub fn zeroes(&self, pos: usize) -> UnaryIterZeroes {
-    //     self.bv.zeroes(pos)
-    // }
 
     // Private generic select query, which solves either select0 and select1.
     #[inline(always)]
