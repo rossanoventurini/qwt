@@ -128,6 +128,10 @@ pub trait SelectBin {
     fn select1(&self, i: usize) -> Option<usize>;
 
     fn select1_unchecked(&self, i: usize) -> usize;
+
+    fn select0(&self, i: usize) -> Option<usize>;
+
+    fn select0_unchecked(&self, i: usize) -> usize;
 }
 
 
@@ -285,3 +289,5 @@ macro_rules! impl_space_usage {
 }
 
 impl_space_usage![bool, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64];
+
+pub mod huffman;

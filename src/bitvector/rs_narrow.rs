@@ -107,7 +107,6 @@ impl RSNarrow {
     }
     
     #[inline(always)]
-    //returns index of block with biggest rank_1 < i  
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i` 
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
@@ -115,7 +114,7 @@ impl RSNarrow {
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
 
         let mut position = 0;
-        let mut rank = 0;
+        let mut rank;
 
         println!("block rank pairs len = {}", self.block_rank_pairs.len());
         let n_blocks = self.block_rank_pairs.len() / 2;
@@ -143,6 +142,51 @@ impl RSNarrow {
             }
         }
         rank = self.sub_block_rank(position);
+
+        (position, rank)
+    }
+
+    #[inline(always)]
+    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i` 
+    /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
+    ///
+    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    fn select0_subblock(&self, i: usize) -> (usize, usize) {
+
+        let mut position = 0;
+        let mut rank;
+
+        println!("block rank pairs len = {}", self.block_rank_pairs.len());
+        let n_blocks = self.block_rank_pairs.len() / 2;
+
+        let max_rank_for_block = BLOCK_SIZE * 64;
+        
+        for j in 0..n_blocks {
+            println!("{}: {}", j, self.block_rank(j));
+            let rank0 = j * max_rank_for_block - self.block_rank(j);
+            if rank0 > i {
+                position = j - 1;
+                break;
+            } 
+        }
+        rank = position * max_rank_for_block - self.block_rank(position);
+        println!("selected block {} with rank0 {}", position, rank);
+        //position is now superblock
+
+        //now we examine sub_blocks
+        position = position * BLOCK_SIZE;
+
+        let max_rank_for_subblock = 64;
+        println!("now sub_blocks");
+        for j in 0..BLOCK_SIZE {
+            println!("{}: {}", j, self.sub_block_rank(position + j));
+            let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j); 
+            if rank0 > i {
+                position += j - 1;
+                break;
+            }
+        }
+        rank = max_rank_for_subblock * position - self.sub_block_rank(position);
 
         (position, rank)
     }
@@ -216,17 +260,33 @@ impl SelectBin for RSNarrow {
         Some(self.select1_unchecked(i))    
     }
 
-    fn select1_unchecked(&self, i: usize) -> usize{
-        //todo: check block and then look for the word if the rank is not alredy right
-        
+    fn select1_unchecked(&self, i: usize) -> usize{        
         //block_rank_pairs layout
-        //|superblock0|blocks0|superblock1|blocks1...
+        //|superblock0|block0|superblock1|block1...
 
         let (block, rank) = self.select1_subblock(i);
         println!("selected block {}, rank {}", block, rank);
 
         block * 64 + select_in_word(self.bv.get_word(block), (i-rank) as u64) as usize
-        
+    }
+
+    fn select0(&self, i: usize) -> Option<usize> {
+        if i == 0 {
+            return None;
+        }
+
+        Some(self.select0_unchecked(i))    
+    }
+
+    fn select0_unchecked(&self, i: usize) -> usize{        
+        //block_rank_pairs layout
+        //|superblock0|blocks0|superblock1|blocks1...
+
+        let (block, rank) = self.select0_subblock(i);
+        println!("selected block {}, rank {}", block, rank);
+
+        let word_to_select = !self.bv.get_word(block);
+        block * 64 + select_in_word(word_to_select, (i-rank) as u64) as usize
     }
 }
 

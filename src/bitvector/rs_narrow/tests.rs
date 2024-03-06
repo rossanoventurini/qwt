@@ -67,7 +67,7 @@ fn test_large_random() {
 }
 
 #[test]
-fn test_select() {
+fn test_select1() {
     let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSNarrow::new(bv);
@@ -82,6 +82,23 @@ fn test_select() {
 
     let j = selected;
     println!("rank1({}) = {}", j, rs.rank1(j).unwrap());
+}
 
 
+#[test]
+fn test_select0() {
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    println!("{:?}", rs.bv);
+    println!("{:?}", rs.block_rank_pairs);
+
+
+    let i = 6;
+    let selected = rs.select0(i).unwrap();
+    println!("select0({}) = {}", i, selected);
+
+    let j = selected;
+    println!("rank0({}) = {}", j, rs.rank0(j).unwrap());
 }
