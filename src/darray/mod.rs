@@ -2,7 +2,7 @@
 //! and `select0` queries on a binary vector supporting the [`Select`] trait.
 //! Rank queries are not supported.
 //!
-//! The query `select_1(i)` returns the position of the (i+1)-th occurrence of a bit
+//! The query `select1(i)` returns the position of the (i+1)-th occurrence of a bit
 //! set to 1 in the binary vector.
 //! For example, let the binary vector be 010000101, `select1(0)` = 1,
 //! `select1(1)` = 6, and `select1(2)` = 8.
@@ -15,13 +15,11 @@
 //! `select0` query support, (otherwise, calling `select0` will panic).
 //!
 //! ```
-//! use qwt::BitVector;
 //! use qwt::DArray;
 //! use qwt::{SpaceUsage, SelectBin};
 //!
 //! let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-//! let bv: BitVector = vv.into_iter().collect();
-//! let da: DArray<false> = DArray::new(bv);
+//! let da: DArray<false> = vv.into_iter().collect();
 //!
 //! assert_eq!(da.select1(1), Some(12));
 //! ```
@@ -58,13 +56,14 @@
 //! looking for the ith occurrence of 1.
 //! Instead, if the block is sparse, the answer is stored in vector *overflow_positions*.
 //!
-//! Space overhead is
+// TODO! //! Space overhead is TODO!
 //!
 //! These three vectors are stored in a private struct Inventories.
 //! The const generic BITS in this struct allows us to build and to store
 //! these vectors to support `select0` as well.   
 //!
 
+use crate::bitvector::{BitVectorBitPositionsIter, BitVectorIter};
 use crate::utils::select_in_word;
 use crate::BitVector;
 use crate::{AccessBin, SelectBin, SpaceUsage};
@@ -191,16 +190,15 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVector, DArray, SelectBin};
+    /// use qwt::{DArray, SelectBin};
     ///
     /// let v = vec![0,2,3,4,5];
-    /// let bv: BitVector = v.into_iter().collect();
-    ///
-    /// let da = DArray::<true>::new(bv); // <true> to support the select0 query
+    /// let da: DArray::<true> = v.into_iter().collect(); // <true> to support the select0 query
     ///
     /// assert_eq!(da.select1(2), Some(3));
     /// assert_eq!(da.select0(0), Some(1));
     /// ```
+    #[must_use]
     pub fn new(bv: BitVector) -> Self {
         let ones_inventories = Inventories::new(&bv);
         let zeroes_inventories = if SELECT0_SUPPORT {
@@ -216,18 +214,154 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         }
     }
 
-    pub fn n_ones(&self) -> usize {
+    /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::DArray;
+    ///
+    /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
+    /// let da: DArray = vv.iter().copied().collect();
+    ///
+    /// let v: Vec<usize> = da.ones().collect();
+    /// assert_eq!(v, vv);
+    /// ```
+    #[must_use]
+    pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
+        self.bv.ones()
+    }
+
+    /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector, starting at a specified bit position.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::DArray;
+    ///
+    /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
+    /// let da: DArray = vv.iter().copied().collect();
+    ///
+    /// let v: Vec<usize> = da.ones_with_pos(2).collect();
+    /// assert_eq!(v, vec![63, 128, 129, 254, 1026]);
+    /// ```
+    #[must_use]
+    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
+        self.bv.ones_with_pos(pos)
+    }
+
+    /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::DArray;
+    /// use qwt::perf_and_test_utils::negate_vector;
+    ///
+    /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
+    /// let da: DArray = vv.iter().copied().collect();
+    ///
+    /// let v: Vec<usize> = da.zeros().collect();
+    /// assert_eq!(v, negate_vector(&vv));
+    /// ```
+    #[must_use]
+    pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
+        self.bv.zeros()
+    }
+
+    /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
+    #[must_use]
+    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
+        self.bv.zeros_with_pos(pos)
+    }
+
+    /// Returns a non-consuming iterator over bits of the bit vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::DArray;
+    ///
+    /// let v = vec![0,2,3,5];
+    /// let da: DArray = v.into_iter().collect();
+    ///
+    /// let mut iter = da.iter();
+    /// assert_eq!(iter.next(), Some(true)); // First bit is true
+    /// assert_eq!(iter.next(), Some(false)); // Second bit is false
+    /// assert_eq!(iter.next(), Some(true)); // Third bit is true
+    /// assert_eq!(iter.next(), Some(true)); // Fourth bit is true
+    /// assert_eq!(iter.next(), Some(false)); // Fifth bit is false
+    /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
+    /// assert_eq!(iter.next(), None); // End of the iterator
+    /// ```
+    pub fn iter(&self) -> BitVectorIter {
+        self.bv.iter()
+    }
+
+    /// Returns the number of ones in the DArray.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{DArray, SelectBin};
+    ///
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray<true> = v.into_iter().collect(); // <true> to support the select0 query
+    ///
+    /// assert_eq!(da.count_ones(), 5);
+    /// ```
+    #[must_use]
+    pub fn count_ones(&self) -> usize {
         self.ones_inventories.n_sets
     }
 
-    pub fn n_zeros(&self) -> usize {
+    /// Returns the number of zeros in the [`DArray`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{DArray, SelectBin};
+    ///
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray<true> = v.into_iter().collect(); // <true> to support the select0 query
+    ///
+    /// assert_eq!(da.count_zeros(), 1);
+    /// ```
+    #[must_use]
+    pub fn count_zeros(&self) -> usize {
         self.bv.len() - self.ones_inventories.n_sets
     }
 
+    /// Returns the number of elements in the [`DArray`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{DArray, SelectBin};
+    ///
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray<true> = v.into_iter().collect(); // <true> to support the select0 query
+    ///
+    /// assert_eq!(da.len(), 6);
+    /// ```
+    #[must_use]
     pub fn len(&self) -> usize {
         self.bv.len()
     }
 
+    /// Checks if the [`DArray`] is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{DArray, SelectBin};
+    ///
+    /// let v: Vec<usize> = vec![];
+    /// let da: DArray<true> = v.into_iter().collect(); // <true> to support the select0 query
+    ///
+    /// assert!(da.is_empty());
+    /// ```
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.bv.len() == 0
     }
@@ -326,12 +460,49 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
 }
 
 impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
+    /// Answers a `select1` query.
+    ///
+    /// The query `select1(i)` returns the position of the (i+1)-th
+    /// occurrence of 1 in the binary vector.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::DArray;
+    /// use qwt::BitVector;
+    /// use qwt::SelectBin;
+    ///
+    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let bv: BitVector = vv.iter().copied().collect();
+    /// let da: DArray<false> = DArray::new(bv);
+    ///
+    /// assert_eq!(da.select1(1), Some(12));
+    /// ```
+    ///
+    /// # Panics
+    /// It panics if [`DArray`] is built without support for `select0`query.
     #[must_use]
     #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         self.select(i, &self.ones_inventories)
     }
 
+    /// Answers a `select1` query without checking for bounds.
+    ///
+    /// The query `select1(i)` returns the position of the (i+1)-th
+    /// occurrence of 1 in the binary vector.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::DArray;
+    /// use qwt::BitVector;
+    /// use qwt::SelectBin;
+    ///
+    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let bv: BitVector = vv.iter().copied().collect();
+    /// let da: DArray<false> = DArray::new(bv);
+    ///
+    /// assert_eq!(unsafe{da.select1_unchecked(1)}, 12);
+    /// ```
     #[must_use]
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
@@ -351,13 +522,15 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
     /// let bv: BitVector = vv.iter().copied().collect();
-    /// let da: DArray<false> = DArray::new(bv);
+    /// let da: DArray<true> = DArray::new(bv);
     ///
-    /// assert_eq!(da.select1(1), Some(12));
+    /// assert_eq!(da.select0(1), Some(2));
+    /// assert_eq!(da.select0(11), Some(13));
     /// ```
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
+    #[must_use]
     #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         assert!(SELECT0_SUPPORT);
@@ -365,6 +538,24 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
         self.select(i, self.zeroes_inventories.as_ref().unwrap())
     }
 
+    /// Answers a `select0` query without checkin bounds.
+    ///
+    /// The query `select0(i)` returns the position of the (i+1)-th
+    /// occurrence of 0 in the binary vector.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::DArray;
+    /// use qwt::BitVector;
+    /// use qwt::SelectBin;
+    ///
+    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let bv: BitVector = vv.iter().copied().collect();
+    /// let da: DArray<true> = DArray::new(bv);
+    ///
+    /// assert_eq!(unsafe{da.select0_unchecked(1)}, 2);
+    /// assert_eq!(unsafe{da.select0_unchecked(11)}, 13);
+    /// ```
     #[inline(always)]
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
         assert!(SELECT0_SUPPORT);
