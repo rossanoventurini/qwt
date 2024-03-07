@@ -251,7 +251,6 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     }
 
     pub fn shrink_to_fit(&mut self) {
-        self.bv.shrink_to_fit();
         self.ones_inventories.shrink_to_fit();
         if self.zeroes_inventories.is_some() {
             self.zeroes_inventories.as_mut().unwrap().shrink_to_fit();

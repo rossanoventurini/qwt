@@ -8,6 +8,7 @@ pub use qvector::QVectorBuilder;
 pub mod bitvector;
 pub use bitvector::rs_narrow::RSNarrow;
 pub use bitvector::BitVector;
+pub use bitvector::BitVectorMut;
 
 pub mod utils;
 

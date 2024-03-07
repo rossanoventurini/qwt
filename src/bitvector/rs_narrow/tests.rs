@@ -18,7 +18,7 @@ pub fn test_rank1(ds: &RSNarrow, bv: &BitVector) {
 // Empty bit vector
 #[test]
 fn test_empty() {
-    let bv = BitVector::new();
+    let bv = BitVector::default();
     let rs = RSNarrow::new(bv);
 
     assert_eq!(rs.rank1(0), None);

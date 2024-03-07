@@ -13,7 +13,7 @@ const BLOCK_SIZE: usize = 8; // in 64bit words
 // const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
 // const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RSNarrow {
     bv: BitVector,
     block_rank_pairs: Vec<u64>,
