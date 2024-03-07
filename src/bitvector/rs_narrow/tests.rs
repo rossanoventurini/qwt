@@ -75,7 +75,6 @@ fn test_select1() {
     println!("{:?}", rs.bv);
     println!("{:?}", rs.block_rank_pairs);
 
-
     let i = 5;
     let selected = rs.select1(i).unwrap();
     println!("select1({}) = {}", i, selected);
@@ -83,7 +82,6 @@ fn test_select1() {
     let j = selected;
     println!("rank1({}) = {}", j, rs.rank1(j).unwrap());
 }
-
 
 #[test]
 fn test_select0() {
@@ -93,7 +91,6 @@ fn test_select0() {
 
     println!("{:?}", rs.bv);
     println!("{:?}", rs.block_rank_pairs);
-
 
     let i = 6;
     let selected = rs.select0(i).unwrap();

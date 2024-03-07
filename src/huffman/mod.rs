@@ -10,16 +10,20 @@ pub type FreqTable = HashMap<u8, u64>;
 struct HuffmanCode {
     symbol: u8,    //symbol encoded
     length: usize, //length of the code
-    repr: u128     //representation in bits
+    repr: u128,    //representation in bits
 }
 
-impl Debug for HuffmanCode{
+impl Debug for HuffmanCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HuffmanCode{{ symbol: {:#x}, length: {}, repr `", self.symbol, self.length)?;
+        write!(
+            f,
+            "HuffmanCode{{ symbol: {:#x}, length: {}, repr `",
+            self.symbol, self.length
+        )?;
         for i in (0..self.length).rev() {
             let chr = match !((self.repr & 1 << i) == 0) {
                 false => "0",
-                true => "1"
+                true => "1",
             };
             write!(f, "{}", chr)?;
         }
@@ -32,28 +36,28 @@ pub struct HuffmanTree {
     freq: u64,
     symbol: Option<u8>,
     left: Option<Box<HuffmanTree>>,
-    right: Option<Box<HuffmanTree>>
+    right: Option<Box<HuffmanTree>>,
 }
 
 impl Ord for HuffmanTree {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.freq.cmp(&other.freq)
-    }    
+    }
 }
 
 impl PartialOrd for HuffmanTree {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
-    }    
+    }
 }
 
 impl HuffmanTree {
-    fn leaf(freq: u64, symbol: u8) -> Self{
+    fn leaf(freq: u64, symbol: u8) -> Self {
         HuffmanTree {
             freq: freq,
             symbol: Some(symbol),
             left: None,
-            right: None
+            right: None,
         }
     }
 
@@ -73,17 +77,21 @@ impl HuffmanTree {
         for (sym, freq) in freq_table {
             q.push(Reverse(HuffmanTree::leaf(freq, sym)));
         }
-    
+
         while q.len() > 1 {
             let left = q.pop().unwrap().0;
             let right = q.pop().unwrap().0;
-            q.push(Reverse(HuffmanTree::internal_node(left.freq + right.freq, left, right)));
+            q.push(Reverse(HuffmanTree::internal_node(
+                left.freq + right.freq,
+                left,
+                right,
+            )));
         }
-    
+
         q.pop().unwrap().0
     }
 
-    fn codebook(&self) -> Vec<HuffmanCode>{
+    fn codebook(&self) -> Vec<HuffmanCode> {
         fn collect(output: &mut Vec<HuffmanCode>, tree: &HuffmanTree, indent: usize, bits: u128) {
             if let Some(value) = tree.symbol {
                 output.push(HuffmanCode {
@@ -96,7 +104,7 @@ impl HuffmanTree {
             if let Some(left) = &tree.left {
                 collect(output, left.as_ref(), indent + 1, bits << 1);
             }
-            
+
             if let Some(right) = &tree.right {
                 collect(output, right.as_ref(), indent + 1, bits << 1 | 1);
             }
@@ -106,21 +114,42 @@ impl HuffmanTree {
         collect(&mut codebook, &self, 0, 0);
         codebook
     }
-
 }
 
 ///Returns a frequency table of the items in `input`
 fn get_freqs_from_vec(input: &Vec<u8>) -> FreqTable {
-    input
-        .iter()
-        .fold(FreqTable::new(), |mut map, c| {
-            *map.entry(*c).or_insert(0) += 1;
-            map
-        })
+    input.iter().fold(FreqTable::new(), |mut map, c| {
+        *map.entry(*c).or_insert(0) += 1;
+        map
+    })
 }
 
+fn get_canonical_code(input: &mut Vec<HuffmanCode>) -> Vec<HuffmanCode> {
+    input.sort_by(|c1, c2| c1.length.partial_cmp(&c2.length).unwrap());
 
+    let mut canonical_codebook = Vec::new();
 
+    let mut repr = 0;
+    let mut length = 0;
+
+    //add canonical codes
+    for code in input {
+        while length < code.length {
+            repr <<= 1;
+            length += 1;
+        }
+
+        canonical_codebook.push(HuffmanCode {
+            symbol: code.symbol,
+            length: length,
+            repr: !repr, //we take the negative so we have the longest codes on the right
+        });
+
+        repr += 1;
+    }
+
+    canonical_codebook
+}
 
 #[cfg(test)]
 mod tests;

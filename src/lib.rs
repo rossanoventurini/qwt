@@ -134,7 +134,6 @@ pub trait SelectBin {
     fn select0_unchecked(&self, i: usize) -> usize;
 }
 
-
 /// A trait for the support of `get` query over the alphabet [0..3].
 pub trait AccessQuad {
     /// Returns the symbol at position `i`, `None` if the position is out of bound.
