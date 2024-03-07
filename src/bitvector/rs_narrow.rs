@@ -16,7 +16,7 @@ const BLOCK_SIZE: usize = 8; // in 64bit words
 #[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RSNarrow {
     bv: BitVector,
-    block_rank_pairs: Vec<u64>,
+    block_rank_pairs: Box<[u64]>,
 }
 
 impl RSNarrow {
@@ -68,7 +68,7 @@ impl RSNarrow {
 
         Self {
             bv,
-            block_rank_pairs,
+            block_rank_pairs: block_rank_pairs.into_boxed_slice(),
         }
     }
 
@@ -113,6 +113,8 @@ impl AccessBin for RSNarrow {
         if i >= self.bv.len() {
             return None;
         }
+
+        // SAFETY: no out of bound is possible
         Some(unsafe { self.get_unchecked(i) })
     }
 

@@ -17,10 +17,10 @@
 //! ```
 //! use qwt::BitVector;
 //! use qwt::DArray;
-//! use qwt::{SpaceUsage,SelectBin};
+//! use qwt::{SpaceUsage, SelectBin};
 //!
 //! let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-//! let bv: BitVector = vv.iter().copied().collect();
+//! let bv: BitVector = vv.into_iter().collect();
 //! let da: DArray<false> = DArray::new(bv);
 //!
 //! assert_eq!(da.select1(1), Some(12));
@@ -64,9 +64,11 @@
 //! The const generic BITS in this struct allows us to build and to store
 //! these vectors to support `select0` as well.   
 //!
+
 use crate::utils::select_in_word;
 use crate::BitVector;
 use crate::{AccessBin, SelectBin, SpaceUsage};
+
 use serde::{Deserialize, Serialize};
 use std::arch::x86_64::_popcnt64;
 
@@ -91,16 +93,18 @@ pub struct DArray<const SELECT0_SUPPORT: bool = false> {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Inventories<const BIT: bool> {
     n_sets: usize, // number of bits set to BIT
-    block_inventory: Vec<i64>,
-    subblock_inventory: Vec<u16>,
-    overflow_positions: Vec<usize>,
+    block_inventory: Box<[i64]>,
+    subblock_inventory: Box<[u16]>,
+    overflow_positions: Box<[usize]>,
 }
 
 /// Const generic BIT specifies if we are computing statistics
 /// for zeroes (BIT=false) or for ones (BIT=true).
 impl<const BIT: bool> Inventories<BIT> {
     fn new(bv: &BitVector) -> Self {
-        let mut me: Inventories<BIT> = Inventories::default();
+        let mut block_inventory = Vec::new();
+        let mut subblock_inventory = Vec::new();
+        let mut overflow_positions = Vec::new();
 
         let mut curr_block_positions = Vec::with_capacity(BLOCK_SIZE);
 
@@ -108,62 +112,95 @@ impl<const BIT: bool> Inventories<BIT> {
         // let mut iter_positions: BitVectorBitPositionsIter = if !BIT {bv.zeroes(0)} else {bv.ones(0)};
         // doesn't compile.
 
+        let mut n_sets = 0;
+
         if !BIT {
             for curr_pos in bv.zeros() {
                 curr_block_positions.push(curr_pos);
                 if curr_block_positions.len() == BLOCK_SIZE {
-                    me.flush_block(&curr_block_positions);
+                    Self::flush_block(
+                        &curr_block_positions,
+                        &mut block_inventory,
+                        &mut subblock_inventory,
+                        &mut overflow_positions,
+                    );
                     curr_block_positions.clear()
                 }
-                me.n_sets += 1;
+                n_sets += 1;
             }
         } else {
             for curr_pos in bv.ones() {
                 curr_block_positions.push(curr_pos);
                 if curr_block_positions.len() == BLOCK_SIZE {
-                    me.flush_block(&curr_block_positions);
+                    Self::flush_block(
+                        &curr_block_positions,
+                        &mut block_inventory,
+                        &mut subblock_inventory,
+                        &mut overflow_positions,
+                    );
                     curr_block_positions.clear()
                 }
-                me.n_sets += 1;
+                n_sets += 1;
             }
         }
 
-        me.flush_block(&curr_block_positions);
-        me.shrink_to_fit();
+        Self::flush_block(
+            &curr_block_positions,
+            &mut block_inventory,
+            &mut subblock_inventory,
+            &mut overflow_positions,
+        );
 
-        me
+        Self {
+            n_sets,
+            block_inventory: block_inventory.into_boxed_slice(),
+            subblock_inventory: subblock_inventory.into_boxed_slice(),
+            overflow_positions: overflow_positions.into_boxed_slice(),
+        }
     }
 
-    fn flush_block(&mut self, curr_positions: &[usize]) {
+    fn flush_block(
+        curr_positions: &[usize],
+        block_inventory: &mut Vec<i64>,
+        subblock_inventory: &mut Vec<u16>,
+        overflow_positions: &mut Vec<usize>,
+    ) {
         if curr_positions.is_empty() {
             return;
         }
         if curr_positions.last().unwrap() - curr_positions.first().unwrap() < MAX_IN_BLOCK_DISTACE {
             let v = *curr_positions.first().unwrap();
-            self.block_inventory.push(v as i64);
+            block_inventory.push(v as i64);
             for i in (0..curr_positions.len()).step_by(SUBBLOCK_SIZE) {
                 let dist = (curr_positions[i] - v) as u16;
-                self.subblock_inventory.push(dist);
+                subblock_inventory.push(dist);
             }
         } else {
-            let v: i64 = (-(self.overflow_positions.len() as i64)) - 1;
-            self.block_inventory.push(v);
-            self.overflow_positions.extend(curr_positions.iter());
-            self.subblock_inventory
-                .extend(std::iter::repeat(u16::MAX).take(curr_positions.len()));
+            let v: i64 = (-(overflow_positions.len() as i64)) - 1;
+            block_inventory.push(v);
+            overflow_positions.extend(curr_positions.iter());
+            subblock_inventory.extend(std::iter::repeat(u16::MAX).take(curr_positions.len()));
         }
-    }
-
-    // Shinks vectors to let their capacity to fit.
-    fn shrink_to_fit(&mut self) {
-        self.block_inventory.shrink_to_fit();
-        self.subblock_inventory.shrink_to_fit();
-        self.overflow_positions.shrink_to_fit();
     }
 }
 
 /// Const genetic SELECT0_SUPPORT
 impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
+    /// Creates a [`DArray`] from a [`BitVector`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{BitVector, DArray, SelectBin};
+    ///
+    /// let v = vec![0,2,3,4,5];
+    /// let bv: BitVector = v.into_iter().collect();
+    ///
+    /// let da = DArray::<true>::new(bv); // <true> to support the select0 query
+    ///
+    /// assert_eq!(da.select1(2), Some(3));
+    /// assert_eq!(da.select0(0), Some(1));
+    /// ```
     pub fn new(bv: BitVector) -> Self {
         let ones_inventories = Inventories::new(&bv);
         let zeroes_inventories = if SELECT0_SUPPORT {
@@ -171,15 +208,12 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         } else {
             None
         };
+
         DArray {
             bv,
             ones_inventories,
             zeroes_inventories,
         }
-    }
-
-    pub fn get(&self, pos: usize) -> Option<bool> {
-        self.bv.get(pos)
     }
 
     pub fn n_ones(&self) -> usize {
@@ -249,21 +283,57 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
 
         Some((word_idx << 6) + select_intra)
     }
+}
 
-    pub fn shrink_to_fit(&mut self) {
-        self.ones_inventories.shrink_to_fit();
-        if self.zeroes_inventories.is_some() {
-            self.zeroes_inventories.as_mut().unwrap().shrink_to_fit();
-        }
+impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
+    /// Returns the bit at the given position `i`,
+    /// or [`None`] if `i` is out of bounds.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::{DArray, AccessBin};
+    ///
+    /// let v = vec![0,2,3,4,5];
+    /// let da: DArray = v.into_iter().collect();;
+    ///
+    /// assert_eq!(da.get(5), Some(true));
+    /// assert_eq!(da.get(1), Some(false));
+    /// assert_eq!(da.get(10), None);
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    fn get(&self, i: usize) -> Option<bool> {
+        self.bv.get(i)
+    }
+
+    /// Returns the bit at position `i`.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::{DArray, AccessBin};
+    ///
+    /// let v = vec![0,2,3,4,5];
+    /// let da: DArray = v.into_iter().collect();;
+    /// assert_eq!(unsafe{da.get_unchecked(8)}, false);
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, i: usize) -> bool {
+        self.bv.get_unchecked(i)
     }
 }
 
 impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
+    #[must_use]
     #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         self.select(i, &self.ones_inventories)
     }
 
+    #[must_use]
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         self.select(i, &self.ones_inventories).unwrap()
@@ -302,6 +372,60 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
 
         self.select(i, self.zeroes_inventories.as_ref().unwrap())
             .unwrap()
+    }
+}
+
+/// Creates a [`DArray`] from an iterator over `bool` values.
+///
+/// # Examples
+///
+/// ```
+/// use qwt::{AccessBin, BitVector};
+///
+/// // Create a bit vector from an iterator over bool values
+/// let bv: BitVector = vec![true, false, true].into_iter().collect();
+///
+/// assert_eq!(bv.len(), 3);
+/// assert_eq!(bv.get(1), Some(false));
+/// ```
+impl<const SELECT0_SUPPORT: bool> FromIterator<bool> for DArray<SELECT0_SUPPORT> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = bool>,
+    {
+        DArray::<SELECT0_SUPPORT>::new(BitVector::from_iter(iter))
+    }
+}
+
+/// Creates a [`DArray`] from an iterator over `usize` values.
+///
+/// # Panics
+/// Panics if the sequence is not stricly increasing.
+///
+/// # Examples
+///
+/// ```
+/// use qwt::{DArray, AccessBin};
+///
+/// // Create a bit vector from an iterator over usize values
+/// let da: DArray = vec![0, 1, 3, 5].into_iter().collect();
+///
+/// assert_eq!(da.len(), 6);
+/// assert_eq!(da.get(3), Some(true));
+/// ```
+impl<const SELECT0_SUPPORT: bool> FromIterator<usize> for DArray<SELECT0_SUPPORT> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = usize>,
+    {
+        let data: Vec<_> = iter.into_iter().collect(); // TODO: we are doing this only to check sortedness. use the iterator directly without allocating a vector
+
+        assert!(
+            data.windows(2).all(|w| w[0] < w[1]),
+            "Sequence must be strictly increasing"
+        );
+
+        DArray::<SELECT0_SUPPORT>::new(BitVector::from_iter(data))
     }
 }
 

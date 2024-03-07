@@ -686,7 +686,7 @@ impl BitVectorMut {
     /// use qwt::BitVectorMut;
     ///
     /// let mut bv = BitVectorMut::with_capacity(7);
-    /// bv.append_bits(0b101, 3); // appends 101
+    /// bv.append_bits(0b101, 3);  // appends 101
     /// bv.append_bits(0b0110, 4); // appends 0110  
     ///
     ///         

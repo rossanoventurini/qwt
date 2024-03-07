@@ -66,9 +66,9 @@ fn test_from_iter() {
 
     /* Note: if last bits are zero, the bit vector may differ
     because we are inserting only position of ones */
-    // let bv2: BitVectorMut = (0..n).filter(|x| x % 2 == 0).collect();
+    let bv2: BitVectorMut = (0..n).filter(|x| x % 2 == 0).collect();
 
-    // assert_eq!(bv, bv2);
+    assert_eq!(bv, bv2);
 }
 
 #[test]
