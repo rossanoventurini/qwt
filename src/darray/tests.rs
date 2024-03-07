@@ -8,9 +8,7 @@ fn test_select1() {
     assert!(v.is_empty());
 
     let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 62, 63, 128, 129, 254, 1026];
-    let bv: BitVector = vv.iter().copied().collect();
-
-    let da: DArray<false> = DArray::new(bv);
+    let da: DArray<false> = vv.iter().copied().collect();
 
     for (i, &sel) in vv.iter().enumerate() {
         let res = da.select1(i);
@@ -20,10 +18,7 @@ fn test_select1() {
     assert_eq!(res, None);
 
     let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
-
-    let bv: BitVector = vv.iter().copied().collect();
-
-    let da: DArray<false> = DArray::new(bv);
+    let da: DArray<false> = vv.iter().copied().collect();
 
     for (i, &sel) in vv.iter().enumerate() {
         let res = da.select1(i);
@@ -38,9 +33,7 @@ fn test_select0() {
     assert!(v.is_empty());
 
     let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 62, 63, 128, 129, 254, 1026];
-    let bv: BitVector = vv.iter().copied().collect();
-
-    let da: DArray<true> = DArray::new(bv);
+    let da: DArray<true> = vv.iter().copied().collect();
 
     for (i, &sel) in negate_vector(&vv).iter().enumerate() {
         let res = da.select0(i);
@@ -48,9 +41,7 @@ fn test_select0() {
     }
 
     let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
-    let bv: BitVector = vv.iter().copied().collect();
-
-    let da: DArray<true> = DArray::new(bv);
+    let da: DArray<true> = vv.iter().copied().collect();
 
     for (i, &sel) in negate_vector(&vv).iter().enumerate() {
         let res = da.select0(i);

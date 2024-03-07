@@ -286,8 +286,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
 }
 
 impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
-    /// Returns the bit at the given position `i`,
-    /// or [`None`] if `i` is out of bounds.
+    /// Returns the bit at the given position `i`, or [`None`] if `i` is out of bounds.
     ///
     /// # Examples
     /// ```
