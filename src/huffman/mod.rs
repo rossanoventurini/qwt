@@ -7,7 +7,7 @@ use std::fmt::Debug;
 pub type FreqTable = HashMap<u8, u64>;
 
 #[derive(Eq, PartialEq)]
-struct HuffmanCode {
+pub struct HuffmanCode {
     symbol: u8,    //symbol encoded
     length: usize, //length of the code
     repr: u128,    //representation in bits
@@ -117,14 +117,14 @@ impl HuffmanTree {
 }
 
 ///Returns a frequency table of the items in `input`
-fn get_freqs_from_vec(input: &Vec<u8>) -> FreqTable {
+pub fn get_freqs_from_vec(input: &Vec<u8>) -> FreqTable {
     input.iter().fold(FreqTable::new(), |mut map, c| {
         *map.entry(*c).or_insert(0) += 1;
         map
     })
 }
 
-fn get_canonical_code(input: &mut Vec<HuffmanCode>) -> Vec<HuffmanCode> {
+pub fn get_canonical_code(input: &mut Vec<HuffmanCode>) -> Vec<HuffmanCode> {
     input.sort_by(|c1, c2| c1.length.partial_cmp(&c2.length).unwrap());
 
     let mut canonical_codebook = Vec::new();

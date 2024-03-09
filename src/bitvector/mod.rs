@@ -8,6 +8,7 @@ use crate::{AccessBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
+pub mod rs_bitvector;
 pub mod rs_narrow;
 
 #[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
