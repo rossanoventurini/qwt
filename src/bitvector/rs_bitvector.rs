@@ -309,12 +309,12 @@ impl RankBin for RSBitVector {
 //     }
 // }
 
-// impl SpaceUsage for RSNarrow {
-//     /// Gives the space usage in bytes of the data structure.
-//     fn space_usage_byte(&self) -> usize {
-//         self.bv.space_usage_byte() + self.block_rank_pairs.space_usage_byte()
-//     }
-// }
+impl SpaceUsage for RSBitVector {
+    /// Gives the space usage in bytes of the data structure.
+    fn space_usage_byte(&self) -> usize {
+        self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte()
+    }
+}
 
 #[cfg(test)]
 mod tests;
