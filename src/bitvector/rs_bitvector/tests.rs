@@ -34,5 +34,5 @@ fn playground2() {
     // }
 
     let i = 4;
-    println!("subblock {} | {}", i, rs.sub_block_rank(i));
+    println!("rank1 {} | {}", i, rs.sub_block_rank(i));
 }

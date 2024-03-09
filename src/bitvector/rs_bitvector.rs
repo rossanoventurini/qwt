@@ -235,40 +235,40 @@ impl AccessBin for RSBitVector {
     }
 }
 
-// impl RankBin for RSNarrow {
-//     #[inline(always)]
-//     fn rank1(&self, i: usize) -> Option<usize> {
-//         if self.bv.is_empty() || i > self.bv.len() {
-//             return None;
-//         }
+impl RankBin for RSBitVector {
+    #[inline(always)]
+    fn rank1(&self, i: usize) -> Option<usize> {
+        if self.bv.is_empty() || i > self.bv.len() {
+            return None;
+        }
 
-//         Some(unsafe { self.rank1_unchecked(i) })
-//     }
+        Some(unsafe { self.rank1_unchecked(i) })
+    }
 
-//     #[inline(always)]
-//     unsafe fn rank1_unchecked(&self, i: usize) -> usize {
-//         if i == 0 {
-//             return 0;
-//         }
-//         let i = i - 1;
+    #[inline(always)]
+    unsafe fn rank1_unchecked(&self, i: usize) -> usize {
+        if i == 0 {
+            return 0;
+        }
+        let i = i - 1;
 
-// //         let sub_block = i >> 6;
-// //         let mut result = self.sub_block_rank(sub_block);
-// //         let sub_left = (i & 63) as u32 + 1;
+        let sub_block = i >> 6;
+        let mut result = self.sub_block_rank(sub_block);
+        let sub_left = (i & 63) as u32 + 1;
 
-// //         result += if sub_left == 0 {
-// //             0
-// //         } else {
-// //             unsafe {
-// //                 (*self.bv.data.get_unchecked(sub_block))
-// //                     .wrapping_shl(64 - sub_left)
-// //                     .count_ones() as usize
-// //             }
-// //         };
+        result += if sub_left == 0 {
+            0
+        } else {
+            unsafe {
+                (*self.bv.data.get_unchecked(sub_block))
+                    .wrapping_shl(64 - sub_left)
+                    .count_ones() as usize
+            }
+        };
 
-// //         result
-//     }
-// }
+        result
+    }
+}
 
 // impl SelectBin for RSNarrow {
 //     fn select1(&self, i: usize) -> Option<usize> {
