@@ -71,7 +71,7 @@ impl HuffmanTree {
     }
 
     ///builds a HuffmanTree using the given `freq_table`
-    fn build_from_freqs(freq_table: FreqTable) -> Self {
+    pub fn build_from_freqs(freq_table: FreqTable) -> Self {
         //build leaf nodes
         let mut q = BinaryHeap::new();
         for (sym, freq) in freq_table {
@@ -91,7 +91,7 @@ impl HuffmanTree {
         q.pop().unwrap().0
     }
 
-    fn codebook(&self) -> Vec<HuffmanCode> {
+    pub fn codebook(&self) -> Vec<HuffmanCode> {
         fn collect(output: &mut Vec<HuffmanCode>, tree: &HuffmanTree, indent: usize, bits: u128) {
             if let Some(value) = tree.symbol {
                 output.push(HuffmanCode {

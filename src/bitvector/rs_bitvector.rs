@@ -6,21 +6,22 @@ use super::*;
 
 use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin};
 
+use num_traits::zero;
 use serde::{Deserialize, Serialize};
 
 //superblock is 44 bits, blocks are BLOCK_SIZE-1 * 12 bits each
 const BLOCK_SIZE: usize = 8; // 8 64bit words for each block
-
 const SUPERBLOCK_SIZE: usize = 8 * BLOCK_SIZE; // 8 blocks for each superblock (this is the size in u64 words)
 
 // SELECT NOT IMPLEMENTED YET
-// const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
-// const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
+const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > superblock_size * 64
+const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct RSBitVector {
     bv: BitVector,
     superblock_metadata: Vec<u128>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
+    select_samples: [Box<[u32]>; 2]
 }
 
 impl RSBitVector {
@@ -29,6 +30,14 @@ impl RSBitVector {
         let mut total_rank: u128 = 0;
         let mut cur_metadata: u128 = 0;
         let mut word_pop: u128 = 0;
+        let mut select_samples: [Vec<u32>; 2] = [Vec::new(), Vec::new()];
+
+        let mut cur_hint_0 = 0;
+        let mut cur_hint_1 = 0;
+
+        select_samples[0].push(0);
+        select_samples[1].push(0);
+
 
         for (b, &word) in bv.data.iter().enumerate() {
             if b % SUPERBLOCK_SIZE == 0 {
@@ -54,6 +63,21 @@ impl RSBitVector {
 
             word_pop += word.count_ones() as u128;
 
+            if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
+                //we insert a new hint for 0
+                select_samples[1].push((b/SUPERBLOCK_SIZE) as u32);
+                cur_hint_1 += 1;
+                println!("NUOVO HINT 1");
+            }
+
+            let zeros_so_far = (64*(b+1) as u128) - (total_rank + word_pop);
+            if ( zeros_so_far / SELECT_ZEROS_PER_HINT as u128) > cur_hint_0 {
+                //we insert a new hint for 0
+                select_samples[0].push((b/SUPERBLOCK_SIZE) as u32);
+                cur_hint_0 += 1;
+                println!("NUOVO HINT 0");
+            }
+
             if (b + 1) % SUPERBLOCK_SIZE == 0 {
                 //next round we reset the metadata so we push it now
                 superblock_metadata.push(cur_metadata);
@@ -64,7 +88,7 @@ impl RSBitVector {
         //we flush the remainder in total rank
         total_rank += word_pop;
 
-        let left: usize = (bv.data.len() % SUPERBLOCK_SIZE);
+        let left: usize = bv.data.len() % SUPERBLOCK_SIZE;
         println!("LEFT CALCULATION: {} / {}", left, SUPERBLOCK_SIZE);
 
         if left != 0 {
@@ -92,20 +116,34 @@ impl RSBitVector {
         Self {
             bv,
             superblock_metadata,
+            select_samples: select_samples
+                .into_iter()
+                .map(|x| x.into_boxed_slice())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap()
         }
+
+        //if we want to use a slice 
+        // let slice = superblock_metadata.into_boxed_slice();
+
+        // Self {
+        //     bv,
+        //     superblock_metadata: slice,
+        // }
     }
 
-    //     /// Returns the number of bits set to 1 in the bitvector.
-    //     #[inline(always)]
-    //     pub fn n_ones(&self) -> usize {
-    //         self.rank1(self.bv.len() - 1).unwrap() + self.bv.get(self.bv.len() - 1).unwrap() as usize
-    //     }
+    /// Returns the number of bits set to 1 in the bitvector.
+    #[inline(always)]
+    pub fn n_ones(&self) -> usize {
+        self.rank1(self.bv.len() - 1).unwrap() + self.bv.get(self.bv.len() - 1).unwrap() as usize
+    }
 
-    //     /// Returns the number of bits set to 0 in the bitvector.
-    //     #[inline(always)]
-    //     pub fn n_zeros(&self) -> usize {
-    //         self.bv.len() - self.n_ones()
-    //     }
+    /// Returns the number of bits set to 0 in the bitvector.
+    #[inline(always)]
+    pub fn n_zeros(&self) -> usize {
+        self.bv.len() - self.n_ones()
+    }
 
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
@@ -270,7 +308,7 @@ impl RankBin for RSBitVector {
     }
 }
 
-// impl SelectBin for RSNarrow {
+// impl SelectBin for RSBitVector {
 //     fn select1(&self, i: usize) -> Option<usize> {
 //         if i == 0 {
 //             return None;
