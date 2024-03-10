@@ -1,26 +1,35 @@
 use super::*;
 use crate::perf_and_test_utils::gen_strictly_increasing_sequence;
 
+/// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
+/// and the next position.
+pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
+    for (rank, pos) in bv.ones().enumerate() {
+        let result = ds.rank1(pos);
+        dbg!(pos, rank);
+        assert_eq!(result, Some(rank));
+        let result = ds.rank1(pos + 1);
+        dbg!(pos + 1, rank);
+        assert_eq!(result, Some(rank + 1));
+    }
+    let result = ds.rank1(bv.len() + 1);
+    assert_eq!(result, None);
+}
+
+#[test]
+fn test_large_random() {
+    let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSBitVector::new(bv);
+
+    test_rank1(&rs, &rs.bv);
+}
+
 #[test]
 fn playground() {
     let vv = gen_strictly_increasing_sequence(17000, (1 << 15));
     let bv: BitVector = vv.iter().copied().collect();
     let rs = rs_bitvector::RSBitVector::new(bv);
-
-    // for i in 0..rs.superblock_metadata.len() {
-    //     println!("superblock {} | {}", i, rs.superblock_rank(i));
-    // }
-
-    // for i in 0..rs.superblock_metadata.len() - 1 {
-    //     for j in 0..8 {
-    //         println!(
-    //             "superblock {} | subblock {} | {}",
-    //             i,
-    //             j,
-    //             rs.sub_block_rank(i * 8 + j)
-    //         );
-    //     }
-    // }
 
     println!("{:?}", rs.select_samples)
 }
@@ -49,7 +58,7 @@ fn playground3() {
     //     println!("{}", rs.superblock_rank(i));
     // }
 
-    let i = 513;
+    let i = 514;
     println!("rank1({}) | {}", i, rs.rank1(i).unwrap());
 }
 
@@ -68,6 +77,8 @@ fn test_select1() {
 
     let j = selected.unwrap();
     println!("rank1({}) = {:?}", j, rs.rank1(j));
+
+    test_rank1(&rs, &rs.bv);
 }
 
 #[test]

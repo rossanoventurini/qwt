@@ -46,7 +46,7 @@ impl RSBitVector {
                 cur_metadata = 0;
                 cur_metadata |= total_rank;
                 // cur_metadata <<= 128 - 44;
-                println!("new superblock! added metadata, total rank: {}", total_rank);
+                // println!("new superblock! added metadata, total rank: {}", total_rank);
                 // println!("metadata so far: {:0>128b}", cur_metadata);
             } else if b % BLOCK_SIZE == 0 {
                 //we ignore the frist block beacuse it would be 0
@@ -55,7 +55,7 @@ impl RSBitVector {
                 cur_metadata <<= 12;
                 cur_metadata |= word_pop;
 
-                println!("new block! added metadata count");
+                // println!("new block! added metadata count");
                 // println!("metadata so far: {:0>128b}", cur_metadata);
             }
 
@@ -65,7 +65,7 @@ impl RSBitVector {
                 //we insert a new hint for 0
                 select_samples[1].push((b / SUPERBLOCK_SIZE) as u32);
                 cur_hint_1 += 1;
-                println!("NUOVO HINT 1");
+                // println!("NUOVO HINT 1");
             }
 
             let zeros_so_far = (64 * (b + 1) as u128) - (total_rank + word_pop);
@@ -73,13 +73,13 @@ impl RSBitVector {
                 //we insert a new hint for 0
                 select_samples[0].push((b / SUPERBLOCK_SIZE) as u32);
                 cur_hint_0 += 1;
-                println!("NUOVO HINT 0");
+                // println!("NUOVO HINT 0");
             }
 
             if (b + 1) % SUPERBLOCK_SIZE == 0 {
                 //next round we reset the metadata so we push it now
                 superblock_metadata.push(cur_metadata);
-                println!("Pushed superblock!");
+                // println!("Pushed superblock!");
             }
         }
 
@@ -87,19 +87,19 @@ impl RSBitVector {
         total_rank += word_pop;
 
         let left: usize = bv.data.len() % SUPERBLOCK_SIZE;
-        println!("LEFT CALCULATION: {} / {}", left, SUPERBLOCK_SIZE);
+        // println!("LEFT CALCULATION: {} / {}", left, SUPERBLOCK_SIZE);
 
         if left != 0 {
             for i in left..SUPERBLOCK_SIZE {
                 if i % BLOCK_SIZE == 0 {
                     cur_metadata <<= 12;
                     cur_metadata |= word_pop;
-                    println!("new block! added metadata count");
+                    // println!("new block! added metadata count");
                 }
             }
 
             superblock_metadata.push(cur_metadata);
-            println!("Pushed superblock!");
+            // println!("Pushed superblock!");
         }
 
         //we push last superblock containing only the last total_rank
@@ -107,7 +107,7 @@ impl RSBitVector {
         cur_metadata |= total_rank;
         cur_metadata <<= 128 - 44;
         superblock_metadata.push(cur_metadata);
-        println!("Pushed LAST superblock!");
+        // println!("Pushed LAST superblock!");
 
         superblock_metadata.shrink_to_fit();
 
@@ -301,6 +301,8 @@ impl RankBin for RSBitVector {
         let mut sub_block = i >> 9;
         let mut result = self.sub_block_rank(sub_block);
         let mut sub_left = (i & 511) as u32 + 1;
+
+        sub_block *= BLOCK_SIZE; //we will handle single words from now on
 
         result += if sub_left == 0 {
             0
