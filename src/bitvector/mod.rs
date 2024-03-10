@@ -331,7 +331,7 @@ impl SpaceUsage for BitVector {
     }
 }
 
-/// Implements creating a `BitVector` from an iterator over `bool` values.
+/// Creates a `BitVector` from an iterator over `bool` values.
 ///
 /// # Examples
 ///
@@ -368,7 +368,7 @@ macro_rules! impl_my_prim_int {
 
 impl_my_prim_int![i8, u8, i16, u16, i32, u32, i64, u64, isize, usize, u128, i128];
 
-/// Implements creating a `BitVector` from an iterator over integer values.
+/// Creates a `BitVector` from an iterator over non-negative integer values.
 ///
 /// # Panics
 /// Panics if any value of the sequence cannot be converted to usize.
@@ -398,7 +398,7 @@ where
         let mut bv = BitVectorMut::default();
         bv.extend(
             iter.into_iter()
-                .map(|x| x.try_into().expect("Cannot convert to usize")),
+                .map(|x| x.try_into().expect("Cannot a value convert to usize")),
         );
 
         bv.into()

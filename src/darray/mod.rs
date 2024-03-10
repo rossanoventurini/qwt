@@ -594,7 +594,7 @@ impl<const SELECT0_SUPPORT: bool> FromIterator<bool> for DArray<SELECT0_SUPPORT>
 /// ```
 /// use qwt::{DArray, AccessBin};
 ///
-/// // Create a [`DArray`] from an iterator over strictly increasing sequence of integer values.
+/// // Create a [`DArray`] from an iterator over strictly increasing sequence of non-negative integer values.
 /// let da: DArray = vec![0, 1, 3, 5].into_iter().collect();
 ///
 /// assert_eq!(da.len(), 6);
