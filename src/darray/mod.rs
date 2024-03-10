@@ -1,18 +1,22 @@
-//! The module implements `DArray`, a data structure that answers [`select1`]: select1
-//! and `select0` queries on a binary vector supporting the [`Select`] trait.
+//! The module implements `DArray`, a data structure that provides efficient
+//! `select1` and `select0` queries on a binary vector, supporting the [`Select`] trait.
 //! Rank queries are not supported.
 //!
-//! The query `select1(i)` returns the position of the (i+1)-th occurrence of a bit
-//! set to 1 in the binary vector.
-//! For example, let the binary vector be 010000101, `select1(0)` = 1,
-//! `select1(1)` = 6, and `select1(2)` = 8.
-//! Similarly, the query select0(i) returns the position of the (i+1)-th zero
+//! In many applications of this data structure, the binary vector is the characteristic
+//! vector of a strictly increasing sequence.
+//!
+//! The `select1(i)` query returns the position of the (i+1)-th occurrence of a bit
+//! set to 1 in the binary vector. For example, if the binary vector is 010000101,
+//! `select1(0)` = 1, `select1(1)` = 6, and `select1(2)` = 8.
+//! Similarly, the `select0(i)` query returns the position of the (i+1)-th zero
 //! in the binary vector.
+//! If we are representing a strictly increasing sequence S, `select1(i)` gives
+//! the (i+1)th element of the sequence, i.e., S[i].
 //!
 //! ## Example
-//! A `DArray` is built on a [`BitVector`] with [`DArray::new`].
-//! A boolean const generic is used to specify the need for
-//! `select0` query support, (otherwise, calling `select0` will panic).
+//! A `DArray` is built from a strictly increasening sequence of `usize`.
+//! A boolean const generic is used to specify the need for [`select0`] query support.
+//! Without this support, the query [`select0`] will panic.
 //!
 //! ```
 //! use qwt::DArray;
@@ -25,43 +29,36 @@
 //! ```
 //!
 //! ## Technical details
-//! `DArray` has been introduced in *D. Okanohara and K. Sadakane.
-//! Practical entropy-compressed Rank/Select dictionary.
-//! In Proceedings of the Workshop on Algorithm Engineering and Experiments (ALENEX), 2007* ([link](https://arxiv.org/abs/cs/0610001)).
-//! This Rust implementation is inspired by C++ implementation by
+//! `DArray` has been introduced in *D. Okanohara and K. Sadakane. Practical entropy-compressed Rank/Select dictionary. In Proceedings of the Workshop on Algorithm Engineering and Experiments (ALENEX), 2007* ([link](https://arxiv.org/abs/cs/0610001)).
+//! This Rust implementation is inspired by the C++ implementation by
 //! [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/darray.hpp).
 //!
-//! Efficient queries are obtained by storing additional information of
-//! top of the binary vector. The binary vector is split into blocks
-//! of variable size. We mark the end of a block every `BLOCK_SIZE` = 1024-th
-//! occurrence of 1. For each block we have two cases:
+//! Efficient queries are obtained by storing additional information on top of the binary vector.
+//! The binary vector is split into blocks of variable size. The end of a block is marked every
+//! `BLOCK_SIZE` = 1024-th occurrence of 1. Each block has two cases:
 //!
-//! 1) the block is *dense* if it is at most `MAX_IN_BLOCK_DISTACE` = 1 << 16 bits long;
-//! 2) the block is *sparse*, otherwise.
+//! 1. The block is *dense* if it is at most `MAX_IN_BLOCK_DISTACE` = 1 << 16 bits long.
+//! 2. The block is *sparse* otherwise.
 //!
-//! For case 1), we further split occurrences of 1 into subblocks of size
-//! `SUBBLOCK_SIZE` = 32 bits each. We store the position of the first 1
-//! of each block in a vector (called *subblock_inventory*) using 16 bits each.
-//! In case 2) we explicitly write the position of all the ones in a vector,  
-//! called *overflow_positions*.
-//! The vector *block_inventory* stores a pointer to *subblock_inventory*
-//! for blocks of the first kind and a pointer to *overflow_positions*
-//! for the other kind of blocks. We use positive or negative
-//! integers to distinguish the two cases.
+//! For case 1, occurrences of 1 are further split into subblocks of size
+//! `SUBBLOCK_SIZE` = 32 bits each. The position of the first 1 of each block is stored
+//! in a vector (called *subblock_inventory*) using 16 bits each.
+//! In case 2, the position of all ones is explicitly written in a vector called *overflow_positions*.
+//! The vector *block_inventory* stores a pointer to *subblock_inventory* for blocks of the first kind
+//! and a pointer to *overflow_positions* for the other kind of blocks. Positive or negative integers
+//! are used to distinguish the two cases.
 //!
-//! A `select1`(i) query is solved as follows. First, compute b=i/BLOCK_SIZE,
-//! i.e., the block of the ith occurrence of 1 and access *block_inventory\[b\]*.
-//! If the block is dense, we access the position of the first one in its
-//! block and we start a linear scan from that position
-//! looking for the ith occurrence of 1.
-//! Instead, if the block is sparse, the answer is stored in vector *overflow_positions*.
+//! A `select1(i)` query is solved as follows: First, compute b=i/BLOCK_SIZE, i.e., the block of
+//! the i-th occurrence of 1, and access *block_inventory[b]*. If the block is dense, access
+//! the position of the first one in its block and start a linear scan from that position
+//! looking for the i-th occurrence of 1. If the block is sparse, the answer is stored in vector
+//! *overflow_positions*.
 //!
 // TODO! //! Space overhead is TODO!
 //!
-//! These three vectors are stored in a private struct Inventories.
-//! The const generic BITS in this struct allows us to build and to store
-//! these vectors to support `select0` as well.   
-//!
+//! These three vectors are stored in a private struct `Inventories`.
+//! The const generic BITS in this struct allows us to build and store these vectors to support
+//! `select0` as well.
 
 use crate::bitvector::{BitVectorBitPositionsIter, BitVectorIter};
 use crate::utils::select_in_word;
@@ -587,26 +584,32 @@ impl<const SELECT0_SUPPORT: bool> FromIterator<bool> for DArray<SELECT0_SUPPORT>
     }
 }
 
-/// Creates a [`DArray`] from an iterator over `usize` values.
+/// Create a [`DArray`] from an iterator over strictly increasing sequence of integer values.
 ///
 /// # Panics
-/// Panics if the sequence is not stricly increasing.
+/// Panics if the sequence is not stricly increasing or if any value of the sequence cannot be converted to usize.
 ///
 /// # Examples
 ///
 /// ```
 /// use qwt::{DArray, AccessBin};
 ///
-/// // Create a bit vector from an iterator over usize values
+/// // Create a [`DArray`] from an iterator over strictly increasing sequence of integer values.
 /// let da: DArray = vec![0, 1, 3, 5].into_iter().collect();
 ///
 /// assert_eq!(da.len(), 6);
 /// assert_eq!(da.get(3), Some(true));
 /// ```
-impl<const SELECT0_SUPPORT: bool> FromIterator<usize> for DArray<SELECT0_SUPPORT> {
+impl<V, const SELECT0_SUPPORT: bool> FromIterator<V> for DArray<SELECT0_SUPPORT>
+where
+    V: crate::bitvector::MyPrimInt + PartialOrd,
+    <V as TryInto<usize>>::Error: std::fmt::Debug,
+{
+    #[must_use]
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = usize>,
+        T: IntoIterator<Item = V>,
+        <V as TryInto<usize>>::Error: std::fmt::Debug,
     {
         let data: Vec<_> = iter.into_iter().collect(); // TODO: we are doing this only to check sortedness. use the iterator directly without allocating a vector
 

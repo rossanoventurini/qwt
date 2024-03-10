@@ -356,7 +356,22 @@ impl FromIterator<bool> for BitVector {
     }
 }
 
-/// Implements creating a `BitVector` from an iterator over `usize` values.
+// it contains all the type of num_traits::int::PrimInt without bool
+pub trait MyPrimInt: TryInto<usize> {}
+
+macro_rules! impl_my_prim_int {
+    ($($t:ty),*) => {
+        $(impl MyPrimInt for $t {
+        })*
+    }
+}
+
+impl_my_prim_int![i8, u8, i16, u16, i32, u32, i64, u64, isize, usize, u128, i128];
+
+/// Implements creating a `BitVector` from an iterator over integer values.
+///
+/// # Panics
+/// Panics if any value of the sequence cannot be converted to usize.
 ///
 /// # Examples
 ///
@@ -369,13 +384,22 @@ impl FromIterator<bool> for BitVector {
 /// assert_eq!(bv.len(), 6);
 /// assert_eq!(bv.get(3), Some(true));
 /// ```
-impl FromIterator<usize> for BitVector {
+impl<V> FromIterator<V> for BitVector
+where
+    V: MyPrimInt,
+    <V as TryInto<usize>>::Error: std::fmt::Debug,
+{
+    #[must_use]
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = usize>,
+        T: IntoIterator<Item = V>,
+        <V as TryInto<usize>>::Error: std::fmt::Debug,
     {
         let mut bv = BitVectorMut::default();
-        bv.extend(iter);
+        bv.extend(
+            iter.into_iter()
+                .map(|x| x.try_into().expect("Cannot convert to usize")),
+        );
 
         bv.into()
     }
