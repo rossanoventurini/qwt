@@ -38,3 +38,21 @@ fn playground2() {
     let i = 4;
     println!("rank1 {} | {}", i, rs.sub_block_rank(i));
 }
+
+#[test]
+fn test_select1() {
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSBitVector::new(bv);
+
+    println!("{:?}", rs.bv);
+    println!("{:?}", rs.select_samples);
+    println!("n_ones :{}", rs.n_ones);
+
+    let i = 5;
+    let selected = rs.select1(i);
+    println!("select1({}) = {:?}", i, selected);
+
+    let j = selected.unwrap();
+    println!("rank1({}) = {:?}", j, rs.rank1(j));
+}
