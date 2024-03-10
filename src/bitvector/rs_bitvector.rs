@@ -21,7 +21,6 @@ pub struct RSBitVector {
     bv: BitVector,
     superblock_metadata: Vec<u128>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[u32]>; 2],
-    n_ones: usize,
 }
 
 impl RSBitVector {
@@ -121,7 +120,6 @@ impl RSBitVector {
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap(),
-            n_ones: total_rank as usize,
         }
 
         //if we want to use a slice
@@ -184,7 +182,7 @@ impl RSBitVector {
         let hint_start = self.select_samples[1][hint] as usize;
         // let hint_end = self.select_samples[1][hint+1] as usize;
 
-        for j in hint_start..=n_blocks {
+        for j in hint_start..n_blocks {
             println!("{}: {}", j, self.superblock_rank(j));
             if self.superblock_rank(j) > i {
                 position = j - 1;
@@ -211,49 +209,55 @@ impl RSBitVector {
         (position, rank)
     }
 
-    //     #[inline(always)]
-    //     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
-    //     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
-    //     ///
-    //     /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
-    //     fn select0_subblock(&self, i: usize) -> (usize, usize) {
-    //         let mut position = 0;
-    //         let mut rank;
+    #[inline(always)]
+    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
+    /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
+    ///
+    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    fn select0_subblock(&self, i: usize) -> (usize, usize) {
+        let mut position = 0;
+        let mut rank;
 
-    //         println!("block rank pairs len = {}", self.block_rank_pairs.len());
-    //         let n_blocks = self.block_rank_pairs.len() / 2;
+        let n_blocks = self.superblock_metadata.len();
 
-    //         let max_rank_for_block = BLOCK_SIZE * 64;
+        let hint = i / SELECT_ZEROS_PER_HINT;
+        let hint_start = self.select_samples[0][hint] as usize;
 
-    //         for j in 0..n_blocks {
-    //             println!("{}: {}", j, self.block_rank(j));
-    //             let rank0 = j * max_rank_for_block - self.block_rank(j);
-    //             if rank0 > i {
-    //                 position = j - 1;
-    //                 break;
-    //             }
-    //         }
-    //         rank = position * max_rank_for_block - self.block_rank(position);
-    //         println!("selected block {} with rank0 {}", position, rank);
-    //         //position is now superblock
+        let max_rank_for_block = SUPERBLOCK_SIZE * 64;
 
-    //         //now we examine sub_blocks
-    //         position = position * BLOCK_SIZE;
+        for j in hint_start..n_blocks {
+            println!("{}: {}", j, self.superblock_rank(j));
+            let rank0 = j * max_rank_for_block - self.superblock_rank(j);
+            if rank0 > i {
+                position = j - 1;
+                break;
+            }
+        }
+        rank = position * max_rank_for_block - self.superblock_rank(position);
+        println!("selected block {} with rank0 {}", position, rank);
+        //position is now superblock
 
-    //         let max_rank_for_subblock = 64;
-    //         println!("now sub_blocks");
-    //         for j in 0..BLOCK_SIZE {
-    //             println!("{}: {}", j, self.sub_block_rank(position + j));
-    //             let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j);
-    //             if rank0 > i {
-    //                 position += j - 1;
-    //                 break;
-    //             }
-    //         }
-    //         rank = max_rank_for_subblock * position - self.sub_block_rank(position);
+        //now we examine sub_blocks
+        position = position * SUPERBLOCK_SIZE;
 
-    //         (position, rank)
-    //     }
+        let max_rank_for_subblock = BLOCK_SIZE * 64;
+        println!("now sub_blocks");
+        for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
+            println!(
+                "{}: {}",
+                j,
+                max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j)
+            );
+            let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j);
+            if rank0 > i {
+                position += j - 1;
+                break;
+            }
+        }
+        rank = max_rank_for_subblock * position - self.sub_block_rank(position);
+
+        (position, rank)
+    }
 }
 
 impl AccessBin for RSBitVector {
@@ -294,18 +298,31 @@ impl RankBin for RSBitVector {
         }
         let i = i - 1;
 
-        let sub_block = i >> 9;
+        let mut sub_block = i >> 9;
         let mut result = self.sub_block_rank(sub_block);
-        let sub_left = (i & 63) as u32 + 1;
+        let mut sub_left = (i & 511) as u32 + 1;
 
         result += if sub_left == 0 {
             0
         } else {
-            unsafe {
-                (*self.bv.data.get_unchecked(sub_block))
-                    .wrapping_shl(64 - sub_left)
-                    .count_ones() as usize
+            let mut remainder = 0;
+            for _ in 0..BLOCK_SIZE {
+                if sub_left <= 64 {
+                    unsafe {
+                        remainder += (*self.bv.data.get_unchecked(sub_block))
+                            .wrapping_shl(64 - sub_left)
+                            .count_ones() as usize;
+                    }
+                    break;
+                } else {
+                    unsafe {
+                        remainder += (*self.bv.data.get_unchecked(sub_block)).count_ones() as usize;
+                    }
+                    sub_left -= 64;
+                }
+                sub_block += 1;
             }
+            remainder
         };
 
         result
@@ -314,7 +331,7 @@ impl RankBin for RSBitVector {
 
 impl SelectBin for RSBitVector {
     fn select1(&self, i: usize) -> Option<usize> {
-        if i == 0 || i >= self.n_ones as usize {
+        if i == 0 || i >= self.n_ones() as usize {
             return None;
         }
 
@@ -343,24 +360,36 @@ impl SelectBin for RSBitVector {
         block * 64 + off
     }
 
-    //     fn select0(&self, i: usize) -> Option<usize> {
-    //         if i == 0 {
-    //             return None;
-    //         }
+    fn select0(&self, i: usize) -> Option<usize> {
+        if i == 0 || i >= self.n_zeros() {
+            return None;
+        }
 
-    //         Some(self.select0_unchecked(i))
-    //     }
+        Some(self.select0_unchecked(i))
+    }
 
-    //     fn select0_unchecked(&self, i: usize) -> usize {
-    //         //block_rank_pairs layout
-    //         //|superblock0|blocks0|superblock1|blocks1...
+    fn select0_unchecked(&self, i: usize) -> usize {
+        let (mut block, mut rank) = self.select0_subblock(i);
+        println!("selected block {}, rank {}", block, rank);
 
-    //         let (block, rank) = self.select0_subblock(i);
-    //         println!("selected block {}, rank {}", block, rank);
+        block *= BLOCK_SIZE;
 
-    //         let word_to_select = !self.bv.get_word(block);
-    //         block * 64 + select_in_word(word_to_select, (i - rank) as u64) as usize
-    //     }
+        let mut off = 0;
+
+        for _ in 0..BLOCK_SIZE {
+            let word_to_select = !self.bv.get_word(block);
+            let kp = word_to_select.count_ones();
+            if kp as usize > (i - rank) {
+                off = select_in_word(word_to_select, (i - rank) as u64) as usize;
+                break;
+            } else {
+                rank += kp as usize;
+            }
+            block += 1;
+        }
+
+        block * 64 + off
+    }
 }
 
 impl SpaceUsage for RSBitVector {

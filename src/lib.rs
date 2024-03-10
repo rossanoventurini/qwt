@@ -129,13 +129,9 @@ pub trait SelectBin {
 
     fn select1_unchecked(&self, i: usize) -> usize;
 
-    fn select0(&self, i: usize) -> Option<usize> {
-        Some(42)
-    }
+    fn select0(&self, i: usize) -> Option<usize>;
 
-    fn select0_unchecked(&self, i: usize) -> usize {
-        42
-    }
+    fn select0_unchecked(&self, i: usize) -> usize;
 }
 
 /// A trait for the support of `get` query over the alphabet [0..3].

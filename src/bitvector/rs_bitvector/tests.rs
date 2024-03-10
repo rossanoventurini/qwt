@@ -40,6 +40,20 @@ fn playground2() {
 }
 
 #[test]
+fn playground3() {
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = rs_bitvector::RSBitVector::new(bv);
+
+    // for i in 0..rs.superblock_metadata.len(){
+    //     println!("{}", rs.superblock_rank(i));
+    // }
+
+    let i = 513;
+    println!("rank1({}) | {}", i, rs.rank1(i).unwrap());
+}
+
+#[test]
 fn test_select1() {
     let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
     let bv: BitVector = vv.iter().copied().collect();
@@ -47,7 +61,6 @@ fn test_select1() {
 
     println!("{:?}", rs.bv);
     println!("{:?}", rs.select_samples);
-    println!("n_ones :{}", rs.n_ones);
 
     let i = 5;
     let selected = rs.select1(i);
@@ -55,4 +68,21 @@ fn test_select1() {
 
     let j = selected.unwrap();
     println!("rank1({}) = {:?}", j, rs.rank1(j));
+}
+
+#[test]
+fn test_select0() {
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSBitVector::new(bv);
+
+    println!("{:?}", rs.bv);
+    println!("{:?}", rs.superblock_metadata);
+
+    let i = 500;
+    let selected = rs.select0(i).unwrap();
+    println!("select0({}) = {}", i, selected);
+
+    let j = selected;
+    println!("rank0({}) = {}", j, rs.rank0(j).unwrap());
 }
