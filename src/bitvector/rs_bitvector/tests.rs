@@ -27,7 +27,7 @@ fn test_large_random() {
 
 #[test]
 fn playground() {
-    let vv = gen_strictly_increasing_sequence(17000, (1 << 15));
+    let vv = gen_strictly_increasing_sequence(17000, 1 << 15);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = rs_bitvector::RSBitVector::new(bv);
 
@@ -64,23 +64,29 @@ fn playground3() {
 
 #[test]
 fn test_select1() {
-    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001];
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
-    println!("{:?}", rs.bv);
-    println!("{:?}", rs.select_samples);
+    // println!("{:?}", rs.bv);
+    // println!("{:?}", rs.select_samples);
 
-    let i = 5;
-    let selected = rs.select1(i);
-    println!("select1({}) = {:?}", i, selected);
+    for i in 1..vv.len() {
+        // println!("SELECTIAMO {}", i);
+        assert_eq!(rs.select1(i), Some(vv[i]));
+    }
 
-    let j = selected.unwrap();
-    println!("rank1({}) = {:?}", j, rs.rank1(j));
+    // //wtf rabk for 9
+    // let i = 12;
+    // let selected = rs.select1(i);
+    // println!("select1({}) = {:?}", i, selected);
 
-    test_rank1(&rs, &rs.bv);
+    // let j = selected.unwrap();
+    // println!("rank1({}) = {:?}", j, rs.rank1(j));
 }
 
+//FIX SELECT 0
 #[test]
 fn test_select0() {
     let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];

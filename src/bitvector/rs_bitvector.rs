@@ -175,7 +175,6 @@ impl RSBitVector {
         let mut position = 0;
         let mut rank;
 
-        println!("block rank pairs len = {}", self.superblock_metadata.len());
         let n_blocks = self.superblock_metadata.len();
 
         let hint = i / SELECT_ONES_PER_HINT;
@@ -183,25 +182,29 @@ impl RSBitVector {
         // let hint_end = self.select_samples[1][hint+1] as usize;
 
         for j in hint_start..n_blocks {
-            println!("{}: {}", j, self.superblock_rank(j));
+            // println!("{}: {}", j, self.superblock_rank(j));
             if self.superblock_rank(j) > i {
                 position = j - 1;
                 break;
             }
         }
         rank = self.superblock_rank(position);
-        println!("selected block {} with rank {}", position, rank);
+        // println!("selected superblock {} with rank {}", position, rank);
         //position is now superblock
 
         //now we examine sub_blocks
-        position = position * SUPERBLOCK_SIZE;
+        position = position * (SUPERBLOCK_SIZE / BLOCK_SIZE);
 
-        println!("now sub_blocks");
+        // println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
-            println!("{}: {}", j, self.sub_block_rank(position + j));
+            // println!("{}: {}", j, self.sub_block_rank(position + j));
             if self.sub_block_rank(position + j) > i {
                 position += j - 1;
                 break;
+            }
+            //if we didn't stop before
+            if j == 7 {
+                position += j;
             }
         }
         rank = self.sub_block_rank(position);
@@ -342,7 +345,7 @@ impl SelectBin for RSBitVector {
 
     fn select1_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select1_subblock(i);
-        println!("selected block {}, rank {}", block, rank);
+        // println!("selected subbblock {}, rank {}", block, rank);
 
         let mut off = 0;
 
