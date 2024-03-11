@@ -560,6 +560,47 @@ pub struct BitVectorIter<'a> {
     i: usize,
 }
 
+/// An owning iterator over the bits of a [`BitVector`]
+pub struct BitVectorIntoIter {
+    bv: BitVector,
+    i: usize,
+}
+
+impl ExactSizeIterator for BitVectorIntoIter {
+    fn len(&self) -> usize {
+        self.bv.n_bits - self.i
+    }
+}
+
+impl Iterator for BitVectorIntoIter {
+    type Item = bool;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.i += 1;
+        self.bv.get(self.i - 1)
+    }
+}
+
+impl IntoIterator for BitVector {
+    type IntoIter = BitVectorIntoIter;
+    type Item = bool;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitVectorIntoIter { bv: self, i: 0 }
+    }
+}
+
+impl IntoIterator for BitVectorMut {
+    type IntoIter = BitVectorIntoIter;
+    type Item = bool;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitVectorIntoIter {
+            bv: self.into(), // just use the same iterator of immutable bitvector
+            i: 0,
+        }
+    }
+}
+
 impl<'a> IntoIterator for &'a BitVector {
     type IntoIter = BitVectorIter<'a>;
     type Item = bool;
@@ -579,6 +620,12 @@ impl<'a> Iterator for BitVectorIter<'a> {
         } else {
             None
         }
+    }
+}
+
+impl<'a> ExactSizeIterator for BitVectorIter<'a> {
+    fn len(&self) -> usize {
+        self.n_bits - self.i
     }
 }
 
