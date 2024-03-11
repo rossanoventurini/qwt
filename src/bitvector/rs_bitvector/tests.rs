@@ -6,7 +6,7 @@ use crate::perf_and_test_utils::gen_strictly_increasing_sequence;
 pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
     for (rank, pos) in bv.ones().enumerate() {
         let result = ds.rank1(pos);
-        dbg!(pos, rank);
+        // dbg!(pos, rank);
         assert_eq!(result, Some(rank));
         let result = ds.rank1(pos + 1);
         dbg!(pos + 1, rank);
@@ -17,7 +17,7 @@ pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
 }
 
 #[test]
-fn test_large_random() {
+fn test_large_random_rank() {
     let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
@@ -73,33 +73,27 @@ fn test_select1() {
     // println!("{:?}", rs.select_samples);
 
     for i in 1..vv.len() {
-        // println!("SELECTIAMO {}", i);
         assert_eq!(rs.select1(i), Some(vv[i]));
     }
-
-    // //wtf rabk for 9
-    // let i = 12;
-    // let selected = rs.select1(i);
-    // println!("select1({}) = {:?}", i, selected);
-
-    // let j = selected.unwrap();
-    // println!("rank1({}) = {:?}", j, rs.rank1(j));
 }
 
-//FIX SELECT 0
 #[test]
 fn test_select0() {
-    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let vv = gen_strictly_increasing_sequence(1024, 1 << 12);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
-    println!("{:?}", rs.bv);
-    println!("{:?}", rs.superblock_metadata);
+    let mut zeros_vector = Vec::new();
 
-    let i = 500;
-    let selected = rs.select0(i).unwrap();
-    println!("select0({}) = {}", i, selected);
+    for i in 0..rs.bv.len() {
+        if !vv.contains(&i) {
+            zeros_vector.push(i);
+        }
+    }
 
-    let j = selected;
-    println!("rank0({}) = {}", j, rs.rank0(j).unwrap());
+    for i in 1..zeros_vector.len() {
+        // println!("SELECTIAMO {}", i);
+        assert_eq!(rs.select0(i), Some(zeros_vector[i]));
+    }
 }

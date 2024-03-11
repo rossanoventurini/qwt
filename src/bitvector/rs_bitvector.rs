@@ -145,7 +145,7 @@ impl RSBitVector {
 
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
-        (self.superblock_metadata[block] >> 128 - 44) as usize
+        (self.superblock_metadata[block] >> (128 - 44)) as usize
     }
 
     ///returns the total rank up to `sub_block`
@@ -167,7 +167,7 @@ impl RSBitVector {
     }
 
     #[inline(always)]
-    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
+    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank1 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
     /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
@@ -188,12 +188,11 @@ impl RSBitVector {
                 break;
             }
         }
-        rank = self.superblock_rank(position);
-        // println!("selected superblock {} with rank {}", position, rank);
+        // println!("selected superblock {} with rank {}", position, self.superblock_rank(position););
         //position is now superblock
 
         //now we examine sub_blocks
-        position = position * (SUPERBLOCK_SIZE / BLOCK_SIZE);
+        position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
 
         // println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
@@ -213,7 +212,7 @@ impl RSBitVector {
     }
 
     #[inline(always)]
-    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
+    /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `0` having rank0 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
     /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
@@ -229,32 +228,35 @@ impl RSBitVector {
         let max_rank_for_block = SUPERBLOCK_SIZE * 64;
 
         for j in hint_start..n_blocks {
-            println!("{}: {}", j, self.superblock_rank(j));
+            // println!("{}: {}", j, self.superblock_rank(j));
             let rank0 = j * max_rank_for_block - self.superblock_rank(j);
             if rank0 > i {
                 position = j - 1;
                 break;
             }
         }
-        rank = position * max_rank_for_block - self.superblock_rank(position);
-        println!("selected block {} with rank0 {}", position, rank);
+        // rank = position * max_rank_for_block - self.superblock_rank(position);
+        // println!("selected block {} with rank0 {}", position, rank);
         //position is now superblock
 
         //now we examine sub_blocks
-        position = position * SUPERBLOCK_SIZE;
+        position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
 
         let max_rank_for_subblock = BLOCK_SIZE * 64;
-        println!("now sub_blocks");
+        // println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
-            println!(
-                "{}: {}",
-                j,
-                max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j)
-            );
+            // println!(
+            //     "{}: {}",
+            //     j,
+            //     max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j)
+            // );
             let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j);
             if rank0 > i {
                 position += j - 1;
                 break;
+            }
+            if j == 7 {
+                position += j;
             }
         }
         rank = max_rank_for_subblock * position - self.sub_block_rank(position);
@@ -336,7 +338,7 @@ impl RankBin for RSBitVector {
 
 impl SelectBin for RSBitVector {
     fn select1(&self, i: usize) -> Option<usize> {
-        if i == 0 || i >= self.n_ones() as usize {
+        if i == 0 || i >= self.n_ones() {
             return None;
         }
 
@@ -375,7 +377,7 @@ impl SelectBin for RSBitVector {
 
     fn select0_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select0_subblock(i);
-        println!("selected block {}, rank {}", block, rank);
+        // println!("selected block {}, rank {}", block, rank);
 
         block *= BLOCK_SIZE;
 

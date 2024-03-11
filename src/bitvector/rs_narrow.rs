@@ -130,7 +130,7 @@ impl RSNarrow {
         //position is now superblock
 
         //now we examine sub_blocks
-        position = position * BLOCK_SIZE;
+        position *= BLOCK_SIZE;
 
         println!("now sub_blocks");
         for j in 0..BLOCK_SIZE {
@@ -172,7 +172,7 @@ impl RSNarrow {
         //position is now superblock
 
         //now we examine sub_blocks
-        position = position * BLOCK_SIZE;
+        position *= BLOCK_SIZE;
 
         let max_rank_for_subblock = 64;
         println!("now sub_blocks");

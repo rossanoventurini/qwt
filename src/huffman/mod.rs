@@ -21,7 +21,7 @@ impl Debug for HuffmanCode {
             self.symbol, self.length
         )?;
         for i in (0..self.length).rev() {
-            let chr = match !((self.repr & 1 << i) == 0) {
+            let chr = match (self.repr & 1 << i) != 0 {
                 false => "0",
                 true => "1",
             };
@@ -54,7 +54,7 @@ impl PartialOrd for HuffmanTree {
 impl HuffmanTree {
     fn leaf(freq: u64, symbol: u8) -> Self {
         HuffmanTree {
-            freq: freq,
+            freq,
             symbol: Some(symbol),
             left: None,
             right: None,
@@ -63,7 +63,7 @@ impl HuffmanTree {
 
     fn internal_node(freq: u64, left: HuffmanTree, right: HuffmanTree) -> Self {
         HuffmanTree {
-            freq: freq,
+            freq,
             symbol: None,
             left: Some(Box::new(left)),
             right: Some(Box::new(right)),
@@ -111,7 +111,7 @@ impl HuffmanTree {
         }
 
         let mut codebook = Vec::<HuffmanCode>::new();
-        collect(&mut codebook, &self, 0, 0);
+        collect(&mut codebook, self, 0, 0);
         codebook
     }
 }
@@ -141,7 +141,7 @@ pub fn get_canonical_code(input: &mut Vec<HuffmanCode>) -> Vec<HuffmanCode> {
 
         canonical_codebook.push(HuffmanCode {
             symbol: code.symbol,
-            length: length,
+            length,
             repr: !repr, //we take the negative so we have the longest codes on the right
         });
 
