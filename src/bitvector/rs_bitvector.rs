@@ -305,7 +305,7 @@ impl RankBin for RSBitVector {
 
         let mut sub_block = i >> 9;
         let mut result = self.sub_block_rank(sub_block);
-        let mut sub_left = (i & 511) as u32 + 1;
+        let mut sub_left = (i & 511) as i32 + 1;
 
         sub_block *= BLOCK_SIZE; //we will handle single words from now on
 
@@ -313,22 +313,32 @@ impl RankBin for RSBitVector {
             0
         } else {
             let mut remainder = 0;
-            for _ in 0..BLOCK_SIZE {
-                if sub_left <= 64 {
-                    unsafe {
-                        remainder += (*self.bv.data.get_unchecked(sub_block))
-                            .wrapping_shl(64 - sub_left)
-                            .count_ones() as usize;
-                    }
-                    break;
-                } else {
-                    unsafe {
-                        remainder += (*self.bv.data.get_unchecked(sub_block)).count_ones() as usize;
-                    }
-                    sub_left -= 64;
-                }
+            // for _ in 0..BLOCK_SIZE {
+            //     if sub_left <= 64 {
+            //         unsafe {
+            //             remainder += (*self.bv.data.get_unchecked(sub_block))
+            //                 .wrapping_shl(64 - sub_left)
+            //                 .count_ones() as usize;
+            //         }
+            //         break;
+            //     } else {
+            //         unsafe {
+            //             remainder += (*self.bv.data.get_unchecked(sub_block)).count_ones() as usize;
+            //         }
+            //         sub_left -= 64;
+            //     }
+            //     sub_block += 1;
+            // }
+
+            while sub_left > 0 {
+                let cur_word = *self.bv.data.get_unchecked(sub_block);
+                let x = if sub_left > 64 { 64 } else { sub_left };
+                remainder += (cur_word & ((1u128 << x) - 1) as u64).count_ones() as usize;
+
+                sub_left -= 64;
                 sub_block += 1;
             }
+
             remainder
         };
 

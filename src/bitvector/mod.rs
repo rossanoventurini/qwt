@@ -11,8 +11,14 @@ use serde::{Deserialize, Serialize};
 pub mod rs_bitvector;
 pub mod rs_narrow;
 
+// vettore dataline 512 bit allineato
+// struct DataLine {
+//     words: [u64; 8],
+// }
+
 #[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct BitVector {
+    //data: Box<[DataLine]>
     data: Vec<u64>,
     position: usize,
 }

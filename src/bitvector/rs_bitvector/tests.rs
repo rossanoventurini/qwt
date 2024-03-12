@@ -1,19 +1,30 @@
 use super::*;
-use crate::perf_and_test_utils::gen_strictly_increasing_sequence;
+use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector, TimingQueries};
 
 /// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
 /// and the next position.
 pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
+    let mut t = TimingQueries::new((bv.ones().count() * 2) + 1, 1);
+
     for (rank, pos) in bv.ones().enumerate() {
+        t.start();
         let result = ds.rank1(pos);
+        t.stop();
         // dbg!(pos, rank);
         assert_eq!(result, Some(rank));
+        t.start();
         let result = ds.rank1(pos + 1);
-        dbg!(pos + 1, rank);
+        t.stop();
+        //dbg!(pos + 1, rank);
         assert_eq!(result, Some(rank + 1));
     }
+    t.start();
     let result = ds.rank1(bv.len() + 1);
+    t.stop();
     assert_eq!(result, None);
+
+    let data = t.get();
+    println!("average time per query: {:?} ns", data.2);
 }
 
 #[test]
@@ -31,7 +42,7 @@ fn playground() {
     let bv: BitVector = vv.iter().copied().collect();
     let rs = rs_bitvector::RSBitVector::new(bv);
 
-    println!("{:?}", rs.select_samples)
+    // println!("{:?}", rs.select_samples)
 }
 
 #[test]
@@ -44,8 +55,8 @@ fn playground2() {
     //     println!("{}", rs.superblock_rank(i));
     // }
 
-    let i = 4;
-    println!("rank1 {} | {}", i, rs.sub_block_rank(i));
+    // let i = 4;
+    // println!("rank1 {} | {}", i, rs.sub_block_rank(i));
 }
 
 #[test]
@@ -65,35 +76,43 @@ fn playground3() {
 #[test]
 fn test_select1() {
     // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001];
-    let vv: Vec<usize> = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(1024 * 4, 1 << 14);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
-    // println!("{:?}", rs.bv);
-    // println!("{:?}", rs.select_samples);
+    let mut t = TimingQueries::new(vv.len() - 2, 1);
+
+    //NOTE: timing is higly dependent on u value
 
     for i in 1..vv.len() {
-        assert_eq!(rs.select1(i), Some(vv[i]));
+        t.start();
+        let selected = rs.select1(i);
+        t.stop();
+
+        assert_eq!(selected, Some(vv[i]));
     }
+
+    println!("select1 data: {:?}", t.get());
 }
 
 #[test]
 fn test_select0() {
     // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
-    let vv = gen_strictly_increasing_sequence(1024, 1 << 12);
+    let vv = gen_strictly_increasing_sequence(1024, 1 << 20);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
-    let mut zeros_vector = Vec::new();
+    let zeros_vector = negate_vector(&vv);
 
-    for i in 0..rs.bv.len() {
-        if !vv.contains(&i) {
-            zeros_vector.push(i);
-        }
-    }
+    let mut t = TimingQueries::new(zeros_vector.len() - 2, 1);
 
     for i in 1..zeros_vector.len() {
         // println!("SELECTIAMO {}", i);
-        assert_eq!(rs.select0(i), Some(zeros_vector[i]));
+        t.start();
+        let selected = rs.select0(i);
+        t.stop();
+        assert_eq!(selected, Some(zeros_vector[i]));
     }
+
+    println!("select0 data: {:?}", t.get());
 }
