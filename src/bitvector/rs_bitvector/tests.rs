@@ -40,14 +40,14 @@ fn test_large_random_rank() {
 fn playground() {
     let vv = gen_strictly_increasing_sequence(17000, 1 << 15);
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = rs_bitvector::RSBitVector::new(bv);
+    let rs = RSBitVector::new(bv);
 
-    // println!("{:?}", rs.select_samples)
+    println!("{:?}", rs.select1(0));
 }
 
 #[test]
 fn playground2() {
-    let vv: Vec<usize> = vec![0, 12, 33, 42, 64, 65, 512, 513, 620, 1030];
+    let vv: Vec<usize> = vec![4, 12, 33, 42, 64, 65, 512, 513, 620, 1030];
     let bv: BitVector = vv.iter().copied().collect();
     let rs = rs_bitvector::RSBitVector::new(bv);
 
@@ -55,8 +55,9 @@ fn playground2() {
     //     println!("{}", rs.superblock_rank(i));
     // }
 
-    // let i = 4;
-    // println!("rank1 {} | {}", i, rs.sub_block_rank(i));
+    let i = 1;
+    println!("select: {:?}", rs.select1(i));
+    println!("rank: {:?}", rs.rank1(rs.select1(i).unwrap()));
 }
 
 #[test]

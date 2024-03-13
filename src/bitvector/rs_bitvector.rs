@@ -347,8 +347,9 @@ impl RankBin for RSBitVector {
 }
 
 impl SelectBin for RSBitVector {
+    /// returns the position of the `1` which has rank `i`
     fn select1(&self, i: usize) -> Option<usize> {
-        if i == 0 || i >= self.n_ones() {
+        if i >= self.n_ones() {
             return None;
         }
 
@@ -378,7 +379,7 @@ impl SelectBin for RSBitVector {
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
-        if i == 0 || i >= self.n_zeros() {
+        if i >= self.n_zeros() {
             return None;
         }
 
