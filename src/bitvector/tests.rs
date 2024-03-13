@@ -10,11 +10,11 @@ fn test_is_empty() {
 // Build a bit vector of size n with even positions set to one
 // and odd ones to zero
 fn build_alternate(n: usize) -> BitVector {
-    let mut bv = BitVector::with_capacity(n);
+    let mut bv = BitVectorMut::with_capacity(n);
     for i in 0..n {
         bv.push(i % 2 == 0);
     }
-    bv
+    bv.into()
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_iter() {
 #[test]
 fn test_get_set_bits() {
     let n = 1024 + 13;
-    let mut bv = BitVector::new();
+    let mut bv = BitVectorMut::new();
     bv.extend_with_zeros(n);
 
     assert_eq!(bv.get_bits(61, 35).unwrap(), 0);
@@ -78,7 +78,7 @@ fn test_iter_zeros() {
     assert!(v.is_empty());
 
     let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
-    let mut bv: BitVector = vv.iter().copied().collect();
+    let mut bv: BitVectorMut = vv.iter().copied().collect();
 
     let v: Vec<usize> = bv.zeros().collect();
     assert_eq!(v, negate_vector(&vv));
