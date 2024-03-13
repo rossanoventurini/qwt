@@ -1,4 +1,4 @@
-use crate::{bitvector::BitVectorMut, BitVector, QVector, RSNarrow, RankBin, SpaceUsage};
+use crate::{bitvector::BitVectorMut, QVector, RSNarrow, RankBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 

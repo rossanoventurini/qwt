@@ -11,6 +11,7 @@ use crate::{AccessBin, SpaceUsage};
 use serde::{Deserialize, Serialize};
 
 pub mod rs_narrow;
+pub mod rs_bitvector;
 
 /// Implementation of an immutable bit vector.
 #[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
