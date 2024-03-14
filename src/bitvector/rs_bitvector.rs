@@ -352,6 +352,7 @@ impl RankBin for RSBitVector {
 
 impl SelectBin for RSBitVector {
     /// returns the position of the `1` which has rank `i`
+    #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         if i >= self.n_ones() {
             return None;
@@ -360,6 +361,7 @@ impl SelectBin for RSBitVector {
         Some(unsafe { self.select1_unchecked(i) })
     }
 
+    #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select1_subblock(i);
         // println!("selected subblock {}, rank {}", block, rank);
@@ -383,6 +385,7 @@ impl SelectBin for RSBitVector {
         block * 512 + off
     }
 
+    #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         if i >= self.n_zeros() {
             return None;
@@ -391,6 +394,7 @@ impl SelectBin for RSBitVector {
         Some(unsafe { self.select0_unchecked(i) })
     }
 
+    #[inline(always)]
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select0_subblock(i);
         // println!("selected block {}, rank {}", block, rank);

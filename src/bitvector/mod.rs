@@ -120,6 +120,7 @@ impl SelectBin for DataLine {
         todo!()
     }
 
+    #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let mut off = 0;
         let mut rank = 0; //rank so far
@@ -141,6 +142,7 @@ impl SelectBin for DataLine {
         todo!()
     }
 
+    #[inline(always)]
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
         let mut rank = 0;
         let mut off = 0;
