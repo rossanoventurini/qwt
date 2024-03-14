@@ -362,7 +362,7 @@ impl SelectBin for RSBitVector {
 
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select1_subblock(i);
-        println!("selected subblock {}, rank {}", block, rank);
+        // println!("selected subblock {}, rank {}", block, rank);
 
         // self.bv[block].select(i-rank)
         let mut off = self.bv.data[block].select1_unchecked(i - rank);
