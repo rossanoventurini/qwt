@@ -34,23 +34,25 @@ impl RSNarrow {
         // with the number of ones from the beginning of the block
         // and a 64-bit entry with the number of ones from the
         // beginning of the bit vector.
-        for (b, &word) in bv.data.iter().enumerate() {
-            let word_pop = word.count_ones() as u64;
-            let shift = b % BLOCK_SIZE;
+        for (b, &dl) in bv.data.iter().enumerate() {
+            for (b1, &word) in dl.words.iter().enumerate() {
+                let word_pop = word.count_ones() as u64;
+                let shift = (b * 8 + b1) % BLOCK_SIZE;
 
-            if shift >= 1 {
-                subranks <<= 9;
-                subranks |= cur_subrank;
-            }
+                if shift >= 1 {
+                    subranks <<= 9;
+                    subranks |= cur_subrank;
+                }
 
-            next_rank += word_pop;
-            cur_subrank += word_pop;
+                next_rank += word_pop;
+                cur_subrank += word_pop;
 
-            if shift == BLOCK_SIZE - 1 {
-                block_rank_pairs.push(subranks);
-                block_rank_pairs.push(next_rank);
-                subranks = 0;
-                cur_subrank = 0;
+                if shift == BLOCK_SIZE - 1 {
+                    block_rank_pairs.push(subranks);
+                    block_rank_pairs.push(next_rank);
+                    subranks = 0;
+                    cur_subrank = 0;
+                }
             }
         }
 
@@ -236,7 +238,8 @@ impl RankBin for RSNarrow {
             0
         } else {
             unsafe {
-                (*self.bv.data.get_unchecked(sub_block))
+                (*self.bv.data.get_unchecked(sub_block >> 3))
+                    .get_word(sub_block % 8)
                     .wrapping_shl(64 - sub_left)
                     .count_ones() as usize
             }
@@ -252,10 +255,10 @@ impl SelectBin for RSNarrow {
             return None;
         }
 
-        Some(self.select1_unchecked(i))
+        Some(unsafe { self.select1_unchecked(i) })
     }
 
-    fn select1_unchecked(&self, i: usize) -> usize {
+    unsafe fn select1_unchecked(&self, i: usize) -> usize {
         //block_rank_pairs layout
         //|superblock0|block0|superblock1|block1...
 
@@ -270,10 +273,10 @@ impl SelectBin for RSNarrow {
             return None;
         }
 
-        Some(self.select0_unchecked(i))
+        Some(unsafe { self.select0_unchecked(i) })
     }
 
-    fn select0_unchecked(&self, i: usize) -> usize {
+    unsafe fn select0_unchecked(&self, i: usize) -> usize {
         //block_rank_pairs layout
         //|superblock0|blocks0|superblock1|blocks1...
 

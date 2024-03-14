@@ -6,17 +6,163 @@
 //!
 //! For both data structures, it is possible to iterate over bits or positions of bits set either to zero or one.
 
-use crate::{AccessBin, SpaceUsage};
+use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
-pub mod rs_narrow;
 pub mod rs_bitvector;
+pub mod rs_narrow;
+
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[repr(C, align(64))]
+struct DataLine {
+    words: [u64; 8],
+}
+
+impl DataLine {
+    //set symbol to position `i`
+    #[inline]
+    fn set_symbol(&mut self, symbol: u64, i: usize) {
+        assert!(i < 512);
+
+        let mask: u64 = 1 << (i % 64);
+        self.words[i >> 6] ^= self.words[i >> 6] & mask; //zero out the position
+        self.words[i >> 6] ^= (symbol & 1) << (i % 64); //set position to symbol
+    }
+
+    #[inline]
+    fn get_word(&self, i: usize) -> u64 {
+        assert!(i < 8);
+        self.words[i]
+    }
+}
+
+impl AccessBin for DataLine {
+    #[inline(always)]
+    fn get(&self, i: usize) -> Option<bool> {
+        assert!(i < 512);
+        // SAFETY: bounds already checked
+        Some(unsafe { self.get_unchecked(i) })
+    }
+
+    #[inline(always)]
+    unsafe fn get_unchecked(&self, i: usize) -> bool {
+        (self.words.get_unchecked(i >> 6) >> (i % 64)) & 1 == 1
+    }
+}
+
+impl RankBin for DataLine {
+    #[inline(always)]
+    fn rank1(&self, i: usize) -> Option<usize> {
+        if i >= 512 {
+            return None;
+        }
+
+        Some(unsafe { self.rank1_unchecked(i) })
+    }
+
+    #[inline(always)]
+    unsafe fn rank1_unchecked(&self, i: usize) -> usize {
+        let mut left = i as i32;
+        let mut rank = 0;
+        for w in 0..8 {
+            if left < 0 {
+                break;
+            }
+            let cur_word = self.words.get_unchecked(w);
+            let x = if left > 64 { 64 } else { left };
+            rank += (cur_word & ((1u128 << x) - 1) as u64).count_ones() as usize;
+
+            left -= 64;
+        }
+        rank
+    }
+}
+
+impl SpaceUsage for DataLine {
+    fn space_usage_byte(&self) -> usize {
+        8 * 8
+    }
+}
+
+fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
+    unsafe {
+        let len = data_lines.len().checked_mul(8).unwrap();
+        let ptr = data_lines.as_ptr();
+        let u64_ptr = ptr as *const u64;
+        std::slice::from_raw_parts(u64_ptr, len)
+    }
+}
+
+// #[inline(always)]
+// fn cast_to_u64_slice<'a>(data_lines: &'a Vec<DataLine>) -> &'a [u64] {
+//     let s: Vec<u64>= data_lines
+//         .iter()
+//         .map(|dl| dl.words)
+//         .flatten()
+//         .collect::<Vec<_>>()
+//         .as_slice();
+//     &s
+// }
+
+// #[inline(always)]
+// fn cast_box_to_u64_slice(data_lines: &Box<[DataLine]>) -> &[u64] {
+//     let s = data_lines
+//         .iter()
+//         .flat_map(|x| x.words)
+//         .collect::<Box<[u64]>>();
+//     s.as_ref()
+// }
+
+impl SelectBin for DataLine {
+    fn select1(&self, i: usize) -> Option<usize> {
+        todo!()
+    }
+
+    unsafe fn select1_unchecked(&self, i: usize) -> usize {
+        let mut off = 0;
+        let mut rank = 0; //rank so far
+        if i == 0 {
+            return 0;
+        }
+        for w in 0..8 {
+            let kp = self.words.get_unchecked(w).count_ones();
+            if kp as usize > (i - rank) {
+                off = select_in_word(*self.words.get_unchecked(w), (i - rank) as u64) as usize;
+                break;
+            } else {
+                rank += kp as usize;
+            }
+        }
+        off
+    }
+
+    fn select0(&self, i: usize) -> Option<usize> {
+        todo!()
+    }
+
+    unsafe fn select0_unchecked(&self, i: usize) -> usize {
+        let mut rank = 0;
+        let mut off = 0;
+
+        for w in 0..8 {
+            let word_to_select = !self.words.get_unchecked(w);
+            let kp = word_to_select.count_ones();
+            if kp as usize > (i - rank) {
+                off = select_in_word(word_to_select, (i - rank) as u64) as usize;
+                break;
+            } else {
+                rank += kp as usize;
+            }
+        }
+        off
+    }
+}
 
 /// Implementation of an immutable bit vector.
 #[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct BitVector {
-    data: Box<[u64]>,
+    data: Box<[DataLine]>,
     n_bits: usize,
     n_ones: usize,
 }
@@ -81,7 +227,7 @@ impl BitVector {
     #[must_use]
     #[inline]
     pub unsafe fn get_bits_unchecked(&self, index: usize, len: usize) -> u64 {
-        BitVectorMut::get_bits_slice(&self.data, index, len)
+        BitVectorMut::get_bits_slice(cast_to_u64_slice(&self.data), index, len)
     }
 
     /// Gets a whole 64-bit word from the bit vector at index `i` in the underlying vector of u64.
@@ -101,7 +247,7 @@ impl BitVector {
     #[must_use]
     #[inline(always)]
     pub fn get_word(&self, i: usize) -> u64 {
-        self.data[i]
+        self.data[i >> 9].words[i]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
@@ -119,7 +265,7 @@ impl BitVector {
     /// ```
     #[must_use]
     pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
-        BitVectorBitPositionsIter::new(&self.data, self.n_bits)
+        BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector, starting at a specified bit position.
@@ -137,7 +283,7 @@ impl BitVector {
     /// ```
     #[must_use]
     pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
-        BitVectorBitPositionsIter::with_pos(&self.data, self.n_bits, pos)
+        BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector.
@@ -156,13 +302,13 @@ impl BitVector {
     /// ```
     #[must_use]
     pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
-        BitVectorBitPositionsIter::new(&self.data, self.n_bits)
+        BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
     #[must_use]
     pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
-        BitVectorBitPositionsIter::with_pos(&self.data, self.n_bits, pos)
+        BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
     /// Returns a non-consuming iterator over bits of the bit vector.
@@ -186,7 +332,7 @@ impl BitVector {
     /// ```
     pub fn iter(&self) -> BitVectorIter {
         BitVectorIter {
-            data: &self.data,
+            data: cast_to_u64_slice(&self.data),
             n_bits: self.n_bits,
             i: 0,
         }
@@ -309,7 +455,7 @@ impl AccessBin for BitVector {
     #[must_use]
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
-        BitVectorMut::get_bit_slice(&self.data, index)
+        BitVectorMut::get_bit_slice(cast_to_u64_slice(&self.data), index)
     }
 }
 
@@ -633,7 +779,7 @@ impl<'a> ExactSizeIterator for BitVectorIter<'a> {
 /// Implementation of a mutable bit vector.
 #[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct BitVectorMut {
-    data: Vec<u64>,
+    data: Vec<DataLine>,
     n_bits: usize,
     n_ones: usize,
 }
@@ -714,14 +860,14 @@ impl BitVectorMut {
     /// ```
     #[inline]
     pub fn push(&mut self, bit: bool) {
-        let pos_in_word = self.n_bits % 64;
-        if pos_in_word == 0 {
-            self.data.push(0);
+        let pos_in_line = self.n_bits % 512;
+        if pos_in_line == 0 {
+            self.data.push(DataLine::default());
         }
         if bit {
             // push a 1
             if let Some(last) = self.data.last_mut() {
-                *last |= (bit as u64) << pos_in_word;
+                last.set_symbol(1, pos_in_line);
             }
             self.n_ones += 1;
         }
@@ -760,19 +906,27 @@ impl BitVectorMut {
             return;
         }
 
-        self.n_ones += bits.count_ones() as usize;
+        // self.n_ones += bits.count_ones() as usize; taken care in push
 
-        let pos_in_word: usize = self.n_bits & 63;
-        self.n_bits += len;
+        let pos_in_line: usize = self.n_bits & 511;
+        // self.n_bits += len; taken care in push
 
-        if pos_in_word == 0 {
-            self.data.push(bits);
-        } else if let Some(last) = self.data.last_mut() {
-            *last |= bits << pos_in_word;
-            if len > 64 - pos_in_word {
-                self.data.push(bits >> (64 - pos_in_word));
+        for i in 0..len {
+            if (pos_in_line + i) % 512 == 0 {
+                self.data.push(DataLine::default());
             }
+
+            self.push((bits >> i) & 1 == 1);
         }
+
+        // if pos_in_word == 0 {
+        //     self.data.push(bits);
+        // } else if let Some(last) = self.data.last_mut() {
+        //     *last |= bits << pos_in_word;
+        //     if len > 64 - pos_in_word {
+        //         self.data.push(bits >> (64 - pos_in_word));
+        //     }
+        // }
     }
 
     /// Extends the bit vector by adding `n` bits set to 0.
@@ -794,7 +948,7 @@ impl BitVectorMut {
     #[inline]
     pub fn extend_with_zeros(&mut self, n: usize) {
         self.n_bits += n;
-        let new_size = (self.n_bits + 63) / 64;
+        let new_size = (self.n_bits + 511) / 512;
         self.data.resize_with(new_size, Default::default);
     }
 
@@ -833,10 +987,9 @@ impl BitVectorMut {
             }
         }
 
-        let word = index >> 6;
-        let pos_in_word = index & 63;
-        self.data[word] &= !(1_u64 << pos_in_word);
-        self.data[word] |= (bit as u64) << pos_in_word;
+        let dl = index >> 9;
+        let pos_in_dl = index & 511;
+        self.data[dl].set_symbol(bit as u64, pos_in_dl);
     }
 
     /// Accesses `len` bits, with 1 <= `len` <= 64, starting at position `index`.
@@ -898,7 +1051,8 @@ impl BitVectorMut {
     #[must_use]
     #[inline]
     pub unsafe fn get_bits_unchecked(&self, index: usize, len: usize) -> u64 {
-        Self::get_bits_slice(&self.data, index, len)
+        //HACK: we get the first element position and we return it
+        Self::get_bits_slice(cast_to_u64_slice(&self.data), index, len)
     }
 
     // Private function to decode bits at a given index on a slice. The function does not
@@ -964,21 +1118,25 @@ impl BitVectorMut {
 
         self.n_ones += bits.count_ones() as usize;
 
-        let mask = if len == 64 {
-            std::u64::MAX
-        } else {
-            (1_u64 << len) - 1
-        };
-        let word = index >> 6;
-        let pos_in_word = index & 63;
+        // let mask = if len == 64 {
+        //     std::u64::MAX
+        // } else {
+        //     (1_u64 << len) - 1
+        // };
+        // let word = index >> 6;
+        // let pos_in_word = index & 63;
 
-        self.data[word] &= !(mask << pos_in_word);
-        self.data[word] |= bits << pos_in_word;
+        // self.data[word] &= !(mask << pos_in_word);
+        // self.data[word] |= bits << pos_in_word;
 
-        let stored = 64 - pos_in_word;
-        if stored < len {
-            self.data[word + 1] &= !(mask >> stored);
-            self.data[word + 1] |= bits >> stored;
+        // let stored = 64 - pos_in_word;
+        // if stored < len {
+        //     self.data[word + 1] &= !(mask >> stored);
+        //     self.data[word + 1] |= bits >> stored;
+        // }
+
+        for i in 0..len {
+            self.data[(index + i) >> 9].set_symbol((bits >> i) & 1, index + i)
         }
     }
 
@@ -999,7 +1157,7 @@ impl BitVectorMut {
     #[must_use]
     #[inline(always)]
     pub fn get_word(&self, i: usize) -> u64 {
-        self.data[i]
+        self.data[i >> 9].words[(i % 512) >> 3]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
@@ -1017,7 +1175,7 @@ impl BitVectorMut {
     /// ```
     #[must_use]
     pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
-        BitVectorBitPositionsIter::new(&self.data, self.n_bits)
+        BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector, starting at a specified bit position.
@@ -1035,7 +1193,7 @@ impl BitVectorMut {
     /// ```
     #[must_use]
     pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
-        BitVectorBitPositionsIter::with_pos(&self.data, self.n_bits, pos)
+        BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector.
@@ -1054,13 +1212,13 @@ impl BitVectorMut {
     /// ```
     #[must_use]
     pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
-        BitVectorBitPositionsIter::new(&self.data, self.n_bits)
+        BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
     #[must_use]
     pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
-        BitVectorBitPositionsIter::with_pos(&self.data, self.n_bits, pos)
+        BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
     // /// Returns a non-consuming iterator over bits of the bit vector.
@@ -1215,7 +1373,7 @@ impl AccessBin for BitVectorMut {
     #[must_use]
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
-        Self::get_bit_slice(&self.data, index)
+        Self::get_bit_slice(cast_to_u64_slice(&self.data), index)
     }
 }
 
@@ -1327,7 +1485,7 @@ impl Extend<usize> for BitVectorMut {
 
 impl std::fmt::Debug for BitVector {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let data_str: Vec<String> = self.data.iter().map(|x| format!("{:b}", x)).collect();
+        let data_str: Vec<String> = self.data.iter().map(|x| format!("{:?}", x)).collect();
         write!(
             fmt,
             "BitVector {{ n_bits:{:?}, data:{:?}}}",
@@ -1338,7 +1496,7 @@ impl std::fmt::Debug for BitVector {
 
 impl std::fmt::Debug for BitVectorMut {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let data_str: Vec<String> = self.data.iter().map(|x| format!("{:b}", x)).collect();
+        let data_str: Vec<String> = self.data.iter().map(|x| format!("{:?}", x)).collect();
         write!(
             fmt,
             "BitVectorMut {{ n_bits:{:?}, data:{:?}}}",

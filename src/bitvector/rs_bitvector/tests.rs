@@ -76,8 +76,10 @@ fn playground3() {
 
 #[test]
 fn test_select1() {
-    // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001];
-    let vv: Vec<usize> = gen_strictly_increasing_sequence(1024 * 4, 1 << 14);
+    let vv: Vec<usize> = vec![
+        3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001,
+    ];
+    // let vv: Vec<usize> = gen_strictly_increasing_sequence(1024 * 4, 1 << 14);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
@@ -85,7 +87,7 @@ fn test_select1() {
 
     //NOTE: timing is higly dependent on u value
 
-    for i in 1..vv.len() {
+    for i in 0..vv.len() {
         t.start();
         let selected = rs.select1(i);
         t.stop();

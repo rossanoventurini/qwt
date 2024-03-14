@@ -128,11 +128,11 @@ pub trait SelectBin {
     ///returns the i-th occurrence of symbol(could be 0 or 1)
     fn select1(&self, i: usize) -> Option<usize>;
 
-    fn select1_unchecked(&self, i: usize) -> usize;
+    unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
     fn select0(&self, i: usize) -> Option<usize>;
 
-    fn select0_unchecked(&self, i: usize) -> usize;
+    unsafe fn select0_unchecked(&self, i: usize) -> usize;
 }
 
 /// A trait for the support of `get` query over the alphabet [0..3].
