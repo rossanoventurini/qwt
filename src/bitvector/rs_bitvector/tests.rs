@@ -100,8 +100,8 @@ fn test_select1() {
 
 #[test]
 fn test_select0() {
-    // let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
-    let vv = gen_strictly_increasing_sequence(1024, 1 << 20);
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 10000];
+    // let vv = gen_strictly_increasing_sequence(1024, 1 << 15);
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSBitVector::new(bv);
 
@@ -110,7 +110,7 @@ fn test_select0() {
     let mut t = TimingQueries::new(zeros_vector.len() - 2, 1);
 
     for i in 1..zeros_vector.len() {
-        // println!("SELECTIAMO {}", i);
+        println!("SELECTIAMO {}", i);
         t.start();
         let selected = rs.select0(i);
         t.stop();

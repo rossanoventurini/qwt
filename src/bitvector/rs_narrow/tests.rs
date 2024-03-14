@@ -85,14 +85,14 @@ fn test_select1() {
 
 #[test]
 fn test_select0() {
-    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let vv: Vec<usize> = vec![0, 5, 8, 128, 129, 513];
     let bv: BitVector = vv.iter().copied().collect();
     let rs = RSNarrow::new(bv);
 
     println!("{:?}", rs.bv);
     println!("{:?}", rs.block_rank_pairs);
 
-    let i = 6;
+    let i = 0;
     let selected = rs.select0(i).unwrap();
     println!("select0({}) = {}", i, selected);
 

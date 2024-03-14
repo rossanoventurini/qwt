@@ -54,7 +54,7 @@ impl AccessBin for DataLine {
 impl RankBin for DataLine {
     #[inline(always)]
     fn rank1(&self, i: usize) -> Option<usize> {
-        if i >= 512 {
+        if i > 512 {
             return None;
         }
 
@@ -66,7 +66,7 @@ impl RankBin for DataLine {
         let mut left = i as i32;
         let mut rank = 0;
         for w in 0..8 {
-            if left < 0 {
+            if left < 0{
                 break;
             }
             let cur_word = self.words.get_unchecked(w);
@@ -86,6 +86,7 @@ impl SpaceUsage for DataLine {
 }
 
 fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
+    //WARNING: this works because DataLine is align(64)
     unsafe {
         let len = data_lines.len().checked_mul(8).unwrap();
         let ptr = data_lines.as_ptr();
@@ -122,16 +123,15 @@ impl SelectBin for DataLine {
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let mut off = 0;
         let mut rank = 0; //rank so far
-        if i == 0 {
-            return 0;
-        }
+
         for w in 0..8 {
             let kp = self.words.get_unchecked(w).count_ones();
             if kp as usize > (i - rank) {
-                off = select_in_word(*self.words.get_unchecked(w), (i - rank) as u64) as usize;
+                off += select_in_word(*self.words.get_unchecked(w), (i - rank) as u64) as usize;
                 break;
             } else {
                 rank += kp as usize;
+                off += 64;
             }
         }
         off
@@ -149,10 +149,11 @@ impl SelectBin for DataLine {
             let word_to_select = !self.words.get_unchecked(w);
             let kp = word_to_select.count_ones();
             if kp as usize > (i - rank) {
-                off = select_in_word(word_to_select, (i - rank) as u64) as usize;
+                off += select_in_word(word_to_select, (i - rank) as u64) as usize;
                 break;
             } else {
                 rank += kp as usize;
+                off += 64;
             }
         }
         off
@@ -247,7 +248,7 @@ impl BitVector {
     #[must_use]
     #[inline(always)]
     pub fn get_word(&self, i: usize) -> u64 {
-        self.data[i >> 9].words[i]
+        self.data[i >> 3].words[i % 8]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
@@ -908,14 +909,10 @@ impl BitVectorMut {
 
         // self.n_ones += bits.count_ones() as usize; taken care in push
 
-        let pos_in_line: usize = self.n_bits & 511;
+        // let pos_in_line: usize = self.n_bits & 511;
         // self.n_bits += len; taken care in push
 
         for i in 0..len {
-            if (pos_in_line + i) % 512 == 0 {
-                self.data.push(DataLine::default());
-            }
-
             self.push((bits >> i) & 1 == 1);
         }
 
@@ -1051,7 +1048,6 @@ impl BitVectorMut {
     #[must_use]
     #[inline]
     pub unsafe fn get_bits_unchecked(&self, index: usize, len: usize) -> u64 {
-        //HACK: we get the first element position and we return it
         Self::get_bits_slice(cast_to_u64_slice(&self.data), index, len)
     }
 
@@ -1136,7 +1132,7 @@ impl BitVectorMut {
         // }
 
         for i in 0..len {
-            self.data[(index + i) >> 9].set_symbol((bits >> i) & 1, index + i)
+            self.data[(index + i) >> 9].set_symbol((bits >> i) & 1, (index + i) % 512)
         }
     }
 
@@ -1157,7 +1153,7 @@ impl BitVectorMut {
     #[must_use]
     #[inline(always)]
     pub fn get_word(&self, i: usize) -> u64 {
-        self.data[i >> 9].words[(i % 512) >> 3]
+        self.data[i >> 3].words[i % 8]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.

@@ -38,6 +38,7 @@ impl RSBitVector {
         select_samples[1].push(0);
 
         for (b, &dl) in bv.data.iter().enumerate() {
+            // println!("dataline numero {}", b);
             if b % 8 == 0 {
                 //we are at the start of new superblock, so we push the rank so far
                 total_rank += word_pop;
@@ -63,7 +64,7 @@ impl RSBitVector {
 
             if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
                 //we insert a new hint for 0
-                select_samples[1].push((b / 8) as u32);
+                select_samples[1].push((b/8) as u32);
                 cur_hint_1 += 1;
                 // println!("NUOVO HINT 1");
             }
@@ -71,7 +72,7 @@ impl RSBitVector {
             let zeros_so_far = (64 * 8 * (b + 1) as u128) - (total_rank + word_pop);
             if (zeros_so_far / SELECT_ZEROS_PER_HINT as u128) > cur_hint_0 {
                 //we insert a new hint for 0
-                select_samples[0].push((b / 8) as u32);
+                select_samples[0].push((b/8) as u32);
                 cur_hint_0 += 1;
                 // println!("NUOVO HINT 0");
             }
@@ -86,16 +87,14 @@ impl RSBitVector {
         //we flush the remainder in total rank
         total_rank += word_pop;
 
-        let left: usize = bv.data.len() % SUPERBLOCK_SIZE;
-        // println!("LEFT CALCULATION: {} / {}", left, SUPERBLOCK_SIZE);
+        let left: usize = bv.data.len() % 8;
+        // println!("BLOCKS LEFT CALCULATION: {} / {}", left, 8);
 
         if left != 0 {
-            for i in left..SUPERBLOCK_SIZE {
-                if i % BLOCK_SIZE == 0 {
-                    cur_metadata <<= 12;
-                    cur_metadata |= word_pop;
-                    // println!("new block! added metadata count");
-                }
+            for _ in left..8 {
+                cur_metadata <<= 12;
+                cur_metadata |= word_pop;
+                // println!("new block! added metadata count");
             }
 
             superblock_metadata.push(cur_metadata);
@@ -181,6 +180,8 @@ impl RSBitVector {
         let hint_start = self.select_samples[1][hint] as usize;
         // let hint_end = self.select_samples[1][hint+1] as usize;
 
+        // println!("HINT START: {}", hint_start);
+
         for j in hint_start..n_blocks {
             // println!("{}: {}", j, self.superblock_rank(j));
             if self.superblock_rank(j) > i {
@@ -235,16 +236,17 @@ impl RSBitVector {
                 break;
             }
         }
-        // rank = position * max_rank_for_block - self.superblock_rank(position);
-        // println!("selected block {} with rank0 {}", position, rank);
+        rank = position * max_rank_for_block - self.superblock_rank(position);
+        println!("selected block {} with rank0 {}", position, rank);
         //position is now superblock
 
         //now we examine sub_blocks
         position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
 
         let max_rank_for_subblock = BLOCK_SIZE * 64;
-        // println!("now sub_blocks");
+        println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
+            println!("iterazione {}", j);
             // println!(
             //     "{}: {}",
             //     j,
@@ -307,7 +309,7 @@ impl RankBin for RSBitVector {
         let mut result = self.sub_block_rank(sub_block);
         let mut sub_left = (i & 511) as i32 + 1;
 
-        sub_block *= BLOCK_SIZE; //we will handle single words from now on
+        // sub_block *= BLOCK_SIZE; //we will handle single words from now on
 
         result += if sub_left == 0 {
             0
@@ -360,10 +362,10 @@ impl SelectBin for RSBitVector {
 
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let (mut block, mut rank) = self.select1_subblock(i);
-        // println!("selected subbblock {}, rank {}", block, rank);
+        println!("selected subblock {}, rank {}", block, rank);
 
         // self.bv[block].select(i-rank)
-        let mut off = self.bv.data[block >> 3].select1_unchecked(i - rank);
+        let mut off = self.bv.data[block].select1_unchecked(i - rank);
 
         // block *= BLOCK_SIZE; // actual word in the bitvector
 
@@ -378,7 +380,7 @@ impl SelectBin for RSBitVector {
         //     block += 1;
         // }
 
-        block * 64 + off
+        block * 512 + off
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
@@ -393,23 +395,23 @@ impl SelectBin for RSBitVector {
         let (mut block, mut rank) = self.select0_subblock(i);
         // println!("selected block {}, rank {}", block, rank);
 
-        block *= BLOCK_SIZE;
+        let mut off = self.bv.data[block].select0_unchecked(i-rank);
+        
+        // block *= BLOCK_SIZE;
 
-        let mut off = 0;
+        // for _ in 0..BLOCK_SIZE {
+        //     let word_to_select = !self.bv.get_word(block);
+        //     let kp = word_to_select.count_ones();
+        //     if kp as usize > (i - rank) {
+        //         off = select_in_word(word_to_select, (i - rank) as u64) as usize;
+        //         break;
+        //     } else {
+        //         rank += kp as usize;
+        //     }
+        //     block += 1;
+        // }
 
-        for _ in 0..BLOCK_SIZE {
-            let word_to_select = !self.bv.get_word(block);
-            let kp = word_to_select.count_ones();
-            if kp as usize > (i - rank) {
-                off = select_in_word(word_to_select, (i - rank) as u64) as usize;
-                break;
-            } else {
-                rank += kp as usize;
-            }
-            block += 1;
-        }
-
-        block * 64 + off
+        block * 512 + off
     }
 }
 
