@@ -129,7 +129,11 @@ fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
 
 impl SelectBin for DataLine {
     fn select1(&self, i: usize) -> Option<usize> {
-        todo!()
+        if i >= self.n_ones() {
+            return None;
+        }
+
+        Some(unsafe { self.select1_unchecked(i) })
     }
 
     #[inline(always)]
@@ -151,7 +155,11 @@ impl SelectBin for DataLine {
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
-        todo!()
+        if i >= self.n_zeros() {
+            return None;
+        }
+
+        Some(unsafe { self.select1_unchecked(i) })
     }
 
     #[inline(always)]

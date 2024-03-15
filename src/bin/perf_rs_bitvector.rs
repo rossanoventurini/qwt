@@ -1,7 +1,7 @@
 use qwt::{
     bitvector::rs_bitvector::RSBitVector,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
-    BitVector, RankBin, SelectBin, SpaceUsage,
+    RankBin, SelectBin, SpaceUsage,
 };
 
 const N_RUNS: usize = 5;

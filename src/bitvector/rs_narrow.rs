@@ -5,7 +5,7 @@
 
 use super::*;
 
-use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin};
+use crate::{AccessBin, RankBin, SelectBin};
 
 use serde::{Deserialize, Serialize};
 

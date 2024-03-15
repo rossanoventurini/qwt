@@ -6,6 +6,7 @@ pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
 pub mod bitvector;
+pub use bitvector::rs_bitvector::RSBitVector;
 pub use bitvector::rs_narrow::RSNarrow;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
@@ -125,13 +126,26 @@ pub trait RankBin {
 
 // TODO: Add SelectBin trait when select will be implemented
 pub trait SelectBin {
-    ///returns the i-th occurrence of symbol(could be 0 or 1)
+    /// Returns the position `pos` such that the element is `1` and  `rank1(pos) = i`.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     fn select1(&self, i: usize) -> Option<usize>;
 
+    /// Returns the position `pos` such that the element is `1` and  `rank1(pos) = i`.
+    ///
+    /// # Safety
+    /// This method doesnt check that such element exists
+    /// Calling this method with an `i >= maximum rank1` is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
+    /// Returns the position `pos` such that the element is `0` and  `rank0(pos) = i`.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0 in the struct)    
     fn select0(&self, i: usize) -> Option<usize>;
 
+    /// Returns the position `pos` such that the element is `0` and  `rank0(pos) = i`.
+    ///
+    /// # Safety
+    /// This method doesnt check that such element exists
+    /// Calling this method with an `i >= maximum rank0` is undefined behaviour.
     unsafe fn select0_unchecked(&self, i: usize) -> usize;
 }
 

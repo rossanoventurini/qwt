@@ -173,7 +173,6 @@ impl RSBitVector {
     /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
-        let mut rank;
 
         let n_blocks = self.superblock_metadata.len();
 
@@ -208,7 +207,7 @@ impl RSBitVector {
                 position += j;
             }
         }
-        rank = self.sub_block_rank(position);
+        let rank = self.sub_block_rank(position);
 
         (position, rank)
     }
@@ -220,7 +219,6 @@ impl RSBitVector {
     /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
-        let mut rank;
 
         let n_blocks = self.superblock_metadata.len();
 
@@ -237,8 +235,7 @@ impl RSBitVector {
                 break;
             }
         }
-        rank = position * max_rank_for_block - self.superblock_rank(position);
-        // println!("selected block {} with rank0 {}", position, rank);
+        // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.superblock_rank(position));
         //position is now superblock
 
         //now we examine sub_blocks
@@ -262,7 +259,7 @@ impl RSBitVector {
                 position += j;
             }
         }
-        rank = max_rank_for_subblock * position - self.sub_block_rank(position);
+        let rank = max_rank_for_subblock * position - self.sub_block_rank(position);
 
         (position, rank)
     }
@@ -306,16 +303,16 @@ impl RankBin for RSBitVector {
         }
         let i = i - 1;
 
-        let mut sub_block = i >> 9;
+        let sub_block = i >> 9;
         let mut result = self.sub_block_rank(sub_block);
-        let mut sub_left = (i & 511) as i32 + 1;
+        let sub_left = (i & 511) as i32 + 1;
 
         // sub_block *= BLOCK_SIZE; //we will handle single words from now on
 
         result += if sub_left == 0 {
             0
         } else {
-            let mut remainder = 0;
+            // let mut remainder = 0;
             // for _ in 0..BLOCK_SIZE {
             //     if sub_left <= 64 {
             //         unsafe {
@@ -342,9 +339,9 @@ impl RankBin for RSBitVector {
             //     sub_left -= 64;
             //     sub_block += 1;
             // }
+            // remainder
 
-            remainder = self.bv.data[sub_block].rank1(sub_left as usize).unwrap();
-            remainder
+            self.bv.data[sub_block].rank1(sub_left as usize).unwrap()
         };
 
         result
@@ -352,8 +349,26 @@ impl RankBin for RSBitVector {
 }
 
 impl SelectBin for RSBitVector {
-    /// returns the position of the `1` which has rank `i`
     #[inline(always)]
+    /// # Examples
+    /// ```
+    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    ///
+    ///
+    /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
+    /// let bv: BitVector = vv.iter().copied().collect();
+    /// let rs = RSBitVector::new(bv);
+    ///
+    /// assert_eq!(rs.select1(0), Some(3));
+    /// assert_eq!(rs.select1(1), Some(5));
+    /// assert_eq!(rs.select1(2), Some(8));
+    /// assert_eq!(rs.select1(3), Some(128));
+    /// assert_eq!(rs.select1(4), Some(129));
+    /// assert_eq!(rs.select1(5), Some(513));
+    /// assert_eq!(rs.select1(8), Some(1025));
+    /// assert_eq!(rs.select1(9), None);
+    ///
+    /// ```
     fn select1(&self, i: usize) -> Option<usize> {
         if i >= self.n_ones() {
             return None;
@@ -364,11 +379,11 @@ impl SelectBin for RSBitVector {
 
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
-        let (mut block, mut rank) = self.select1_subblock(i);
+        let (block, rank) = self.select1_subblock(i);
         // println!("selected subblock {}, rank {}", block, rank);
 
         // self.bv[block].select(i-rank)
-        let mut off = self.bv.data[block].select1_unchecked(i - rank);
+        let off = self.bv.data[block].select1_unchecked(i - rank);
 
         // block *= BLOCK_SIZE; // actual word in the bitvector
 
@@ -386,6 +401,26 @@ impl SelectBin for RSBitVector {
         block * 512 + off
     }
 
+    /// # Examples
+    /// ```
+    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    /// use qwt::perf_and_test_utils::negate_vector;
+    ///
+    /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
+    /// let bv: BitVector = vv.iter().copied().collect();
+    /// let rs = RSBitVector::new(bv);
+    /// let zeros_vector = negate_vector(&vv);
+    ///
+    /// assert_eq!(rs.select0(0), Some(0));
+    /// assert_eq!(rs.select0(1), Some(1));
+    /// assert_eq!(rs.select0(2), Some(2));
+    /// assert_eq!(rs.select0(3), Some(4));
+    /// assert_eq!(rs.select0(124), Some(127));
+    /// assert_eq!(rs.select0(125), Some(130));
+    /// assert_eq!(rs.select0(1016), Some(1023));
+    /// assert_eq!(rs.select0(1017), None);
+    ///
+    /// ```
     #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         if i >= self.n_zeros() {
@@ -397,10 +432,10 @@ impl SelectBin for RSBitVector {
 
     #[inline(always)]
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
-        let (mut block, mut rank) = self.select0_subblock(i);
+        let (block, rank) = self.select0_subblock(i);
         // println!("selected block {}, rank {}", block, rank);
 
-        let mut off = self.bv.data[block].select0_unchecked(i - rank);
+        let off = self.bv.data[block].select0_unchecked(i - rank);
 
         // block *= BLOCK_SIZE;
 
