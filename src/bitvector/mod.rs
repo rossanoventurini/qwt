@@ -35,6 +35,18 @@ impl DataLine {
         assert!(i < 8);
         self.words[i]
     }
+
+    #[inline]
+    fn n_ones(&self) -> usize {
+        self.words
+            .iter()
+            .fold(0, |a, x| a + x.count_ones() as usize)
+    }
+
+    #[inline]
+    fn n_zeros(&self) -> usize {
+        512 - self.n_ones()
+    }
 }
 
 impl AccessBin for DataLine {

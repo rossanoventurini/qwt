@@ -29,6 +29,7 @@ impl RSBitVector {
         let mut total_rank: u128 = 0;
         let mut cur_metadata: u128 = 0;
         let mut word_pop: u128 = 0;
+        let mut zeros_so_far: u128 = 0;
         let mut select_samples: [Vec<u32>; 2] = [Vec::new(), Vec::new()];
 
         let mut cur_hint_0 = 0;
@@ -60,7 +61,7 @@ impl RSBitVector {
                 // println!("metadata so far: {:0>128b}", cur_metadata);
             }
 
-            word_pop += unsafe { dl.rank1_unchecked(511) + dl.get_unchecked(511) as usize } as u128;
+            word_pop += dl.n_ones() as u128;
 
             if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
                 //we insert a new hint for 0
@@ -69,7 +70,7 @@ impl RSBitVector {
                 // println!("NUOVO HINT 1");
             }
 
-            let zeros_so_far = (64 * 8 * (b + 1) as u128) - (total_rank + word_pop);
+            zeros_so_far += dl.n_zeros() as u128;
             if (zeros_so_far / SELECT_ZEROS_PER_HINT as u128) > cur_hint_0 {
                 //we insert a new hint for 0
                 select_samples[0].push((b / 8) as u32);
