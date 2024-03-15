@@ -350,6 +350,7 @@ impl RankBin for RSBitVector {
 
 impl SelectBin for RSBitVector {
     #[inline(always)]
+    ///select1
     /// # Examples
     /// ```
     /// use qwt::{BitVector, RSBitVector, SelectBin};
@@ -401,6 +402,7 @@ impl SelectBin for RSBitVector {
         block * 512 + off
     }
 
+    ///select
     /// # Examples
     /// ```
     /// use qwt::{BitVector, RSBitVector, SelectBin};

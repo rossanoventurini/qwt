@@ -11,6 +11,8 @@ pub use bitvector::rs_narrow::RSNarrow;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
 
+pub mod huffman;
+
 pub mod utils;
 
 pub use qvector::rs_qvector::RSQVector;
@@ -126,22 +128,22 @@ pub trait RankBin {
 
 // TODO: Add SelectBin trait when select will be implemented
 pub trait SelectBin {
-    /// Returns the position `pos` such that the element is `1` and  `rank1(pos) = i`.
-    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    /// Returns `None` if the data structure has no such element i >= maximum rank1
     fn select1(&self, i: usize) -> Option<usize>;
 
-    /// Returns the position `pos` such that the element is `1` and  `rank1(pos) = i`.
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     ///
     /// # Safety
     /// This method doesnt check that such element exists
-    /// Calling this method with an `i >= maximum rank1` is undefined behaviour.
+    /// Calling this method with an i >= maximum rank1 is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
-    /// Returns the position `pos` such that the element is `0` and  `rank0(pos) = i`.
-    /// Returns `None` if the data structure has no such element (i >= maximum rank0 in the struct)    
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0 in the struct)
     fn select0(&self, i: usize) -> Option<usize>;
 
-    /// Returns the position `pos` such that the element is `0` and  `rank0(pos) = i`.
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
     ///
     /// # Safety
     /// This method doesnt check that such element exists
@@ -178,14 +180,11 @@ pub trait RankQuad {
 
 /// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`
+    /// (0-indexed, mening the first occurrence is obtained using `i = 0`).
     fn select(&self, symbol: u8, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`.
     /// We start counting from 1, so that `select(symbol, 1)` refers to the first
     /// occurrence of `symbol`.
     ///
@@ -303,5 +302,3 @@ macro_rules! impl_space_usage {
 }
 
 impl_space_usage![bool, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64];
-
-pub mod huffman;

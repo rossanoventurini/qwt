@@ -612,14 +612,15 @@ where
     ///
     /// let qwt = QWT256::from(data);
     ///
-    /// assert_eq!(qwt.select(1, 1), Some(0));
-    /// assert_eq!(qwt.select(0, 2), Some(3));
-    /// assert_eq!(qwt.select(1, 0), None);
+    /// assert_eq!(qwt.select(1, 1), Some(2));
+    /// assert_eq!(qwt.select(0, 1), Some(3));
+    /// assert_eq!(qwt.select(0, 2), None);
+    /// assert_eq!(qwt.select(1, 0), Some(0));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i == 0 || symbol > self.sigma {
+        if symbol > self.sigma {
             return None;
         }
 
@@ -650,11 +651,11 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            result = self.qvs[level].select(two_bits, rank_b + result)? - b + 1;
+            result = self.qvs[level].select(two_bits, rank_b + result)? - b;
             shift += 2;
         }
 
-        Some(result - 1)
+        Some(result)
     }
 
     /// Returns the position of the `i`-th occurrence of symbol `symbol`.

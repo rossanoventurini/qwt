@@ -117,7 +117,7 @@ impl HuffmanTree {
 }
 
 ///Returns a frequency table of the items in `input`
-pub fn get_freqs_from_vec(input: &Vec<u8>) -> FreqTable {
+pub fn get_freqs_from_vec(input: &[u8]) -> FreqTable {
     input.iter().fold(FreqTable::new(), |mut map, c| {
         *map.entry(*c).or_insert(0) += 1;
         map

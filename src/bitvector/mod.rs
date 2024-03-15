@@ -1239,28 +1239,32 @@ impl BitVectorMut {
         BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
-    // /// Returns a non-consuming iterator over bits of the bit vector.
-    // ///
-    // /// # Examples
-    // ///
-    // /// ```
-    // /// use qwt::BitVectorMut;
-    // ///
-    // /// let mut bv = BitVectorMut::with_capacity(6);
-    // /// bv.append_bits(0b101101, 6); // Appends 101101
-    // ///
-    // /// let mut iter = bv.iter();
-    // /// assert_eq!(iter.next(), Some(true)); // First bit is true
-    // /// assert_eq!(iter.next(), Some(false)); // Second bit is false
-    // /// assert_eq!(iter.next(), Some(true)); // Third bit is true
-    // /// assert_eq!(iter.next(), Some(true)); // Fourth bit is true
-    // /// assert_eq!(iter.next(), Some(false)); // Fifth bit is false
-    // /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
-    // /// assert_eq!(iter.next(), None); // End of the iterator
-    // /// ```
-    // pub fn iter(&self) -> BitVectorIter {
-    //     BitVectorIter { bv: self, i: 0 }
-    // }
+    /// Returns a non-consuming iterator over bits of the bit vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::BitVectorMut;
+    ///
+    /// let mut bv = BitVectorMut::with_capacity(6);
+    /// bv.append_bits(0b101101, 6); // Appends 101101
+    ///
+    /// let mut iter = bv.iter();
+    /// assert_eq!(iter.next(), Some(true)); // First bit is true
+    /// assert_eq!(iter.next(), Some(false)); // Second bit is false
+    /// assert_eq!(iter.next(), Some(true)); // Third bit is true
+    /// assert_eq!(iter.next(), Some(true)); // Fourth bit is true
+    /// assert_eq!(iter.next(), Some(false)); // Fifth bit is false
+    /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
+    /// assert_eq!(iter.next(), None); // End of the iterator
+    /// ```
+    pub fn iter(&self) -> BitVectorIter {
+        BitVectorIter {
+            data: cast_to_u64_slice(&self.data),
+            n_bits: self.n_bits,
+            i: 0,
+        }
+    }
 
     /// Shrinks the underlying vector of 64-bit words to fit the actual size of the bit vector.
     pub fn shrink_to_fit(&mut self) {
