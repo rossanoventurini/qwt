@@ -146,9 +146,9 @@ assert_eq!(qwt.rank(1, 0), Some(0));
 assert_eq!(qwt.rank(3, 8), Some(1));
 assert_eq!(qwt.rank(1, 9), None);
 
-assert_eq!(qwt.select(1, 1), Some(0));
-assert_eq!(qwt.select(0, 2), Some(3));
-assert_eq!(qwt.select(4, 0), None);
+assert_eq!(qwt.select(1, 0), Some(0));
+assert_eq!(qwt.select(0, 1), Some(3));
+assert_eq!(qwt.select(4, 0), Some(5));
 assert_eq!(qwt.select(1, 3), None);
 ```
 
