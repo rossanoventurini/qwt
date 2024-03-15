@@ -109,7 +109,7 @@ fn test_select0() {
 
     let mut t = TimingQueries::new(zeros_vector.len() - 2, 1);
 
-    for i in 1..zeros_vector.len() {
+    for i in 0..zeros_vector.len() {
         println!("SELECTIAMO {}", i);
         t.start();
         let selected = rs.select0(i);

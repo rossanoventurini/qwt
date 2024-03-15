@@ -237,16 +237,16 @@ impl RSBitVector {
             }
         }
         rank = position * max_rank_for_block - self.superblock_rank(position);
-        println!("selected block {} with rank0 {}", position, rank);
+        // println!("selected block {} with rank0 {}", position, rank);
         //position is now superblock
 
         //now we examine sub_blocks
         position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
 
         let max_rank_for_subblock = BLOCK_SIZE * 64;
-        println!("now sub_blocks");
+        // println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
-            println!("iterazione {}", j);
+            // println!("iterazione {}", j);
             // println!(
             //     "{}: {}",
             //     j,
