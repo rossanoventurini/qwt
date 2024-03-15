@@ -265,7 +265,7 @@ impl SelectBin for RSNarrow {
         let (block, rank) = self.select1_subblock(i);
         println!("selected block {}, rank {}", block, rank);
 
-        block * 64 + self.bv.data[block>>3].select1_unchecked(i-rank)//select_in_word(self.bv.data[block>>3].words[block%8] , (i - rank) as u64) as usize
+        block * 64 + self.bv.data[block >> 3].select1_unchecked(i - rank) //select_in_word(self.bv.data[block>>3].words[block%8] , (i - rank) as u64) as usize
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
@@ -284,7 +284,7 @@ impl SelectBin for RSNarrow {
         println!("selected block {}, rank {}", block, rank);
 
         // let word_to_select = !self.bv.get_word(block);
-        block * 64 + self.bv.data[block>>3].select0_unchecked(i-rank)//select_in_word(word_to_select, (i - rank) as u64) as usize
+        block * 64 + self.bv.data[block >> 3].select0_unchecked(i - rank) //select_in_word(word_to_select, (i - rank) as u64) as usize
     }
 }
 

@@ -64,7 +64,7 @@ impl RSBitVector {
 
             if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
                 //we insert a new hint for 0
-                select_samples[1].push((b/8) as u32);
+                select_samples[1].push((b / 8) as u32);
                 cur_hint_1 += 1;
                 // println!("NUOVO HINT 1");
             }
@@ -72,7 +72,7 @@ impl RSBitVector {
             let zeros_so_far = (64 * 8 * (b + 1) as u128) - (total_rank + word_pop);
             if (zeros_so_far / SELECT_ZEROS_PER_HINT as u128) > cur_hint_0 {
                 //we insert a new hint for 0
-                select_samples[0].push((b/8) as u32);
+                select_samples[0].push((b / 8) as u32);
                 cur_hint_0 += 1;
                 // println!("NUOVO HINT 0");
             }
@@ -399,8 +399,8 @@ impl SelectBin for RSBitVector {
         let (mut block, mut rank) = self.select0_subblock(i);
         // println!("selected block {}, rank {}", block, rank);
 
-        let mut off = self.bv.data[block].select0_unchecked(i-rank);
-        
+        let mut off = self.bv.data[block].select0_unchecked(i - rank);
+
         // block *= BLOCK_SIZE;
 
         // for _ in 0..BLOCK_SIZE {

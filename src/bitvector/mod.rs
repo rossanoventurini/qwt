@@ -66,7 +66,7 @@ impl RankBin for DataLine {
         let mut left = i as i32;
         let mut rank = 0;
         for w in 0..8 {
-            if left < 0{
+            if left < 0 {
                 break;
             }
             let cur_word = self.words.get_unchecked(w);
