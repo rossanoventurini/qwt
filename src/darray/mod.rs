@@ -66,6 +66,7 @@ use crate::BitVector;
 use crate::{AccessBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::_popcnt64;
 
 const BLOCK_SIZE: usize = 1024;
@@ -396,9 +397,15 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
 
         loop {
             let popcnt;
-            //popcnt = word.count_ones() as usize;
-            unsafe {
-                popcnt = _popcnt64(word as i64) as usize;
+            #[cfg(not(target_arch = "x86_64"))]
+            {
+                popcnt = word.count_ones() as usize;
+            }
+            #[cfg(target_arch = "x86_64")]
+            {
+                unsafe {
+                    popcnt = _popcnt64(word as i64) as usize;
+                }
             }
             if reminder < popcnt {
                 break;
