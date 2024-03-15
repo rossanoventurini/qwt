@@ -4,7 +4,7 @@
 //! This implementation is inspired by [this paper] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
 use super::*;
 
-use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin};
+use crate::{AccessBin, RankBin, SelectBin};
 
 use serde::{Deserialize, Serialize};
 
