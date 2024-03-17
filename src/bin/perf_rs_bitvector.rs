@@ -99,12 +99,11 @@ where
 
 fn main() {
     for logn in 30..33 {
-        let n = 1 << logn;
+        let n: usize = 1 << logn;
 
         let fill_factor = 2; // 1/2 full
 
-        let v: Vec<_> = (0..n).filter(|x| x % fill_factor == 0).collect();
-        let bv = v.iter().copied().collect();
+        let bv = (0..n).filter(|x| x % fill_factor == 0).collect();
         let rs = RSBitVector::new(bv);
 
         println!("created new bitvector | n_ones: {} | n_zeros: {} | len: {}", rs.n_ones(), rs.n_zeros(), rs.bv_len());
