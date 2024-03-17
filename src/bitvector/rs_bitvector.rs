@@ -140,6 +140,12 @@ impl RSBitVector {
     pub fn n_zeros(&self) -> usize {
         self.bv.len() - self.n_ones()
     }
+    
+    /// Returns the number of bits in the bitvector.
+    #[inline(always)]
+    pub fn bv_len(&self) -> usize {
+        self.bv.len()
+    }
 
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
