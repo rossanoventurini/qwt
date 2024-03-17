@@ -129,18 +129,18 @@ pub trait RankBin {
 // TODO: Add SelectBin trait when select will be implemented
 pub trait SelectBin {
     /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
-    /// Returns `None` if the data structure has no such element i >= maximum rank1
+    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     fn select1(&self, i: usize) -> Option<usize>;
 
     /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     ///
     /// # Safety
-    /// This method doesnt check that such element exists
+    /// This method doesn't check that such element exists
     /// Calling this method with an i >= maximum rank1 is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
     /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
-    /// Returns `None` if the data structure has no such element (i >= maximum rank0 in the struct)
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0)
     fn select0(&self, i: usize) -> Option<usize>;
 
     /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.

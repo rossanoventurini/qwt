@@ -1,5 +1,4 @@
-//! Implements data structure to support `rank` and `select` queries on a binary vector
-//! with (small) 64-bit blocks.
+//! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
 //! This implementation is inspired by [this paper] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
 use super::*;
@@ -12,7 +11,6 @@ use serde::{Deserialize, Serialize};
 const BLOCK_SIZE: usize = 8; // 8 64bit words for each block
 const SUPERBLOCK_SIZE: usize = 8 * BLOCK_SIZE; // 8 blocks for each superblock (this is the size in u64 words)
 
-// SELECT NOT IMPLEMENTED YET
 const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > superblock_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
@@ -148,7 +146,7 @@ impl RSBitVector {
         (self.superblock_metadata[block] >> (128 - 44)) as usize
     }
 
-    ///returns the total rank up to `sub_block`
+    ///returns the total rank1 up to `sub_block`
     #[inline(always)]
     fn sub_block_rank(&self, sub_block: usize) -> usize {
         let mut result = 0;
@@ -170,7 +168,7 @@ impl RSBitVector {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank1 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
 
@@ -216,7 +214,7 @@ impl RSBitVector {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `0` having rank0 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
 
@@ -350,7 +348,8 @@ impl RankBin for RSBitVector {
 
 impl SelectBin for RSBitVector {
     #[inline(always)]
-    ///select1
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     /// # Examples
     /// ```
     /// use qwt::{BitVector, RSBitVector, SelectBin};
@@ -379,6 +378,11 @@ impl SelectBin for RSBitVector {
     }
 
     #[inline(always)]
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    ///
+    /// # Safety
+    /// This method doesn't check that such element exists
+    /// Calling this method with an i >= maximum rank1 is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let (block, rank) = self.select1_subblock(i);
         // println!("selected subblock {}, rank {}", block, rank);
@@ -402,7 +406,9 @@ impl SelectBin for RSBitVector {
         block * 512 + off
     }
 
-    ///select
+    #[inline(always)]
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0)
     /// # Examples
     /// ```
     /// use qwt::{BitVector, RSBitVector, SelectBin};
@@ -423,7 +429,6 @@ impl SelectBin for RSBitVector {
     /// assert_eq!(rs.select0(1017), None);
     ///
     /// ```
-    #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         if i >= self.n_zeros() {
             return None;
@@ -433,6 +438,11 @@ impl SelectBin for RSBitVector {
     }
 
     #[inline(always)]
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    ///
+    /// # Safety
+    /// This method doesnt check that such element exists
+    /// Calling this method with an `i >= maximum rank0` is undefined behaviour.
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
         let (block, rank) = self.select0_subblock(i);
         // println!("selected block {}, rank {}", block, rank);
