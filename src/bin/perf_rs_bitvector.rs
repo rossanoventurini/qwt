@@ -48,7 +48,9 @@ where
         t.start();
         for &query in queries.iter() {
             let i = query + result % 2;
-            result = ds.select1(i).unwrap_or_else(|| panic!("None on select1({})", i));
+            result = ds
+                .select1(i)
+                .unwrap_or_else(|| panic!("None on select1({})", i));
         }
         t.stop();
     }
@@ -78,7 +80,9 @@ where
         t.start();
         for &query in queries.iter() {
             let i = query + result % 2;
-            result = ds.select0(i).unwrap_or_else(|| panic!("None on select0({})", i));
+            result = ds
+                .select0(i)
+                .unwrap_or_else(|| panic!("None on select0({})", i));
         }
         t.stop();
     }
@@ -106,15 +110,20 @@ fn main() {
         let bv = (0..n).filter(|x| x % fill_factor == 0).collect();
         let rs = RSBitVector::new(bv);
 
-        println!("created new bitvector | n_ones: {} | n_zeros: {} | len: {}", rs.n_ones(), rs.n_zeros(), rs.bv_len());
+        println!(
+            "created new bitvector | n_ones: {} | n_zeros: {} | len: {}",
+            rs.n_ones(),
+            rs.n_zeros(),
+            rs.bv_len()
+        );
 
         let queries = gen_queries(N_QUERIES, n);
         perf_rank1(&rs, &queries, n, logn, n);
 
-        let queries = gen_queries(N_QUERIES, rs.n_ones()-1);
+        let queries = gen_queries(N_QUERIES, rs.n_ones() - 1);
         perf_select1(&rs, &queries, n, logn, n);
 
-        let queries = gen_queries(N_QUERIES, rs.n_zeros()-1);
+        let queries = gen_queries(N_QUERIES, rs.n_zeros() - 1);
         perf_select0(&rs, &queries, n, logn, n);
     }
 }

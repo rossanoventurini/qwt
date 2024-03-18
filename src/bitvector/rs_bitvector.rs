@@ -18,7 +18,7 @@ const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 pub struct RSBitVector {
     bv: BitVector,
     superblock_metadata: Vec<u128>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
-    select_samples: [Box<[u32]>; 2],
+    select_samples: [Box<[usize]>; 2],
 }
 
 impl RSBitVector {
@@ -28,7 +28,7 @@ impl RSBitVector {
         let mut cur_metadata: u128 = 0;
         let mut word_pop: u128 = 0;
         let mut zeros_so_far: u128 = 0;
-        let mut select_samples: [Vec<u32>; 2] = [Vec::new(), Vec::new()];
+        let mut select_samples: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
 
         let mut cur_hint_0 = 0;
         let mut cur_hint_1 = 0;
@@ -63,7 +63,7 @@ impl RSBitVector {
 
             if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
                 //we insert a new hint for 0
-                select_samples[1].push((b / 8) as u32);
+                select_samples[1].push(b / 8);
                 cur_hint_1 += 1;
                 // println!("NUOVO HINT 1");
             }
@@ -71,7 +71,7 @@ impl RSBitVector {
             zeros_so_far += dl.n_zeros() as u128;
             if (zeros_so_far / SELECT_ZEROS_PER_HINT as u128) > cur_hint_0 {
                 //we insert a new hint for 0
-                select_samples[0].push((b / 8) as u32);
+                select_samples[0].push(b / 8);
                 cur_hint_0 += 1;
                 // println!("NUOVO HINT 0");
             }
@@ -109,6 +109,10 @@ impl RSBitVector {
 
         superblock_metadata.shrink_to_fit();
 
+        //guard at the end
+        select_samples[0].push(superblock_metadata.len() - 1);
+        select_samples[1].push(superblock_metadata.len() - 1);
+
         Self {
             bv,
             superblock_metadata,
@@ -140,7 +144,7 @@ impl RSBitVector {
     pub fn n_zeros(&self) -> usize {
         self.bv.len() - self.n_ones()
     }
-    
+
     /// Returns the number of bits in the bitvector.
     #[inline(always)]
     pub fn bv_len(&self) -> usize {
@@ -176,23 +180,28 @@ impl RSBitVector {
     ///
     /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
-        let mut position = 0;
-
-        let n_blocks = self.superblock_metadata.len();
+        let mut position;
 
         let hint = i / SELECT_ONES_PER_HINT;
-        let hint_start = self.select_samples[1][hint] as usize;
-        // let hint_end = self.select_samples[1][hint+1] as usize;
+        let mut hint_start = self.select_samples[1][hint];
+        let hint_end = 1 + self.select_samples[1][hint + 1];
 
         // println!("HINT START: {}", hint_start);
 
-        for j in hint_start..n_blocks {
-            // println!("{}: {}", j, self.superblock_rank(j));
-            if self.superblock_rank(j) > i {
-                position = j - 1;
+        // for j in hint_start..=hint_end {
+        //     // println!("{}: {}", j, self.superblock_rank(j));
+        //     if self.superblock_rank(j) > i {
+        //         position = j - 1;
+        //         break;
+        //     }
+        // }
+        while hint_start < hint_end {
+            if self.superblock_rank(hint_start) > i {
                 break;
             }
+            hint_start += 1;
         }
+        position = hint_start - 1;
         // println!("selected superblock {} with rank {}", position, self.superblock_rank(position););
         //position is now superblock
 
@@ -222,23 +231,29 @@ impl RSBitVector {
     ///
     /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
-        let mut position = 0;
-
-        let n_blocks = self.superblock_metadata.len();
+        let mut position;
 
         let hint = i / SELECT_ZEROS_PER_HINT;
-        let hint_start = self.select_samples[0][hint] as usize;
+        let mut hint_start = self.select_samples[0][hint];
+        let hint_end = 1 + self.select_samples[0][hint + 1];
 
         let max_rank_for_block = SUPERBLOCK_SIZE * 64;
 
-        for j in hint_start..n_blocks {
-            // println!("{}: {}", j, self.superblock_rank(j));
-            let rank0 = j * max_rank_for_block - self.superblock_rank(j);
-            if rank0 > i {
-                position = j - 1;
+        // for j in hint_start..=hint_end {
+        //     // println!("{}: {}", j, self.superblock_rank(j));
+        //     let rank0 = j * max_rank_for_block - self.superblock_rank(j);
+        //     if rank0 > i {
+        //         position = j - 1;
+        //         break;
+        //     }
+        // }
+        while hint_start < hint_end {
+            if max_rank_for_block * hint_start - self.superblock_rank(hint_start) > i {
                 break;
             }
+            hint_start += 1;
         }
+        position = hint_start - 1;
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.superblock_rank(position));
         //position is now superblock
 

@@ -98,7 +98,7 @@ impl SpaceUsage for DataLine {
 }
 
 fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
-    //WARNING: this works because DataLine is align(64)
+    //WARNING: this works because DataLine is aligned
     unsafe {
         let len = data_lines.len().checked_mul(8).unwrap();
         let ptr = data_lines.as_ptr();
