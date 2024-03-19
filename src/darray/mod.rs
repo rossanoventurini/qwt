@@ -1,20 +1,20 @@
-//! The module implements `DArray`, a data structure that provides efficient
-//! `select1` and `select0` queries on a binary vector, supporting the [`Select`] trait.
-//! Rank queries are not supported.
+//! The module implements [`DArray`], a data structure that provides efficient
+//! `select1` and `select0` queries on a binary vector, supporting the [`SelectBin`] trait.
+//! [`RankBin`] queries are not supported.
 //!
 //! In many applications of this data structure, the binary vector is the characteristic
 //! vector of a strictly increasing sequence.
 //!
 //! The `select1(i)` query returns the position of the (i+1)-th occurrence of a bit
 //! set to 1 in the binary vector. For example, if the binary vector is 010000101,
-//! `select1(0)` = 1, `select1(1)` = 6, and `select1(2)` = 8.
+//! `select1(0)` = 1, `select1(1)` = 6, and `select1(2)` = 6.
 //! Similarly, the `select0(i)` query returns the position of the (i+1)-th zero
 //! in the binary vector.
 //! If we are representing a strictly increasing sequence S, `select1(i)` gives
 //! the (i+1)th element of the sequence, i.e., S[i].
 //!
 //! ## Example
-//! A `DArray` is built from a strictly increasening sequence of `usize`.
+//! A [`DArray`] is built from a strictly increasening sequence of `usize`.
 //! A boolean const generic is used to specify the need for [`select0`] query support.
 //! Without this support, the query [`select0`] will panic.
 //!
@@ -29,7 +29,7 @@
 //! ```
 //!
 //! ## Technical details
-//! `DArray` has been introduced in *D. Okanohara and K. Sadakane. Practical entropy-compressed Rank/Select dictionary. In Proceedings of the Workshop on Algorithm Engineering and Experiments (ALENEX), 2007* ([link](https://arxiv.org/abs/cs/0610001)).
+//! [`DArray`] has been introduced in *D. Okanohara and K. Sadakane. Practical entropy-compressed Rank/Select dictionary. In Proceedings of the Workshop on Algorithm Engineering and Experiments (ALENEX), 2007* ([link](https://arxiv.org/abs/cs/0610001)).
 //! This Rust implementation is inspired by the C++ implementation by
 //! [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/darray.hpp).
 //!
@@ -295,7 +295,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         self.bv.iter()
     }
 
-    /// Returns the number of ones in the DArray.
+    /// Returns the number of ones in the [`DArray`].
     ///
     /// # Examples
     ///
@@ -464,13 +464,10 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::DArray;
-    /// use qwt::BitVector;
-    /// use qwt::SelectBin;
+    /// use qwt::{DArray, SelectBin};
     ///
-    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-    /// let bv: BitVector = vv.iter().copied().collect();
-    /// let da: DArray<false> = DArray::new(bv);
+    /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let da: DArray = v.into_iter().collect();
     ///
     /// assert_eq!(da.select1(1), Some(12));
     /// ```
@@ -490,13 +487,10 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::DArray;
-    /// use qwt::BitVector;
-    /// use qwt::SelectBin;
+    /// use qwt::{DArray, SelectBin};
     ///
-    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-    /// let bv: BitVector = vv.iter().copied().collect();
-    /// let da: DArray<false> = DArray::new(bv);
+    /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let da: DArray = v.into_iter().collect();
     ///
     /// assert_eq!(unsafe{da.select1_unchecked(1)}, 12);
     /// ```
@@ -513,13 +507,10 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::DArray;
-    /// use qwt::BitVector;
-    /// use qwt::SelectBin;
+    /// use qwt::{DArray, SelectBin};
     ///
-    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-    /// let bv: BitVector = vv.iter().copied().collect();
-    /// let da: DArray<true> = DArray::new(bv);
+    /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let da: DArray<true> = v.into_iter().collect();
     ///
     /// assert_eq!(da.select0(1), Some(2));
     /// assert_eq!(da.select0(11), Some(13));
@@ -542,13 +533,10 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::DArray;
-    /// use qwt::BitVector;
-    /// use qwt::SelectBin;
+    /// use qwt::{DArray, SelectBin};
     ///
-    /// let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
-    /// let bv: BitVector = vv.iter().copied().collect();
-    /// let da: DArray<true> = DArray::new(bv);
+    /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
+    /// let da: DArray<true> = v.into_iter().collect();
     ///
     /// assert_eq!(unsafe{da.select0_unchecked(1)}, 2);
     /// assert_eq!(unsafe{da.select0_unchecked(11)}, 13);
@@ -567,13 +555,13 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
 /// # Examples
 ///
 /// ```
-/// use qwt::{AccessBin, BitVector};
+/// use qwt::{AccessBin, DArray};
 ///
 /// // Create a bit vector from an iterator over bool values
-/// let bv: BitVector = vec![true, false, true].into_iter().collect();
+/// let da: DArray = vec![true, false, true].into_iter().collect();
 ///
-/// assert_eq!(bv.len(), 3);
-/// assert_eq!(bv.get(1), Some(false));
+/// assert_eq!(da.len(), 3);
+/// assert_eq!(da.get(1), Some(false));
 /// ```
 impl<const SELECT0_SUPPORT: bool> FromIterator<bool> for DArray<SELECT0_SUPPORT> {
     fn from_iter<T>(iter: T) -> Self
@@ -623,6 +611,7 @@ where
 }
 
 impl<const SELECT0_SUPPORT: bool> SpaceUsage for DArray<SELECT0_SUPPORT> {
+    /// Returns the space usage of the data structure in bytes.
     fn space_usage_byte(&self) -> usize {
         let mut space = self.bv.space_usage_byte() + self.ones_inventories.space_usage_byte();
 
@@ -643,4 +632,55 @@ impl<const BIT: bool> SpaceUsage for Inventories<BIT> {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector};
+
+    #[test]
+    fn test_select1() {
+        let bv = BitVector::default();
+        let v: Vec<usize> = bv.ones().collect();
+        assert!(v.is_empty());
+
+        let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 62, 63, 128, 129, 254, 1026];
+        let da: DArray<false> = vv.iter().copied().collect();
+
+        for (i, &sel) in vv.iter().enumerate() {
+            let res = da.select1(i);
+            assert_eq!(res.unwrap(), sel);
+        }
+        let res = da.select1(vv.len());
+        assert_eq!(res, None);
+
+        let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
+        let da: DArray<false> = vv.iter().copied().collect();
+
+        for (i, &sel) in vv.iter().enumerate() {
+            let res = da.select1(i);
+            assert_eq!(res.unwrap(), sel);
+        }
+    }
+
+    #[test]
+    fn test_select0() {
+        let bv = BitVector::default();
+        let v: Vec<usize> = bv.ones().collect();
+        assert!(v.is_empty());
+
+        let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 62, 63, 128, 129, 254, 1026];
+        let da: DArray<true> = vv.iter().copied().collect();
+
+        for (i, &sel) in negate_vector(&vv).iter().enumerate() {
+            let res = da.select0(i);
+            assert_eq!(res.unwrap(), sel);
+        }
+
+        let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 20);
+        let da: DArray<true> = vv.iter().copied().collect();
+
+        for (i, &sel) in negate_vector(&vv).iter().enumerate() {
+            let res = da.select0(i);
+            assert_eq!(res.unwrap(), sel);
+        }
+    }
+}
