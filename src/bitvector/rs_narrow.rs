@@ -117,29 +117,32 @@ impl RSNarrow {
         let mut position = 0;
         let mut rank;
 
-        println!("block rank pairs len = {}", self.block_rank_pairs.len());
+        // println!("block rank pairs len = {}", self.block_rank_pairs.len());
         let n_blocks = self.block_rank_pairs.len() / 2;
 
         for j in 0..n_blocks {
-            println!("{}: {}", j, self.block_rank(j));
+            // println!("{}: {}", j, self.block_rank(j));
             if self.block_rank(j) > i {
                 position = j - 1;
                 break;
             }
         }
         rank = self.block_rank(position);
-        println!("selected block {} with rank {}", position, rank);
+        // println!("selected block {} with rank {}", position, rank);
         //position is now superblock
 
         //now we examine sub_blocks
         position *= BLOCK_SIZE;
 
-        println!("now sub_blocks");
+        // println!("now sub_blocks");
         for j in 0..BLOCK_SIZE {
-            println!("{}: {}", j, self.sub_block_rank(position + j));
+            // println!("{}: {}", j, self.sub_block_rank(position + j));
             if self.sub_block_rank(position + j) > i {
                 position += j - 1;
                 break;
+            }
+            if j == 7 {
+                position += j;
             }
         }
         rank = self.sub_block_rank(position);
@@ -156,13 +159,13 @@ impl RSNarrow {
         let mut position = 0;
         let mut rank;
 
-        println!("block rank pairs len = {}", self.block_rank_pairs.len());
+        // println!("block rank pairs len = {}", self.block_rank_pairs.len());
         let n_blocks = self.block_rank_pairs.len() / 2;
 
         let max_rank_for_block = BLOCK_SIZE * 64;
 
         for j in 0..n_blocks {
-            println!("{}: {}", j, self.block_rank(j));
+            // println!("{}: {}", j, j * max_rank_for_block - self.block_rank(j));
             let rank0 = j * max_rank_for_block - self.block_rank(j);
             if rank0 > i {
                 position = j - 1;
@@ -170,20 +173,23 @@ impl RSNarrow {
             }
         }
         rank = position * max_rank_for_block - self.block_rank(position);
-        println!("selected block {} with rank0 {}", position, rank);
+        // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.block_rank(position));
         //position is now superblock
 
         //now we examine sub_blocks
         position *= BLOCK_SIZE;
 
         let max_rank_for_subblock = 64;
-        println!("now sub_blocks");
+        // println!("now sub_blocks");
         for j in 0..BLOCK_SIZE {
-            println!("{}: {}", j, self.sub_block_rank(position + j));
             let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j);
+            // println!("{}: {}", j, rank0);
             if rank0 > i {
                 position += j - 1;
                 break;
+            }
+            if j == 7 {
+                position += j;
             }
         }
         rank = max_rank_for_subblock * position - self.sub_block_rank(position);
@@ -263,9 +269,11 @@ impl SelectBin for RSNarrow {
         //|superblock0|block0|superblock1|block1...
 
         let (block, rank) = self.select1_subblock(i);
-        println!("selected block {}, rank {}", block, rank);
+        // println!("selected block {}, rank {}", block, rank);
+        let word_to_sel = self.bv.data[block >> 3].words[block % 8];
+        // println!("selected block {:0>64b}", word_to_sel);
 
-        block * 64 + self.bv.data[block >> 3].select1_unchecked(i - rank) //select_in_word(self.bv.data[block>>3].words[block%8] , (i - rank) as u64) as usize
+        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize //select_in_word(self.bv.data[block>>3].words[block%8] , (i - rank) as u64) as usize
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
@@ -282,9 +290,10 @@ impl SelectBin for RSNarrow {
 
         let (block, rank) = self.select0_subblock(i);
         println!("selected block {}, rank {}", block, rank);
+        let word_to_sel = !self.bv.data[block >> 3].words[block % 8];
+        println!("selected block {:0>64b}", word_to_sel);
 
-        // let word_to_select = !self.bv.get_word(block);
-        block * 64 + self.bv.data[block >> 3].select0_unchecked(i - rank) //select_in_word(word_to_select, (i - rank) as u64) as usize
+        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize
     }
 }
 

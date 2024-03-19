@@ -6,6 +6,7 @@ use std::fmt::Debug;
 ///alias for a hash map containing pairs `symbol: frequency`
 pub type FreqTable = HashMap<u8, u64>;
 
+//symbol should be generic in u8, u16
 #[derive(Eq, PartialEq)]
 pub struct HuffmanCode {
     symbol: u8,    //symbol encoded

@@ -178,7 +178,7 @@ impl RSBitVector {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank1 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
         let mut position;
 
@@ -229,7 +229,7 @@ impl RSBitVector {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `0` having rank0 `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
         let mut position;
 
