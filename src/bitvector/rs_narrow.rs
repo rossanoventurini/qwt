@@ -289,9 +289,9 @@ impl SelectBin for RSNarrow {
         //|superblock0|blocks0|superblock1|blocks1...
 
         let (block, rank) = self.select0_subblock(i);
-        println!("selected block {}, rank {}", block, rank);
+        // println!("selected block {}, rank {}", block, rank);
         let word_to_sel = !self.bv.data[block >> 3].words[block % 8];
-        println!("selected block {:0>64b}", word_to_sel);
+        // println!("selected block {:0>64b}", word_to_sel);
 
         block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize
     }

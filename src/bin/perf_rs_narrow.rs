@@ -101,7 +101,7 @@ where
 }
 
 fn main() {
-    for logn in 30..33 {
+    for logn in 20..23 {
         let n: usize = 1 << logn;
 
         let fill_factor = 2; // 1/2 full
