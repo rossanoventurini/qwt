@@ -166,7 +166,7 @@ assert_eq!(qwt.get(8), None);
 ```
 
 Even faster rank queries are obtained with the use of prefetching data structures with `QWT256Pfs` and  `QWT512Pfs`.
-In this case use the methods [`rank_prefetch`] or [`rank_prefetch_unchecked`]. Here is an example.
+In this case use the methods `rank_prefetch` or `rank_prefetch_unchecked`. Here is an example.
 
 ```rust
 use qwt::QWT256Pfs;
