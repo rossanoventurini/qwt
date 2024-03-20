@@ -131,3 +131,29 @@ fn test_select1_big() {
         assert_eq!(selected, Some(el));
     }
 }
+
+#[test]
+fn test_random_select1() {
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 20);
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    for (i, &el) in vv.iter().enumerate() {
+        let selected = rs.select1(i);
+        assert_eq!(selected, Some(el));
+    }
+}
+
+#[test]
+fn test_random_select0() {
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 20);
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    let zeros_vector = negate_vector(&vv);
+
+    for (i, &el) in zeros_vector.iter().enumerate() {
+        let selected = rs.select0(i);
+        assert_eq!(selected, Some(el));
+    }
+}

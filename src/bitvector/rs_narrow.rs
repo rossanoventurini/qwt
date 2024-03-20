@@ -12,13 +12,14 @@ use serde::{Deserialize, Serialize};
 const BLOCK_SIZE: usize = 8; // in 64bit words
 
 // SELECT NOT IMPLEMENTED YET
-// const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
-// const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
+const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
+const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RSNarrow {
     bv: BitVector,
     block_rank_pairs: Box<[u64]>,
+    select_samples: [Box<[usize]>; 2],
 }
 
 impl RSNarrow {
@@ -28,6 +29,14 @@ impl RSNarrow {
         let mut cur_subrank: u64 = 0;
         let mut subranks: u64 = 0;
         block_rank_pairs.push(0);
+        let mut select_samples: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+
+        let mut cur_hint_0 = 0;
+        let mut cur_hint_1 = 0;
+        let mut zeros_so_far = 0;
+
+        select_samples[0].push(0);
+        select_samples[1].push(0);
 
         // We split data into blocks of BLOCK_SIZE = 8 words each.
         // for each block stores BLOCK_SIZE-1=7 9bit entries
@@ -46,6 +55,17 @@ impl RSNarrow {
 
                 next_rank += word_pop;
                 cur_subrank += word_pop;
+
+                //check for samples
+                if next_rank / SELECT_ONES_PER_HINT as u64 > cur_hint_1 {
+                    select_samples[1].push(b);
+                    cur_hint_1 += 1;
+                }
+                zeros_so_far += 64 - word_pop;
+                if zeros_so_far / SELECT_ZEROS_PER_HINT as u64 > cur_hint_0 {
+                    select_samples[0].push(b);
+                    cur_hint_0 += 1;
+                }
 
                 if shift == BLOCK_SIZE - 1 {
                     block_rank_pairs.push(subranks);
@@ -68,11 +88,20 @@ impl RSNarrow {
             block_rank_pairs.push(0);
         }
 
+        select_samples[0].push((block_rank_pairs.len() / 2) - 1);
+        select_samples[1].push((block_rank_pairs.len() / 2) - 1);
+
         block_rank_pairs.shrink_to_fit();
 
         Self {
             bv,
             block_rank_pairs: block_rank_pairs.into_boxed_slice(),
+            select_samples: select_samples
+                .into_iter()
+                .map(|x| x.into_boxed_slice())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
         }
     }
 
@@ -114,19 +143,20 @@ impl RSNarrow {
     ///
     /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
-        let mut position = 0;
+        let mut position;
         let mut rank;
 
-        // println!("block rank pairs len = {}", self.block_rank_pairs.len());
-        let n_blocks = self.block_rank_pairs.len() / 2;
+        let hint = i / SELECT_ONES_PER_HINT;
+        let mut hint_start = self.select_samples[1][hint];
+        let hint_end = 1 + self.select_samples[1][hint + 1];
 
-        for j in 0..n_blocks {
-            // println!("{}: {}", j, self.block_rank(j));
-            if self.block_rank(j) > i {
-                position = j - 1;
+        while hint_start < hint_end {
+            if self.block_rank(hint_start) > i {
                 break;
             }
+            hint_start += 1;
         }
+        position = hint_start - 1;
         // rank = self.block_rank(position);
         // println!("selected block {} with rank {}", position, rank);
 
@@ -155,22 +185,30 @@ impl RSNarrow {
     ///
     /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
-        let mut position = 0;
+        let mut position;
         let mut rank;
 
-        // println!("block rank pairs len = {}", self.block_rank_pairs.len());
-        let n_blocks = self.block_rank_pairs.len() / 2;
+        let hint = i / SELECT_ZEROS_PER_HINT;
+        let mut hint_start = self.select_samples[0][hint];
+        let hint_end = 1 + self.select_samples[0][hint + 1];
 
         let max_rank_for_block = BLOCK_SIZE * 64;
 
-        for j in 0..n_blocks {
-            // println!("{}: {}", j, j * max_rank_for_block - self.block_rank(j));
-            let rank0 = j * max_rank_for_block - self.block_rank(j);
-            if rank0 > i {
-                position = j - 1;
+        // for j in 0..n_blocks {
+        //     // println!("{}: {}", j, j * max_rank_for_block - self.block_rank(j));
+        //     let rank0 = j * max_rank_for_block - self.block_rank(j);
+        //     if rank0 > i {
+        //         position = j - 1;
+        //         break;
+        //     }
+        // }
+        while hint_start < hint_end {
+            if max_rank_for_block * hint_start - self.block_rank(hint_start) > i {
                 break;
             }
+            hint_start += 1;
         }
+        position = hint_start - 1;
         // rank = position * max_rank_for_block - self.block_rank(position);
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.block_rank(position));
 
@@ -265,11 +303,10 @@ impl SelectBin for RSNarrow {
     }
 
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
-
         let (block, rank) = self.select1_subblock(i);
         let word_to_sel = self.bv.data[block >> 3].words[block % 8];
 
-        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize 
+        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
@@ -281,7 +318,6 @@ impl SelectBin for RSNarrow {
     }
 
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
-
         let (block, rank) = self.select0_subblock(i);
         let word_to_sel = !self.bv.data[block >> 3].words[block % 8];
 
