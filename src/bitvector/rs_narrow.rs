@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 //|superblock0|block0|superblock1|block1...
 const BLOCK_SIZE: usize = 8; // in 64bit words
 
-// SELECT NOT IMPLEMENTED YET
 const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
@@ -192,14 +191,6 @@ impl RSNarrow {
 
         let max_rank_for_block = BLOCK_SIZE * 64;
 
-        // for j in 0..n_blocks {
-        //     // println!("{}: {}", j, j * max_rank_for_block - self.block_rank(j));
-        //     let rank0 = j * max_rank_for_block - self.block_rank(j);
-        //     if rank0 > i {
-        //         position = j - 1;
-        //         break;
-        //     }
-        // }
         while hint_start < hint_end {
             if max_rank_for_block * hint_start - self.block_rank(hint_start) > i {
                 break;

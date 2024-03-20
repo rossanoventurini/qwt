@@ -690,6 +690,7 @@ where
     /// assert_eq!(qwt.select(0, 1), Some(3));
     /// assert_eq!(qwt.select(0, 2), None);
     /// assert_eq!(qwt.select(1, 0), Some(0));
+    /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
     #[must_use]

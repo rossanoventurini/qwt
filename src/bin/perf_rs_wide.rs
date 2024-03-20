@@ -1,5 +1,5 @@
 use qwt::{
-    bitvector::rs_bitvector::RSBitVector,
+    bitvector::rs_wide::RSWide,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
     RankBin, SelectBin, SpaceUsage,
 };
@@ -108,7 +108,7 @@ fn main() {
         let fill_factor = 2; // 1/2 full
 
         let bv = (0..n).filter(|x| x % fill_factor == 0).collect();
-        let rs = RSBitVector::new(bv);
+        let rs = RSWide::new(bv);
 
         println!(
             "created new bitvector | n_ones: {} | n_zeros: {} | len: {}",

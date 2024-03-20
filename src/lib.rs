@@ -10,8 +10,8 @@ pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
 pub mod bitvector;
-pub use bitvector::rs_bitvector::RSBitVector;
 pub use bitvector::rs_narrow::RSNarrow;
+pub use bitvector::rs_wide::RSWide;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
 
@@ -70,15 +70,15 @@ pub trait RankUnsigned: AccessUnsigned {
 
 /// A trait for the support of ``select` query over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of
     /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    /// We start counting from 0, so that `select(symbol, 0)` refers to the first
+    /// occurrence of `symbol`.
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of
     /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// We start counting from 0, so that `select(symbol, 0)` refers to the first
     /// occurrence of `symbol`.
     ///
     /// # Safety
@@ -134,7 +134,6 @@ pub trait RankBin {
     }
 }
 
-// TODO: Add SelectBin trait when select will be implemented
 pub trait SelectBin {
     /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     /// Returns `None` if the data structure has no such element (i >= maximum rank1)

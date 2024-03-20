@@ -3,7 +3,7 @@ use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector
 
 /// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
 /// and the next position.
-pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
+pub fn test_rank1(ds: &RSWide, bv: &BitVector) {
     for (rank, pos) in bv.ones().enumerate() {
         let result = ds.rank1(pos);
         // dbg!(pos, rank);
@@ -20,7 +20,7 @@ pub fn test_rank1(ds: &RSBitVector, bv: &BitVector) {
 fn test_large_random_rank() {
     let vv = gen_strictly_increasing_sequence(1024 * 4, 1 << 15);
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = RSBitVector::new(bv);
+    let rs = RSWide::new(bv);
 
     test_rank1(&rs, &rs.bv);
 }
@@ -31,7 +31,7 @@ fn test_select1() {
         3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001, 10000,
     ];
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = RSBitVector::new(bv);
+    let rs = RSWide::new(bv);
 
     for (i, &el) in vv.iter().enumerate() {
         let selected = rs.select1(i);
@@ -45,7 +45,7 @@ fn test_select0() {
         3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001, 10000,
     ];
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = RSBitVector::new(bv);
+    let rs = RSWide::new(bv);
 
     let zeros_vector = negate_vector(&vv);
 
@@ -59,7 +59,7 @@ fn test_select0() {
 fn test_random_select1() {
     let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 22);
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = RSBitVector::new(bv);
+    let rs = RSWide::new(bv);
 
     for (i, &el) in vv.iter().enumerate() {
         let selected = rs.select1(i);
@@ -71,7 +71,7 @@ fn test_random_select1() {
 fn test_random_select0() {
     let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 22);
     let bv: BitVector = vv.iter().copied().collect();
-    let rs = RSBitVector::new(bv);
+    let rs = RSWide::new(bv);
 
     let zeros_vector = negate_vector(&vv);
 

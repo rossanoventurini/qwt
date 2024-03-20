@@ -1,11 +1,11 @@
 //! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
-//! This implementation is inspired by [this paper] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
+//! This implementation is inspired by [this paper by Florian Kurpicz] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
 use crate::{AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
-//superblock is 44 bits, blocks are BLOCK_SIZE-1 * 12 bits each
+//superblock is 44 bits, blocks are (BLOCK_SIZE-1) * 12 bits each
 const BLOCK_SIZE: usize = 8; // 8 64bit words for each block
 const SUPERBLOCK_SIZE: usize = 8 * BLOCK_SIZE; // 8 blocks for each superblock (this is the size in u64 words)
 
@@ -13,13 +13,13 @@ const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > super
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
-pub struct RSBitVector {
+pub struct RSWide {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[usize]>; 2],
 }
 
-impl RSBitVector {
+impl RSWide {
     pub fn new(bv: BitVector) -> Self {
         let mut superblock_metadata = Vec::new();
         let mut total_rank: u128 = 0;
@@ -35,7 +35,6 @@ impl RSBitVector {
         select_samples[1].push(0);
 
         for (b, &dl) in bv.data.iter().enumerate() {
-            // println!("dataline numero {}", b);
             if b % 8 == 0 {
                 //we are at the start of new superblock, so we push the rank so far
                 total_rank += word_pop;
@@ -43,12 +42,10 @@ impl RSBitVector {
 
                 cur_metadata = 0;
                 cur_metadata |= total_rank;
-                // cur_metadata <<= 128 - 44;
                 // println!("new superblock! added metadata, total rank: {}", total_rank);
                 // println!("metadata so far: {:0>128b}", cur_metadata);
             } else {
                 //we ignore the frist block beacuse it would be 0
-
                 //if we are not at the start of a new superblock, we are at the start of a block
                 cur_metadata <<= 12;
                 cur_metadata |= word_pop;
@@ -60,10 +57,9 @@ impl RSBitVector {
             word_pop += dl.n_ones() as u128;
 
             if (total_rank + word_pop) / SELECT_ONES_PER_HINT as u128 > cur_hint_1 {
-                //we insert a new hint for 0
+                //we insert a new hint for 1
                 select_samples[1].push(b / 8);
                 cur_hint_1 += 1;
-                // println!("NUOVO HINT 1");
             }
 
             zeros_so_far += dl.n_zeros() as u128;
@@ -71,7 +67,6 @@ impl RSBitVector {
                 //we insert a new hint for 0
                 select_samples[0].push(b / 8);
                 cur_hint_0 += 1;
-                // println!("NUOVO HINT 0");
             }
 
             if (b + 1) % 8 == 0 {
@@ -85,7 +80,6 @@ impl RSBitVector {
         total_rank += word_pop;
 
         let left: usize = bv.data.len() % 8;
-        // println!("BLOCKS LEFT CALCULATION: {} / {}", left, 8);
 
         if left != 0 {
             for _ in left..8 {
@@ -152,10 +146,7 @@ impl RSBitVector {
         let mut result = 0;
         let superblock = sub_block / (SUPERBLOCK_SIZE / BLOCK_SIZE);
         result += self.superblock_rank(superblock);
-        //println!("SUPERBLOCK: {:0>128b}", self.superblock_metadata[superblock]);
         let left = sub_block % (SUPERBLOCK_SIZE / BLOCK_SIZE);
-        //println!("subblock {}: {:0>12b}", left, ((self.superblock_metadata[superblock] >> ((7 - left) * 12)) & 0b111111111111));
-        // println!("sub_block: {sub_block} | superblock {superblock} | subblock {left}");
 
         if left != 0 {
             result += ((self.superblock_metadata[superblock] >> ((7 - left) * 12)) & 0b111111111111)
@@ -176,8 +167,6 @@ impl RSBitVector {
         let mut hint_start = self.select_samples[1][hint];
         let hint_end = 1 + self.select_samples[1][hint + 1];
 
-        // println!("HINT START: {}", hint_start);
-
         while hint_start < hint_end {
             if self.superblock_rank(hint_start) > i {
                 break;
@@ -186,7 +175,6 @@ impl RSBitVector {
         }
         position = hint_start - 1;
         // println!("selected superblock {} with rank {}", position, self.superblock_rank(position););
-        //position is now superblock
 
         //now we examine sub_blocks
         position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
@@ -230,7 +218,6 @@ impl RSBitVector {
         }
         position = hint_start - 1;
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.superblock_rank(position));
-        //position is now superblock
 
         //now we examine sub_blocks
         position *= SUPERBLOCK_SIZE / BLOCK_SIZE;
@@ -238,12 +225,6 @@ impl RSBitVector {
         let max_rank_for_subblock = BLOCK_SIZE * 64;
         // println!("now sub_blocks");
         for j in 0..(SUPERBLOCK_SIZE / BLOCK_SIZE) {
-            // println!("iterazione {}", j);
-            // println!(
-            //     "{}: {}",
-            //     j,
-            //     max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j)
-            // );
             let rank0 = max_rank_for_subblock * (position + j) - self.sub_block_rank(position + j);
             if rank0 > i {
                 position += j - 1;
@@ -259,7 +240,7 @@ impl RSBitVector {
     }
 }
 
-impl AccessBin for RSBitVector {
+impl AccessBin for RSWide {
     /// Returns the bit at the given position `i`,
     /// or [`None`] if `i` is out of bounds.
     #[inline(always)]
@@ -280,7 +261,7 @@ impl AccessBin for RSBitVector {
     }
 }
 
-impl RankBin for RSBitVector {
+impl RankBin for RSWide {
     #[inline(always)]
     fn rank1(&self, i: usize) -> Option<usize> {
         if self.bv.is_empty() || i > self.bv.len() {
@@ -301,8 +282,6 @@ impl RankBin for RSBitVector {
         let mut result = self.sub_block_rank(sub_block);
         let sub_left = (i & 511) as i32 + 1;
 
-        // sub_block *= BLOCK_SIZE; //we will handle single words from now on
-
         result += if sub_left == 0 {
             0
         } else {
@@ -313,18 +292,18 @@ impl RankBin for RSBitVector {
     }
 }
 
-impl SelectBin for RSBitVector {
+impl SelectBin for RSWide {
     #[inline(always)]
     /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    /// use qwt::{BitVector, RSWide, SelectBin};
     ///
     ///
     /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
     /// let bv: BitVector = vv.iter().copied().collect();
-    /// let rs = RSBitVector::new(bv);
+    /// let rs = RSWide::new(bv);
     ///
     /// assert_eq!(rs.select1(0), Some(3));
     /// assert_eq!(rs.select1(1), Some(5));
@@ -364,12 +343,12 @@ impl SelectBin for RSBitVector {
     /// Returns `None` if the data structure has no such element (i >= maximum rank0)
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    /// use qwt::{BitVector, RSWide, SelectBin};
     /// use qwt::perf_and_test_utils::negate_vector;
     ///
     /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
     /// let bv: BitVector = vv.iter().copied().collect();
-    /// let rs = RSBitVector::new(bv);
+    /// let rs = RSWide::new(bv);
     /// let zeros_vector = negate_vector(&vv);
     ///
     /// assert_eq!(rs.select0(0), Some(0));
@@ -406,7 +385,7 @@ impl SelectBin for RSBitVector {
     }
 }
 
-impl SpaceUsage for RSBitVector {
+impl SpaceUsage for RSWide {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
         self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte()
