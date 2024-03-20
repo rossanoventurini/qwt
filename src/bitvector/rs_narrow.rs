@@ -144,7 +144,6 @@ impl RSNarrow {
     /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
         let mut position;
-        let mut rank;
 
         let hint = i / SELECT_ONES_PER_HINT;
         let mut hint_start = self.select_samples[1][hint];
@@ -174,7 +173,7 @@ impl RSNarrow {
                 position += j;
             }
         }
-        rank = self.sub_block_rank(position);
+        let rank = self.sub_block_rank(position);
 
         (position, rank)
     }
@@ -186,7 +185,6 @@ impl RSNarrow {
     /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
         let mut position;
-        let mut rank;
 
         let hint = i / SELECT_ZEROS_PER_HINT;
         let mut hint_start = self.select_samples[0][hint];
@@ -228,7 +226,7 @@ impl RSNarrow {
                 position += j;
             }
         }
-        rank = max_rank_for_subblock * position - self.sub_block_rank(position);
+        let rank = max_rank_for_subblock * position - self.sub_block_rank(position);
 
         (position, rank)
     }

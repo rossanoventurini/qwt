@@ -35,7 +35,7 @@
 //! // Querying operations
 //! assert_eq!(qwt.get(3), Some(4));  // Accesses the 3rd symbol (0-indexed), should return 4
 //! assert_eq!(qwt.rank(3, 7), Some(1));  // Counts the occurrences of symbol 3 up to position 7, should return 1
-//! assert_eq!(qwt.select(3, 1), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
+//! assert_eq!(qwt.select(3, 0), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
 //! ```
 
 use crate::utils::{msb, stable_partition_of_4};

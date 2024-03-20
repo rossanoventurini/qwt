@@ -1,9 +1,7 @@
 //! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
 //! This implementation is inspired by [this paper] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
-use super::*;
-
-use crate::{AccessBin, RankBin, SelectBin};
+use crate::{AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
