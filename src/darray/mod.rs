@@ -1,6 +1,6 @@
 //! The module implements [`DArray`], a data structure that provides efficient
-//! `select1` and `select0` queries on a binary vector, supporting the [`SelectBin`] trait.
-//! [`RankBin`] queries are not supported.
+//! `select1` and `select0` queries on a binary vector, supporting the [`SelectBin`] trait ([`SelectBin::select0`] and [`SelectBin::select1`] queries).
+//! The rank queries are not supported.
 //!
 //! In many applications of this data structure, the binary vector is the characteristic
 //! vector of a strictly increasing sequence.
@@ -11,16 +11,16 @@
 //! Similarly, the `select0(i)` query returns the position of the (i+1)-th zero
 //! in the binary vector.
 //! If we are representing a strictly increasing sequence S, `select1(i)` gives
-//! the (i+1)th element of the sequence, i.e., S[i].
+//! the (i+1)th element of the sequence, i.e., S\[i\].
 //!
 //! ## Example
 //! A [`DArray`] is built from a strictly increasening sequence of `usize`.
-//! A boolean const generic is used to specify the need for [`select0`] query support.
-//! Without this support, the query [`select0`] will panic.
+//! A boolean const generic is used to specify the need for `select0` query support.
+//! Without this support, the query [`SelectBin::select0`] will panic.
 //!
 //! ```
 //! use qwt::DArray;
-//! use qwt::{SpaceUsage, SelectBin};
+//! use qwt::{SpaceUsage, SelectBin, RankBin};
 //!
 //! let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
 //! let da: DArray<false> = vv.into_iter().collect();
@@ -48,8 +48,8 @@
 //! and a pointer to *overflow_positions* for the other kind of blocks. Positive or negative integers
 //! are used to distinguish the two cases.
 //!
-//! A `select1(i)` query is solved as follows: First, compute b=i/BLOCK_SIZE, i.e., the block of
-//! the i-th occurrence of 1, and access *block_inventory[b]*. If the block is dense, access
+//! A `select1(i)` query is solved as follows: First, compute b=i/`BLOCK_SIZE`, i.e., the block of
+//! the i-th occurrence of 1, and access *`block_inventory[b]`*. If the block is dense, access
 //! the position of the first one in its block and start a linear scan from that position
 //! looking for the i-th occurrence of 1. If the block is sparse, the answer is stored in vector
 //! *overflow_positions*.
