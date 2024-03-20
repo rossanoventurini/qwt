@@ -10,7 +10,7 @@ use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
-pub mod rs_bitvector;
+pub mod rs_wide;
 pub mod rs_narrow;
 
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]

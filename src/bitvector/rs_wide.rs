@@ -13,13 +13,13 @@ const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > super
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
-pub struct RSBitVector {
+pub struct RSWide {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[usize]>; 2],
 }
 
-impl RSBitVector {
+impl RSWide {
     pub fn new(bv: BitVector) -> Self {
         let mut superblock_metadata = Vec::new();
         let mut total_rank: u128 = 0;
@@ -259,7 +259,7 @@ impl RSBitVector {
     }
 }
 
-impl AccessBin for RSBitVector {
+impl AccessBin for RSWide {
     /// Returns the bit at the given position `i`,
     /// or [`None`] if `i` is out of bounds.
     #[inline(always)]
@@ -280,7 +280,7 @@ impl AccessBin for RSBitVector {
     }
 }
 
-impl RankBin for RSBitVector {
+impl RankBin for RSWide {
     #[inline(always)]
     fn rank1(&self, i: usize) -> Option<usize> {
         if self.bv.is_empty() || i > self.bv.len() {
@@ -313,18 +313,18 @@ impl RankBin for RSBitVector {
     }
 }
 
-impl SelectBin for RSBitVector {
+impl SelectBin for RSWide {
     #[inline(always)]
     /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    /// use qwt::{BitVector, RSWide, SelectBin};
     ///
     ///
     /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
     /// let bv: BitVector = vv.iter().copied().collect();
-    /// let rs = RSBitVector::new(bv);
+    /// let rs = RSWide::new(bv);
     ///
     /// assert_eq!(rs.select1(0), Some(3));
     /// assert_eq!(rs.select1(1), Some(5));
@@ -364,12 +364,12 @@ impl SelectBin for RSBitVector {
     /// Returns `None` if the data structure has no such element (i >= maximum rank0)
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, RSBitVector, SelectBin};
+    /// use qwt::{BitVector, RSWide, SelectBin};
     /// use qwt::perf_and_test_utils::negate_vector;
     ///
     /// let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513, 1000, 1024, 1025];
     /// let bv: BitVector = vv.iter().copied().collect();
-    /// let rs = RSBitVector::new(bv);
+    /// let rs = RSWide::new(bv);
     /// let zeros_vector = negate_vector(&vv);
     ///
     /// assert_eq!(rs.select0(0), Some(0));
@@ -406,7 +406,7 @@ impl SelectBin for RSBitVector {
     }
 }
 
-impl SpaceUsage for RSBitVector {
+impl SpaceUsage for RSWide {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
         self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte()
