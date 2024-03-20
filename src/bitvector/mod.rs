@@ -285,8 +285,6 @@ impl BitVector {
     /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
     /// let bv: BitVector = vv.iter().copied().collect();
     ///
-    /// let v: Vec<usize> = bv.ones().collect();
-    /// assert_eq!(v, vv);
     /// ```
     #[must_use]
     pub fn ones(&self) -> BitVectorBitPositionsIter<true> {

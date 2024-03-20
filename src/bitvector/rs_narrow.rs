@@ -3,9 +3,7 @@
 //!
 //! This implementation is inspired by the C++ implementation by [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/rs_bit_vector.cpp).
 
-use super::*;
-
-use crate::{AccessBin, RankBin, SelectBin};
+use crate::{utils::select_in_word, AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,10 +13,10 @@ const BLOCK_SIZE: usize = 8; // in 64bit words
 // const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
 // const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RSNarrow {
     bv: BitVector,
-    block_rank_pairs: Vec<u64>,
+    block_rank_pairs: Box<[u64]>,
 }
 
 impl RSNarrow {
@@ -72,7 +70,7 @@ impl RSNarrow {
 
         Self {
             bv,
-            block_rank_pairs,
+            block_rank_pairs: block_rank_pairs.into_boxed_slice(),
         }
     }
 
@@ -127,7 +125,7 @@ impl RSNarrow {
                 break;
             }
         }
-        rank = self.block_rank(position);
+        // rank = self.block_rank(position);
         // println!("selected block {} with rank {}", position, rank);
         //position is now superblock
 
@@ -172,7 +170,7 @@ impl RSNarrow {
                 break;
             }
         }
-        rank = position * max_rank_for_block - self.block_rank(position);
+        // rank = position * max_rank_for_block - self.block_rank(position);
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.block_rank(position));
         //position is now superblock
 
@@ -206,6 +204,8 @@ impl AccessBin for RSNarrow {
         if i >= self.bv.len() {
             return None;
         }
+
+        // SAFETY: no out of bound is possible
         Some(unsafe { self.get_unchecked(i) })
     }
 

@@ -224,8 +224,6 @@ where
             let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
             let mut range = 0..i;
 
-            //let mut real_range = 0..i;
-
             self.qvs[0].prefetch_data(range.end);
             self.qvs[0].prefetch_info(range.start);
             self.qvs[0].prefetch_info(range.end);
@@ -296,7 +294,7 @@ where
         0
     }
 
-    /// Returns rank of `symbol` up to position `i` **excluded**.
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
     /// `None`, is returned if `i` is out of bound or if `symbol`
     /// is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
@@ -331,10 +329,10 @@ where
     }
 
     #[inline(always)]
-    /// Returns rank of `symbol` up to position `i` **excluded**.
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
     /// Differently from `rank_unchecked`, it runs a first phase
     /// in which it estimates the positions in the wavelet tree
-    /// needed by rank queries and prefetches these data.
+    /// needed by rank queries and prefetches their cache lines.
     /// It is faster than the original rank whenever the superblock/block
     /// counters fit in L3 cache but the sequence is larger.
     ///
@@ -363,8 +361,6 @@ where
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
 
         const BLOCK_SIZE: usize = 256; // TODO: fix me!
-
-        //let mut real_range = 0..i;
 
         self.qvs[0].prefetch_data(range.start);
         self.qvs[0].prefetch_data(range.end);

@@ -1,4 +1,4 @@
-use crate::{bitvector::BitVectorMut, QVector, RSNarrow, RankBin, SpaceUsage};
+use crate::{BitVectorMut, QVector, RSNarrow, RankBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,10 @@ impl PrefetchSupport {
         }
 
         Self {
-            samples: bvs.into_iter().map(|x| RSNarrow::new(x.into())).collect(),
+            samples: bvs
+                .into_iter()
+                .map(|bvm| RSNarrow::new(bvm.into()))
+                .collect(),
             sample_rate_shift,
         }
     }
