@@ -40,7 +40,7 @@ where
         self.rank(i, s as usize).unwrap()
     }
     fn select(&self, s: u8, i: usize) -> usize {
-        self.select(i - 1, s as usize).unwrap()
+        self.select(i, s as usize).unwrap()
     }
     fn get(&self, i: usize) -> u8 {
         self.access(i).unwrap() as u8
