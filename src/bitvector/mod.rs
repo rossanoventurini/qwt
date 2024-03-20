@@ -109,26 +109,6 @@ fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
     }
 }
 
-// #[inline(always)]
-// fn cast_to_u64_slice<'a>(data_lines: &'a Vec<DataLine>) -> &'a [u64] {
-//     let s: Vec<u64>= data_lines
-//         .iter()
-//         .map(|dl| dl.words)
-//         .flatten()
-//         .collect::<Vec<_>>()
-//         .as_slice();
-//     &s
-// }
-
-// #[inline(always)]
-// fn cast_box_to_u64_slice(data_lines: &Box<[DataLine]>) -> &[u64] {
-//     let s = data_lines
-//         .iter()
-//         .flat_map(|x| x.words)
-//         .collect::<Box<[u64]>>();
-//     s.as_ref()
-// }
-
 impl SelectBin for DataLine {
     fn select1(&self, i: usize) -> Option<usize> {
         if i >= self.n_ones() {

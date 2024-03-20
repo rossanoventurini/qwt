@@ -7,6 +7,8 @@ use crate::{utils::select_in_word, AccessBin, BitVector, RankBin, SelectBin, Spa
 
 use serde::{Deserialize, Serialize};
 
+//block_rank_pairs layout
+//|superblock0|block0|superblock1|block1...
 const BLOCK_SIZE: usize = 8; // in 64bit words
 
 // SELECT NOT IMPLEMENTED YET
@@ -110,7 +112,7 @@ impl RSNarrow {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select1_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
         let mut rank;
@@ -127,7 +129,6 @@ impl RSNarrow {
         }
         // rank = self.block_rank(position);
         // println!("selected block {} with rank {}", position, rank);
-        //position is now superblock
 
         //now we examine sub_blocks
         position *= BLOCK_SIZE;
@@ -152,7 +153,7 @@ impl RSNarrow {
     /// Returns a pair `(position, rank)` where the position is the index of the word containing the first `1` having rank `i`
     /// and `rank` is the number of occurrences of `symbol` up to the beginning of this block.
     ///
-    /// The caller must guarantee that `i` is not zero or greater than the length of the indexed sequence.
+    /// The caller must guarantee that `i` is less than the length of the indexed sequence.
     fn select0_subblock(&self, i: usize) -> (usize, usize) {
         let mut position = 0;
         let mut rank;
@@ -172,7 +173,6 @@ impl RSNarrow {
         }
         // rank = position * max_rank_for_block - self.block_rank(position);
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.block_rank(position));
-        //position is now superblock
 
         //now we examine sub_blocks
         position *= BLOCK_SIZE;
@@ -265,15 +265,11 @@ impl SelectBin for RSNarrow {
     }
 
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
-        //block_rank_pairs layout
-        //|superblock0|block0|superblock1|block1...
 
         let (block, rank) = self.select1_subblock(i);
-        // println!("selected block {}, rank {}", block, rank);
         let word_to_sel = self.bv.data[block >> 3].words[block % 8];
-        // println!("selected block {:0>64b}", word_to_sel);
 
-        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize //select_in_word(self.bv.data[block>>3].words[block%8] , (i - rank) as u64) as usize
+        block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize 
     }
 
     fn select0(&self, i: usize) -> Option<usize> {
@@ -285,13 +281,9 @@ impl SelectBin for RSNarrow {
     }
 
     unsafe fn select0_unchecked(&self, i: usize) -> usize {
-        //block_rank_pairs layout
-        //|superblock0|blocks0|superblock1|blocks1...
 
         let (block, rank) = self.select0_subblock(i);
-        // println!("selected block {}, rank {}", block, rank);
         let word_to_sel = !self.bv.data[block >> 3].words[block % 8];
-        // println!("selected block {:0>64b}", word_to_sel);
 
         block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize
     }
