@@ -165,6 +165,21 @@ assert_eq!(qwt.get(5), Some(1000000));
 assert_eq!(qwt.get(8), None);
 ```
 
+Even faster rank queries are obtained with the use of prefetching data structures with `QWT256Pfs` and  `QWT512Pfs`.
+In this case use the methods [`rank_prefetch`] or [`rank_prefetch_unchecked`]. Here is an example.
+
+```rust
+use qwt::QWT256Pfs;
+
+let data = vec![1u32, 0, 1, 0, 2, 1000000, 5, 3];
+let qwt = QWT256Pfs::from(data);
+
+assert_eq!(qwt.rank_prefetch(1, 2), Some(1));
+assert_eq!(qwt.rank_prefetch(1, 0), Some(0));
+assert_eq!(qwt.rank_prefetch(3, 8), Some(1));
+assert_eq!(qwt.rank_prefetch(1, 9), None);
+```
+
 For more details, take a look at the [documentation](https://docs.rs/qwt/latest/qwt/).
 
 Serialization and deserialization can be done with [`bincode`](https://docs.rs/bincode/latest/bincode/) as follows.
