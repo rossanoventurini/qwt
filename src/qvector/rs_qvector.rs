@@ -319,8 +319,9 @@ impl<S: RSSupport> RankQuad for RSQVector<S> {
 }
 
 impl<S: RSSupport> SelectQuad for RSQVector<S> {
-    /// Returns the position of the `i`th occurrence of `symbol`.
-    /// Returns `None` if i is not valid, i.e., if i == 0 or i is larger than
+    /// Returns the position of the `i+1`th occurrence of `symbol`, meaning
+    /// the position `pos` such that `rank(symbol, pos) = i`
+    /// Returns `None` if i is not valid, i.e., if i is larger than
     /// the number of occurrences of `symbol`, or if `symbol` is not in [0..3].
     ///
     /// # Examples
@@ -329,30 +330,29 @@ impl<S: RSSupport> SelectQuad for RSQVector<S> {
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
-    /// assert_eq!(rsqv.select(0, 1), Some(0));
-    /// assert_eq!(rsqv.select(0, 2), Some(4));
-    /// assert_eq!(rsqv.select(0, 3), Some(8));
-    /// assert_eq!(rsqv.select(0, 0), None);
-    /// assert_eq!(rsqv.select(0, 4), None);
+    /// assert_eq!(rsqv.select(0, 0), Some(0));
+    /// assert_eq!(rsqv.select(0, 1), Some(4));
+    /// assert_eq!(rsqv.select(0, 2), Some(8));
+    /// assert_eq!(rsqv.select(0, 3), None);
     /// ```
     #[inline]
     fn select(&self, symbol: u8, i: usize) -> Option<usize> {
-        if symbol > 3 || i == 0 || unsafe { self.occs_unchecked(symbol) } < i {
+        if symbol > 3 || unsafe { self.occs_unchecked(symbol) } <= i {
             return None;
         }
 
-        let (mut pos, rank) = self.rs_support.select_block(symbol, i);
+        let (mut pos, rank) = self.rs_support.select_block(symbol, i + 1);
 
-        if rank == i {
-            return Some(pos);
-        }
+        // if rank == i {
+        //     return Some(pos);
+        // }
 
-        pos += self.select_intra_block(symbol, i - rank, pos);
+        pos += self.select_intra_block(symbol, i - rank + 1, pos);
 
         Some(pos)
     }
 
-    /// Returns the position of the `i`th occurrence of `symbol`.
+    /// Returns the position of the `i+1`th occurrence of `symbol`.
     ///
     /// # Safety
     /// Calling this method with a value of `i` which is larger than the number of
@@ -560,8 +560,9 @@ mod tests {
         }
 
         for (i, c) in qv.iter().enumerate() {
-            let rank = rsqv.rank(c, i + 1).unwrap();
+            let rank = rsqv.rank(c, i).unwrap();
             let s = rsqv.select(c, rank).unwrap();
+            // println!("symbol: {} | rank: {} | selected: {}", c, rank, s);
             assert_eq!(s, i);
         }
     }

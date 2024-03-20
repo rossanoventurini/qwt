@@ -149,9 +149,9 @@ assert_eq!(qwt.rank(1, 0), Some(0));
 assert_eq!(qwt.rank(3, 8), Some(1));
 assert_eq!(qwt.rank(1, 9), None);
 
-assert_eq!(qwt.select(1, 1), Some(0));
-assert_eq!(qwt.select(0, 2), Some(3));
-assert_eq!(qwt.select(4, 0), None);
+assert_eq!(qwt.select(1, 0), Some(0));
+assert_eq!(qwt.select(0, 1), Some(3));
+assert_eq!(qwt.select(4, 0), Some(5));
 assert_eq!(qwt.select(1, 3), None);
 ```
 
@@ -206,13 +206,13 @@ As the space usage depends on the largest value in the sequence, it could be wor
 ## <a name="bib">Bibliography</a>
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 2. Francisco Claude, Gonzalo Navarro, and Alberto Ordóñez Pereira. *The wavelet matrix: An efficient wavelet tree for large alphabets.* Information Systems, 47:15–32, 2015.
-3. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Arxiv, 2023.
+3. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Data Compression Conference (DCC), 2024.
 ----
 
 Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
 
 ```bibtex
-@misc{QWT,
+@inproceedings{QWT,
   author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
   title = {Faster Wavelet Trees with Quad Vectors},
   booktitle = {Data Compression Conference ({DCC})}

@@ -22,6 +22,10 @@ bincode = "1.3.3"
 sucds = "0.8.1"
 simple-sds = { git = "https://github.com/jltsiren/simple-sds.git" }
 
+[features]
+default = ["prefetch"]
+prefetch = []
+
 [profile.release]
 lto = true
 debug = true

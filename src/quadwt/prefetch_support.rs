@@ -1,4 +1,4 @@
-use crate::{BitVector, QVector, RSNarrow, RankBin, SpaceUsage};
+use crate::{BitVectorMut, QVector, RSNarrow, RankBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
@@ -16,10 +16,10 @@ impl PrefetchSupport {
     /// ith block contains an occurrence of which is a multiple of `sample_rate`, `0´ otherwise.
     pub fn new(qv: &QVector, sample_rate_shift: usize) -> Self {
         let mut bvs = [
-            BitVector::default(),
-            BitVector::default(),
-            BitVector::default(),
-            BitVector::default(),
+            BitVectorMut::default(),
+            BitVectorMut::default(),
+            BitVectorMut::default(),
+            BitVectorMut::default(),
         ];
         let mut counters = [0; 4];
         let mut bits = [false; 4];
@@ -42,7 +42,10 @@ impl PrefetchSupport {
         }
 
         Self {
-            samples: bvs.into_iter().map(RSNarrow::new).collect(),
+            samples: bvs
+                .into_iter()
+                .map(|bvm| RSNarrow::new(bvm.into()))
+                .collect(),
             sample_rate_shift,
         }
     }
