@@ -1,12 +1,42 @@
-//! This module implements a Quad Wavelet Tree to support access, rank, and select
-//! queries on a vector of unsigned integers.
+//! # Quad Wavelet Tree
 //!
-//! This data structure supports three operations:
-//! - `get(i)` accesses the `i`-th symbols of the indexed sequence;
-//! - `rank(s, i)` counts the number of occurrences of symbol `s` up to position `i` excluded;
-//! - `select(s, i)` returns the position of the `i`-th occurrence of symbol `s`.
+//! This module implements a Quad Wavelet Tree, providing efficient implementations of [`AccessUnsigned`], [`RankUnsigned`], and [`SelectUnsigned`] for a vector of unsigned integers.
 //!
-//! We can index vectors of length up to 2^{43} symbols.
+//! The Quad Wavelet Tree indexes a sequence of unsigned integers and facilitates the following three operations:
+//!
+//! - `get(i)`: Accesses the `i`-th symbol of the indexed sequence.
+//! - `rank(s, i)`: Counts the number of occurrences of symbol `s` up to position `i`, excluding `i`.
+//! - `select(s, i)`: Returns the position of the `i+1`-th occurrence of symbol `s`.
+//!
+//! We have four aliases types for a Quad Wavelet Tree: `QWT256<T>`, `QWT512<T>`, `QWT256Pfs<T>`, and `QWT512Pfs<T>`. The generic type `T` is the type of the indexed unsigned integer values.
+//! The values 256 and 512 are the employed block sizes in the internal representation.
+//! A block size of 256 has a faster query time at the cost of slightly larger space overhead.
+//! The prefix `Pfs` indicates that the wavelet tree uses additional data structures to speed up the `rank` queries with prefetching. Refer to the paper for more details.
+//!
+//! ## Performance
+//!
+//! All operations run in $$\Theta(\log \sigma)$$ time, where $$\sigma$$ is the alphabet size, i.e., one plus the largest symbol in the sequence. The space usage is $$n \log \sigma + o(n \log \sigma )$$ bits.
+//!
+//! To optimize query time and space usage, it's advisable to compact the alphabet and remove "holes," if any.
+//!
+//! ## Limitations
+//!
+//! This data structure can efficiently index vectors of lengths up to 2^{43} symbols.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use qwt::{QWT256Pfs,AccessUnsigned, RankUnsigned, SelectUnsigned};
+//!
+//! // Example usage of Quad Wavelet Tree
+//! // Constructing a Qwt256Pfs for u32 integers
+//! let qwt = QWT256Pfs::from(vec![1_u32, 2, 3, 4, 5, 6, 7, 8]);
+//!
+//! // Querying operations
+//! assert_eq!(qwt.get(3), Some(4));  // Accesses the 3rd symbol (0-indexed), should return 4
+//! assert_eq!(qwt.rank(3, 7), Some(1));  // Counts the occurrences of symbol 3 up to position 7, should return 1
+//! assert_eq!(qwt.select(3, 1), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
+//! ```
 
 use crate::utils::{msb, stable_partition_of_4};
 use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, WTSupport};
@@ -66,8 +96,8 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    /// Builds the wavelet tree of the `sequence` of unsigned integers.
-    /// The input sequence is **destroyed**.
+    /// Builds the wavelet tree of the `sequence` of unsigned integers.
+    /// The input `sequence`` will be **destroyed**.
     ///
     /// The alphabet size `sigma` is the largest value in the `sequence`.
     /// Both space usage and query time of a QWaveletTree depend on
@@ -77,7 +107,7 @@ where
     /// remap the alphabet to form a consecutive range [0, d], where d is
     /// the number of distinct values in `sequence`.
     ///
-    /// ## Panics
+    /// ## Panics
     /// Panics if the sequence is longer than the largest possible length.
     /// The largest possible length is 2^{43} symbols.
     ///
@@ -85,9 +115,9 @@ where
     /// ```
     /// use qwt::QWT256;
     ///
-    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    /// let mut data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::from(data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
