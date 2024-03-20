@@ -65,7 +65,7 @@ pub fn gen_select_queries<T: Unsigned + Into<usize> + Copy>(
         .map(|_| {
             let c = s[rng.gen_range(0..s.len())];
             let occ = occs[c.into()];
-            let p = rng.gen_range(1..=occ);
+            let p = rng.gen_range(0..occ);
             (p, c)
         })
         .collect()
