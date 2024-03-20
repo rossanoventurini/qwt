@@ -626,8 +626,8 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is
-    /// returned if i is 0 or if there is no such occurrence for the symbol or if
+    /// Returns the position of the `i`-th occurrence of symbol `symbol`(0-indexed), `None` is
+    /// returned if there is no such occurrence for the symbol or if
     /// `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
@@ -642,6 +642,7 @@ where
     /// assert_eq!(qwt.select(0, 1), Some(3));
     /// assert_eq!(qwt.select(0, 2), None);
     /// assert_eq!(qwt.select(1, 0), Some(0));
+    /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
     #[inline(always)]
