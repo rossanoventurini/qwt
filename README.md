@@ -126,7 +126,7 @@ assert_eq!(qwt.len(), 1000);
 The data structure supports three operations:
 - `get(i)` accesses the `i`-th symbols of the indexed sequence;
 - `rank(c, i)` counts the number of occurrences of symbol `c` up to position `i` excluded;
-- `select(c, i)` returns the position of the `i`-th occurrence of symbol `c`.
+- `select(c, i)` returns the position of the `(i+1)`-th occurrence of symbol `c`.
 
 Here is an example of the three operations.
 
