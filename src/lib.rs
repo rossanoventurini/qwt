@@ -1,4 +1,8 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(
+    all(feature = "prefetch", target_arch = "aarch64"),
+    feature(stdarch_aarch64_prefetch)
+)]
 
 pub mod perf_and_test_utils;
 pub mod qvector;
@@ -7,7 +11,9 @@ pub use qvector::QVectorBuilder;
 
 pub mod bitvector;
 pub use bitvector::rs_narrow::RSNarrow;
+pub use bitvector::rs_wide::RSWide;
 pub use bitvector::BitVector;
+pub use bitvector::BitVectorMut;
 
 pub mod utils;
 
@@ -18,6 +24,12 @@ pub use qvector::rs_qvector::RSQVector512;
 pub mod quadwt;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
+
+pub mod space_usage;
+pub use space_usage::SpaceUsage;
+
+pub mod darray;
+pub use darray::DArray;
 
 pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
 pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
@@ -58,15 +70,15 @@ pub trait RankUnsigned: AccessUnsigned {
 
 /// A trait for the support of ``select` query over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of
     /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    /// We start counting from 0, so that `select(symbol, 0)` refers to the first
+    /// occurrence of `symbol`.
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of
     /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// We start counting from 0, so that `select(symbol, 0)` refers to the first
     /// occurrence of `symbol`.
     ///
     /// # Safety
@@ -122,7 +134,29 @@ pub trait RankBin {
     }
 }
 
-// TODO: Add SelectBin trait when select will be implemented
+pub trait SelectBin {
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
+    fn select1(&self, i: usize) -> Option<usize>;
+
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    ///
+    /// # Safety
+    /// This method doesn't check that such element exists
+    /// Calling this method with an i >= maximum rank1 is undefined behaviour.
+    unsafe fn select1_unchecked(&self, i: usize) -> usize;
+
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0)
+    fn select0(&self, i: usize) -> Option<usize>;
+
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    ///
+    /// # Safety
+    /// This method doesnt check that such element exists
+    /// Calling this method with an `i >= maximum rank0` is undefined behaviour.
+    unsafe fn select0_unchecked(&self, i: usize) -> usize;
+}
 
 /// A trait for the support of `get` query over the alphabet [0..3].
 pub trait AccessQuad {
@@ -153,47 +187,17 @@ pub trait RankQuad {
 
 /// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`
+    /// (0-indexed, mening the first occurrence is obtained using `i = 0`).
     fn select(&self, symbol: u8, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`.
     /// We start counting from 1, so that `select(symbol, 1)` refers to the first
     /// occurrence of `symbol`.
     ///
     /// # Safety
     /// Calling this method if the `i`th occurrence of `symbol` does not exist or with a symbol larger than 3 is undefined behavior.
     unsafe fn select_unchecked(&self, symbol: u8, i: usize) -> usize;
-}
-
-/// An interface to report the space usage of a data structure.
-pub trait SpaceUsage {
-    /// Gives the space usage of the data structure in bytes.
-    fn space_usage_byte(&self) -> usize;
-
-    /// Gives the space usage of the data structure in KiB.
-    #[allow(non_snake_case)]
-    fn space_usage_KiB(&self) -> f64 {
-        let bytes = self.space_usage_byte();
-        (bytes as f64) / (1024_f64)
-    }
-
-    /// Gives the space usage of the data structure in MiB.
-    #[allow(non_snake_case)]
-    fn space_usage_MiB(&self) -> f64 {
-        let bytes = self.space_usage_byte();
-        (bytes as f64) / ((1024 * 1024) as f64)
-    }
-
-    /// Gives the space usage of the data structure in GiB.
-    #[allow(non_snake_case)]
-    fn space_usage_GiB(&self) -> f64 {
-        let bytes = self.space_usage_byte();
-        (bytes as f64) / ((1024 * 1024 * 1024) as f64)
-    }
 }
 
 /// A trait for the operations that a quad vector implementation needs
@@ -236,45 +240,3 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
     /// Prefetches data containing the position `pos`.
     fn prefetch_data(&self, pos: usize);
 }
-
-use std::mem;
-/// TODO: Improve and generalize. Incorrect if T is not a primitive type.
-/// It is also error-prone to implement this for every data structure.
-/// Make a macro to go over the member of a struct!
-impl<T> SpaceUsage for Vec<T>
-where
-    T: SpaceUsage + Copy,
-{
-    fn space_usage_byte(&self) -> usize {
-        if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.capacity()
-        } else {
-            mem::size_of::<Self>() + mem::size_of::<T>() * self.capacity()
-        }
-    }
-}
-
-impl<T> SpaceUsage for Box<[T]>
-where
-    T: SpaceUsage + Copy,
-{
-    fn space_usage_byte(&self) -> usize {
-        if !self.is_empty() {
-            mem::size_of::<Self>() + self.get(0).unwrap().space_usage_byte() * self.len()
-        } else {
-            mem::size_of::<Self>()
-        }
-    }
-}
-
-macro_rules! impl_space_usage {
-    ($($t:ty),*) => {
-        $(impl SpaceUsage for $t {
-            fn space_usage_byte(&self) -> usize {
-                mem::size_of::<Self>()
-            }
-        })*
-    }
-}
-
-impl_space_usage![bool, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64];

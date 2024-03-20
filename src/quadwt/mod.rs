@@ -1,12 +1,42 @@
-//! This module implements a Quad Wavelet Tree to support access, rank, and select
-//! queries on a vector of unsigned integers.
+//! # Quad Wavelet Tree
 //!
-//! This data structure supports three operations:
-//! - `get(i)` accesses the `i`-th symbols of the indexed sequence;
-//! - `rank(s, i)` counts the number of occurrences of symbol `s` up to position `i` excluded;
-//! - `select(s, i)` returns the position of the `i`-th occurrence of symbol `s`.
+//! This module implements a Quad Wavelet Tree, providing efficient implementations of [`AccessUnsigned`], [`RankUnsigned`], and [`SelectUnsigned`] for a vector of unsigned integers.
 //!
-//! We can index vectors of length up to 2^{43} symbols.
+//! The Quad Wavelet Tree indexes a sequence of unsigned integers and facilitates the following three operations:
+//!
+//! - `get(i)`: Accesses the `i`-th symbol of the indexed sequence.
+//! - `rank(s, i)`: Counts the number of occurrences of symbol `s` up to position `i`, excluding `i`.
+//! - `select(s, i)`: Returns the position of the `i+1`-th occurrence of symbol `s`.
+//!
+//! We have four aliases types for a Quad Wavelet Tree: `QWT256<T>`, `QWT512<T>`, `QWT256Pfs<T>`, and `QWT512Pfs<T>`. The generic type `T` is the type of the indexed unsigned integer values.
+//! The values 256 and 512 are the employed block sizes in the internal representation.
+//! A block size of 256 has a faster query time at the cost of slightly larger space overhead.
+//! The prefix `Pfs` indicates that the wavelet tree uses additional data structures to speed up the `rank` queries with prefetching. Refer to the paper for more details.
+//!
+//! ## Performance
+//!
+//! All operations run in $$\Theta(\log \sigma)$$ time, where $$\sigma$$ is the alphabet size, i.e., one plus the largest symbol in the sequence. The space usage is $$n \log \sigma + o(n \log \sigma )$$ bits.
+//!
+//! To optimize query time and space usage, it's advisable to compact the alphabet and remove "holes," if any.
+//!
+//! ## Limitations
+//!
+//! This data structure can efficiently index vectors of lengths up to 2^{43} symbols.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use qwt::{QWT256Pfs,AccessUnsigned, RankUnsigned, SelectUnsigned};
+//!
+//! // Example usage of Quad Wavelet Tree
+//! // Constructing a Qwt256Pfs for u32 integers
+//! let qwt = QWT256Pfs::from(vec![1_u32, 2, 3, 4, 5, 6, 7, 8]);
+//!
+//! // Querying operations
+//! assert_eq!(qwt.get(3), Some(4));  // Accesses the 3rd symbol (0-indexed), should return 4
+//! assert_eq!(qwt.rank(3, 7), Some(1));  // Counts the occurrences of symbol 3 up to position 7, should return 1
+//! assert_eq!(qwt.select(3, 0), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
+//! ```
 
 use crate::utils::{msb, stable_partition_of_4};
 use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, WTSupport};
@@ -49,8 +79,8 @@ where
 ///
 /// The const generic `PREFETCH_DATA` specifies if the wavelet tree
 /// is augmented with extra data to support a deeper level of prefetching.
-/// This is needed only for sequences such that data about superblocks and
-/// blocks do not fit in L3 cache.
+/// This extra informationa are needed only for sequences such that data
+/// about superblocks and blocks do not fit in L3 cache.
 #[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct QWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,        // The length of the represented sequence
@@ -66,8 +96,8 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    /// Builds the wavelet tree of the `sequence` of unsigned integers.
-    /// The input sequence is **destroyed**.
+    /// Builds the wavelet tree of the `sequence` of unsigned integers.
+    /// The input `sequence`` will be **destroyed**.
     ///
     /// The alphabet size `sigma` is the largest value in the `sequence`.
     /// Both space usage and query time of a QWaveletTree depend on
@@ -77,7 +107,7 @@ where
     /// remap the alphabet to form a consecutive range [0, d], where d is
     /// the number of distinct values in `sequence`.
     ///
-    /// ## Panics
+    /// ## Panics
     /// Panics if the sequence is longer than the largest possible length.
     /// The largest possible length is 2^{43} symbols.
     ///
@@ -85,12 +115,13 @@ where
     /// ```
     /// use qwt::QWT256;
     ///
-    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    /// let mut data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::from(data);
+    /// let qwt = QWT256::new(&mut data);
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
+    #[must_use]
     pub fn new(sequence: &mut [T]) -> Self {
         if sequence.is_empty() {
             return Self {
@@ -151,6 +182,7 @@ where
     /// Returns the length of the indexed sequence.
     ///
     /// # Examples
+    ///
     /// ```
     /// use qwt::QWT256;
     ///
@@ -160,13 +192,34 @@ where
     ///
     /// assert_eq!(qwt.len(), 8);
     /// ```
+    #[must_use]
     pub fn len(&self) -> usize {
         self.n
     }
 
-    /// Returns the largest value in the sequence. Note: it is not +1 because it may overflow.
-    pub fn sigma(&self) -> T {
-        self.sigma
+    /// Returns the largest value in the sequence, or `None` if the sequence is empty.
+    ///
+    /// Note: that for us sigma is the largest value and not the largest value  plus 1 as common
+    /// because the latter may overflow.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::QWT256;
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = QWT256::from(data);
+    ///
+    /// assert_eq!(qwt.sigma(), Some(5));
+    /// ```
+    #[must_use]
+    pub fn sigma(&self) -> Option<T> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self.sigma)
+        }
     }
 
     /// Checks if the indexed sequence is empty.
@@ -179,11 +232,26 @@ where
     ///
     /// assert_eq!(qwt.is_empty(), true);
     /// ```
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.n == 0
     }
-
     /// Returns the number of levels in the wavelet tree.
+    ///
+    /// The number of levels represents the depth of the wavelet tree.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::QWT256;
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 255, 4, 5, 3];
+    ///
+    /// let qwt = QWT256::from(data);
+    ///
+    /// assert_eq!(qwt.n_levels(), 4);
+    /// ```
+    #[must_use]
     pub fn n_levels(&self) -> usize {
         self.n_levels
     }
@@ -197,11 +265,11 @@ where
     ///
     /// let data: Vec<u8> = (0..10u8).into_iter().cycle().take(100).collect();
     ///
-    /// let qwt = QWT256::from(data);
+    /// let qwt = QWT256::from(data.clone());
     ///
-    /// for (i, v) in qwt.iter().enumerate() {
-    ///    assert_eq!((i%10) as u8, v);
-    /// }
+    /// assert_eq!(qwt.iter().collect::<Vec<_>>(), data);
+    ///
+    /// assert_eq!(qwt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
     /// ```
     pub fn iter(
         &self,
@@ -209,6 +277,7 @@ where
     {
         QWTIterator {
             i: 0,
+            end: self.len(),
             qwt: self,
             _phantom: PhantomData,
         }
@@ -223,8 +292,6 @@ where
         if let Some(ref prefetch_support) = self.prefetch_support {
             let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
             let mut range = 0..i;
-
-            //let mut real_range = 0..i;
 
             self.qvs[0].prefetch_data(range.end);
             self.qvs[0].prefetch_info(range.start);
@@ -296,17 +363,18 @@ where
         0
     }
 
-    /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// `None`, is returned if `i` is out of bound or if `symbol`
-    /// is not valid (i.e., it is greater than or equal to the alphabet size).
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
     ///
-    /// Differently from `rank` function, it runs a first phase
-    /// in which it estimates the positions in the wavelet tree
-    /// needed by rank queries and prefetches these data.
-    /// It is faster than the original rank whenever the superblock/block
-    /// counters fit in L3 cache but the sequence is larger.
+    /// `None` is returned if `i` is out of bound or if `symbol` is not valid
+    /// (i.e., it is greater than or equal to the alphabet size).
+    ///
+    /// Differently from the `rank` function, `rank_prefetch` runs a first phase
+    /// in which it estimates the positions in the wavelet tree needed by rank queries
+    /// and prefetches these data. It is faster than the original `rank` function whenever
+    /// the superblock/block counters fit in L3 cache but the sequence is larger.
     ///
     /// # Examples
+    ///
     /// ```
     /// use qwt::{QWT256, RankUnsigned};
     ///
@@ -317,10 +385,11 @@ where
     /// assert_eq!(qwt.rank_prefetch(1, 2), Some(1));
     /// assert_eq!(qwt.rank_prefetch(3, 8), Some(1));
     /// assert_eq!(qwt.rank_prefetch(1, 0), Some(0));
-    /// assert_eq!(qwt.rank_prefetch(1, 9), None);     // too large position
-    /// assert_eq!(qwt.rank_prefetch(6, 1), None);     // too large symbol
+    /// assert_eq!(qwt.rank_prefetch(1, 9), None);  // Too large position
+    /// assert_eq!(qwt.rank_prefetch(6, 1), None);  // Too large symbol
     /// ```
     #[inline(always)]
+    #[must_use]
     pub fn rank_prefetch(&self, symbol: T, i: usize) -> Option<usize> {
         if i > self.n || symbol > self.sigma {
             return None;
@@ -330,13 +399,12 @@ where
         Some(unsafe { self.rank_prefetch_unchecked(symbol, i) })
     }
 
-    #[inline(always)]
-    /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// Differently from `rank_unchecked`, it runs a first phase
-    /// in which it estimates the positions in the wavelet tree
-    /// needed by rank queries and prefetches these data.
-    /// It is faster than the original rank whenever the superblock/block
-    /// counters fit in L3 cache but the sequence is larger.
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// Differently from the `rank_unchecked` function, `rank_prefetch` runs a first phase
+    /// in which it estimates the positions in the wavelet tree needed by rank queries
+    /// and prefetches these data. It is faster than the original `rank` function whenever
+    /// the superblock/block counters fit in L3 cache but the sequence is larger.
     ///
     /// # Safety
     /// Calling this method with a position `i` larger than the size of the sequence
@@ -354,6 +422,8 @@ where
     ///     assert_eq!(qwt.rank_prefetch_unchecked(1, 2), 1);
     /// }
     /// ```
+    #[must_use]
+    #[inline(always)]
     pub unsafe fn rank_prefetch_unchecked(&self, symbol: T, i: usize) -> usize {
         if WITH_PREFETCH_SUPPORT {
             let _ = self.rank_prefetch_superblocks_unchecked(symbol, i);
@@ -363,8 +433,6 @@ where
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
 
         const BLOCK_SIZE: usize = 256; // TODO: fix me!
-
-        //let mut real_range = 0..i;
 
         self.qvs[0].prefetch_data(range.start);
         self.qvs[0].prefetch_data(range.end);
@@ -437,11 +505,13 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// `None`, is returned if `i` is out of bound or if `symbol`
-    /// is not valid (i.e., it is greater than or equal to the alphabet size).
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// `None` is returned if `i` is out of bound or if `symbol` is not valid
+    /// (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
+    ///
     /// ```
     /// use qwt::{QWT256, RankUnsigned};
     ///
@@ -452,9 +522,10 @@ where
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
     /// assert_eq!(qwt.rank(1, 0), Some(0));
-    /// assert_eq!(qwt.rank(1, 9), None);     // too large position
-    /// assert_eq!(qwt.rank(6, 1), None);     // too large symbol
+    /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
+    /// assert_eq!(qwt.rank(6, 1), None);  // Too large symbol
     /// ```
+    #[must_use]
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n || symbol > self.sigma {
@@ -468,10 +539,15 @@ where
     /// Returns rank of `symbol` up to position `i` **excluded**.
     ///
     /// # Safety
+    ///
     /// Calling this method with a position `i` larger than the size of the sequence
-    /// of with invalid symbol is undefined behavior.
+    /// or with an invalid symbol is undefined behavior.
+    ///
+    /// Users must ensure that the position `i` is within the bounds of the sequence
+    /// and that the symbol is valid.
     ///
     /// # Examples
+    ///
     /// ```
     /// use qwt::{QWT256, RankUnsigned};
     ///
@@ -483,6 +559,7 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
+    #[must_use]
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
@@ -518,9 +595,12 @@ where
 {
     type Item = T;
 
-    /// Returns the `i`-th symbol of the indexed sequence, `None` is returned if `i` is out of bound.
+    /// Returns the `i`-th symbol of the indexed sequence.
+    ///
+    /// `None` is returned if `i` is out of bound.
     ///
     /// # Examples
+    ///
     /// ```
     /// use qwt::{QWT256, AccessUnsigned};
     ///
@@ -532,18 +612,7 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-    ///
-    /// ```
-    /// use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
-    ///
-    /// let data = vec![1u32, 0, 1, 0, 2, 1000000, 5, 3];
-    /// let qwt = QWT256::from(data);
-    ///
-    /// assert_eq!(qwt.get(2), Some(1));
-    /// assert_eq!(qwt.get(5), Some(1000000));
-    /// assert_eq!(qwt.get(8), None);
-    /// ```
-
+    #[must_use]
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -554,9 +623,12 @@ where
     }
 
     /// Returns the `i`-th symbol of the indexed sequence.
-    ///    
+    ///
     /// # Safety
+    ///
     /// Calling this method with an out-of-bounds index is undefined behavior.
+    ///
+    /// Users must ensure that the index `i` is within the bounds of the sequence.
     ///
     /// # Examples
     /// ```
@@ -571,6 +643,7 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
+    #[must_use]
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut result = T::zero();
@@ -600,9 +673,10 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    /// Returns the position of the `i`-th occurrence of symbol `symbol`, `None` is
-    /// returned if i is 0 or if there is no such occurrence for the symbol or if
-    /// `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
+    /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
+    ///
+    /// `None` is returned if the is no (i+1)th such occurrence for the symbol
+    /// or if `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
     ///
     /// # Examples
     /// ```
@@ -612,14 +686,17 @@ where
     ///
     /// let qwt = QWT256::from(data);
     ///
-    /// assert_eq!(qwt.select(1, 1), Some(0));
-    /// assert_eq!(qwt.select(0, 2), Some(3));
-    /// assert_eq!(qwt.select(1, 0), None);
+    /// assert_eq!(qwt.select(1, 1), Some(2));
+    /// assert_eq!(qwt.select(0, 1), Some(3));
+    /// assert_eq!(qwt.select(0, 2), None);
+    /// assert_eq!(qwt.select(1, 0), Some(0));
+    /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
+    #[must_use]
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i == 0 || symbol > self.sigma {
+        if symbol > self.sigma {
             return None;
         }
 
@@ -650,21 +727,23 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            result = self.qvs[level].select(two_bits, rank_b + result)? - b + 1;
+            result = self.qvs[level].select(two_bits, rank_b + result)? - b;
             shift += 2;
         }
 
-        Some(result - 1)
+        Some(result)
     }
 
-    /// Returns the position of the `i`-th occurrence of symbol `symbol`.
+    /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
     ///
     /// # Safety
-    /// Calling this method with a value of `i` which is larger than the number of
-    /// occurrences of the `symbol` or if the `symbol` is not valid is undefined behavior.
     ///
-    /// In the current implementation there is no reason to prefer this unsafe select
-    /// over the safe one.
+    /// Calling this method with a value of `i` larger than the number of occurrences
+    /// of the `symbol`, or if the `symbol` is not valid, is undefined behavior.
+    ///
+    /// In the current implementation, there is no efficiency reason to prefer this
+    /// unsafe `select` over the safe one.
+    #[must_use]
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
@@ -711,6 +790,7 @@ pub struct QWTIterator<
     const WITH_PREFETCH_SUPPORT: bool = false,
 > {
     i: usize,
+    end: usize,
     qwt: Q,
     _phantom: PhantomData<(T, RS)>,
 }
@@ -730,8 +810,53 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: this may be faster without calling get.
         let qwt = self.qwt.as_ref();
-        self.i += 1;
-        qwt.get(self.i - 1)
+        if self.i < self.end {
+            self.i += 1;
+            // SAFETY: bounds are checked
+            Some(unsafe { qwt.get_unchecked(self.i - 1) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        RS,
+        Q: AsRef<QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > DoubleEndedIterator for QWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            // SAFETY: bounds are checked
+            self.end -= 1;
+            Some(unsafe { qwt.get_unchecked(self.end) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        RS,
+        Q: AsRef<QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > ExactSizeIterator for QWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn len(&self) -> usize {
+        self.end - self.i
     }
 }
 
@@ -749,6 +874,7 @@ where
     fn into_iter(self) -> Self::IntoIter {
         QWTIterator {
             i: 0,
+            end: self.len(),
             qwt: self,
             _phantom: PhantomData,
         }

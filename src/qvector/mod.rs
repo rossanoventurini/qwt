@@ -1,8 +1,10 @@
-//! This module implements a quad vector to store a sequence with values from [0..3],
+//! This module implements a quad vector to store a sequence with values in the range [0..3],
 //! i.e., two bits symbols.
 //!
 //! This implementation uses a vector of `DataLine`. Each `DataLine` is an array of four `u128`
-//! and stores (up to) 256 symbols.
+//! and stores (up to) 256 symbols. As each `DataLine` is 512 bits it fits in a cache line.
+//! The use of `DataLine` in our setting is particulary conveninet because a vector of `DataLine` is aligned.
+//! This way, we load just one cache line everytime we access a `DataLine`.
 
 use crate::{AccessQuad, RankQuad, SpaceUsage}; // Traits
 
