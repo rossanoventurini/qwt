@@ -15,21 +15,27 @@ const N_RUNS: usize = 10;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Input filename
+    /// Spacify the input filename (The Index is saved with the extension ".qwt")
     #[clap(short, long, value_parser)]
     input_file: String,
+    /// Specify the number of randomly generated queries to run
     #[clap(short, long, value_parser)]
     #[arg(default_value_t = 10000000)]
     n_queries: usize,
     #[arg(short, long)]
+    /// Check the correctness by running a slow test
     test_correctness: bool,
     #[arg(short, long)]
+    /// Run rank queries
     rank: bool,
     #[arg(short, long)]
+    /// Run get queries
     access: bool,
     #[arg(short, long)]
+    /// Run select queries
     select: bool,
     #[arg(short, long)]
+    /// Run rank_prefetch queries
     rank_prefetch: bool,
 }
 
@@ -337,7 +343,7 @@ fn test_correctness<
     print!("\nTesting correctness... ");
     for (i, &symbol) in sequence.iter().enumerate() {
         assert_eq!(ds.get(i), Some(symbol));
-        let rank = ds.rank(symbol, i + 1).unwrap();
+        let rank = ds.rank(symbol, i).unwrap();
         let s = ds.select(symbol, rank).unwrap();
         assert_eq!(s, i);
     }
