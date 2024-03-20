@@ -16,10 +16,10 @@ fn test_small() {
     assert_eq!(qwt.rank(1, 10), None); // too large position
 
     assert_eq!(qwt.select(8, 1), None); // too large symbol
-    assert_eq!(qwt.select(5, 0), None); // no 0th occurrence
+    assert_eq!(qwt.select(5, 0), Some(6)); // no 0th occurrence
 
     for (i, &v) in data.iter().enumerate() {
-        let rank = qwt.rank(v, i + 1).unwrap();
+        let rank = qwt.rank(v, i).unwrap();
         let s = qwt.select(v, rank).unwrap();
         assert_eq!(s, i);
     }
@@ -58,7 +58,7 @@ fn test() {
         }
 
         for (i, &symbol) in sequence.iter().enumerate() {
-            let rank = qwt.rank(symbol, i + 1).unwrap();
+            let rank = qwt.rank(symbol, i).unwrap();
             let s = qwt.select(symbol, rank).unwrap();
             assert_eq!(s, i);
         }
@@ -83,7 +83,7 @@ fn test() {
         }
 
         for (i, &symbol) in sequence.iter().enumerate() {
-            let rank = qwt.rank(symbol, i + 1).unwrap();
+            let rank = qwt.rank(symbol, i).unwrap();
             let s = qwt.select(symbol, rank).unwrap();
             assert_eq!(s, i);
         }

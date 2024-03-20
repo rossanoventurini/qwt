@@ -10,6 +10,7 @@ pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
 pub mod bitvector;
+pub use bitvector::rs_bitvector::RSBitVector;
 pub use bitvector::rs_narrow::RSNarrow;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
@@ -134,48 +135,27 @@ pub trait RankBin {
 }
 
 // TODO: Add SelectBin trait when select will be implemented
-/// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectBin {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `1`.
-    /// We start counting from 1, so that `select1(1)` refers to the first
-    /// occurrence of `1`. `select1(0)` returns `None`.
-    ///
-    /// # Panics
-    /// Panics if the operation is not supported.
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
     fn select1(&self, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `0`.
-    /// We start counting from 1, so that `select0(1)` refers to the first
-    /// occurrence of `0`. `select1(0)` returns `None`.
-    ///
-    /// # Panics
-    /// Panics if the operation is not supported.
-    fn select0(&self, i: usize) -> Option<usize>;
-
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `1`.
-    /// We start counting from 1, so that `select1_unchecked(1)` refers to the first
-    /// occurrence of `1`.
-    ///
-    /// # Panics
-    /// Panics if the operation is not supported.
+    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `1` does not exist.
+    /// This method doesn't check that such element exists
+    /// Calling this method with an i >= maximum rank1 is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `0`.
-    /// We start counting from 1, so that `select0_unchecked(1)` refers to the first
-    /// occurrence of `0`.
-    ///
-    /// # Panics
-    /// Panics if the operation is not supported.
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    /// Returns `None` if the data structure has no such element (i >= maximum rank0)
+    fn select0(&self, i: usize) -> Option<usize>;
+
+    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
     ///
     /// # Safety
-    /// Calling this method if the `i`th occurrence of `0` does not exist.
+    /// This method doesnt check that such element exists
+    /// Calling this method with an `i >= maximum rank0` is undefined behaviour.
     unsafe fn select0_unchecked(&self, i: usize) -> usize;
 }
 
@@ -208,14 +188,11 @@ pub trait RankQuad {
 
 /// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
-    /// occurrence of `symbol`. `select(symbol, 0)` returns `None`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`
+    /// (0-indexed, mening the first occurrence is obtained using `i = 0`).
     fn select(&self, symbol: u8, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of
-    /// `symbol`.
+    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`.
     /// We start counting from 1, so that `select(symbol, 1)` refers to the first
     /// occurrence of `symbol`.
     ///

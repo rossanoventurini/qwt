@@ -123,3 +123,14 @@ fn test_iter_ones() {
     let v: Vec<usize> = bv.ones().collect();
     assert_eq!(v, vv);
 }
+
+#[test]
+fn test_set_symbol() {
+    let mut dl = DataLine::default();
+
+    let i = 333;
+    dl.set_symbol(1, i);
+    println!("{:?}", dl);
+
+    println!("got bit: {:?}", dl.get(i));
+}

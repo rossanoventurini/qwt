@@ -1,5 +1,5 @@
 use super::*;
-use crate::perf_and_test_utils::gen_strictly_increasing_sequence;
+use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector};
 
 /// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
 /// and the next position.
@@ -64,4 +64,96 @@ fn test_large_random() {
     let rs = RSNarrow::new(bv);
 
     test_rank1(&rs, &rs.bv);
+}
+
+#[test]
+fn test_select1() {
+    let vv: Vec<usize> = vec![3, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    println!("{:?}", rs.bv);
+    println!("{:?}", rs.block_rank_pairs);
+
+    let i = 5;
+    let selected = rs.select1(i).unwrap();
+    println!("select1({}) = {}", i, selected);
+
+    let j = selected;
+    println!("rank1({}) = {}", j, rs.rank1(j).unwrap());
+}
+
+#[test]
+fn test_select0() {
+    let vv: Vec<usize> = vec![0, 5, 8, 128, 129, 513];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    println!("{:?}", rs.bv);
+    println!("{:?}", rs.block_rank_pairs);
+
+    let i = 0;
+    let selected = rs.select0(i).unwrap();
+    println!("select0({}) = {}", i, selected);
+
+    let j = selected;
+    println!("rank0({}) = {}", j, rs.rank0(j).unwrap());
+}
+
+#[test]
+fn test_select0_big() {
+    let vv: Vec<usize> = vec![
+        3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001, 10000,
+    ];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    let zeros_vector = negate_vector(&vv);
+
+    for (i, &el) in zeros_vector.iter().enumerate() {
+        // println!("SELECTING {}", i);
+        let selected = rs.select0(i);
+        assert_eq!(selected, Some(el));
+    }
+}
+
+#[test]
+fn test_select1_big() {
+    let vv: Vec<usize> = vec![
+        3, 5, 8, 128, 129, 513, 1000, 1024, 1025, 4096, 7500, 7600, 7630, 7680, 8000, 8001, 10000,
+    ];
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    for (i, &el) in vv.iter().enumerate() {
+        // println!("SELECTING {}", i);
+        let selected = rs.select1(i);
+        assert_eq!(selected, Some(el));
+    }
+}
+
+#[test]
+fn test_random_select1() {
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 20);
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    for (i, &el) in vv.iter().enumerate() {
+        let selected = rs.select1(i);
+        assert_eq!(selected, Some(el));
+    }
+}
+
+#[test]
+fn test_random_select0() {
+    let vv: Vec<usize> = gen_strictly_increasing_sequence(10000, 1 << 20);
+    let bv: BitVector = vv.iter().copied().collect();
+    let rs = RSNarrow::new(bv);
+
+    let zeros_vector = negate_vector(&vv);
+
+    for (i, &el) in zeros_vector.iter().enumerate() {
+        let selected = rs.select0(i);
+        assert_eq!(selected, Some(el));
+    }
 }
