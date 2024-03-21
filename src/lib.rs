@@ -31,11 +31,13 @@ pub use space_usage::SpaceUsage;
 pub mod darray;
 pub use darray::DArray;
 
+/// Type alias for a Quad Wavelet Tree with block size of 256
 pub type QWT256<T> = QWaveletTree<T, RSQVector256>;
+/// Type alias for a Quad Wavelet Tree with block size of 512
 pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
-
-// Quad Wavelet tree with support for prefetching
+/// Type alias for a Quad Wavelet Tree with block size of 256 with prefetching support enabled
 pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
+/// Type alias for a Quad Wavelet Tree with block size of 512 with prefetching support enabled
 pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
 
 use num_traits::Unsigned;
@@ -44,7 +46,7 @@ use num_traits::Unsigned;
 pub trait AccessUnsigned {
     type Item: Unsigned;
 
-    /// Returns the symbol at position `i`.
+    /// Returns the symbol at position `i`, or `None` if the index `i` is out of bounds.
     fn get(&self, i: usize) -> Option<Self::Item>;
 
     /// Returns the symbol at position `i`.
@@ -68,7 +70,7 @@ pub trait RankUnsigned: AccessUnsigned {
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
 }
 
-/// A trait for the support of ``select` query over an `Unsigned` alphabet.
+/// A trait for the support of `select` query over an `Unsigned` alphabet.
 pub trait SelectUnsigned: AccessUnsigned {
     /// Returns the position in the indexed sequence of the `i+1`th occurrence of
     /// `symbol`.
@@ -134,23 +136,24 @@ pub trait RankBin {
     }
 }
 
+/// A trait for the support of `select` query over the binary alphabet.
 pub trait SelectBin {
-    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
-    /// Returns `None` if the data structure has no such element (i >= maximum rank1)
+    /// Returns the position of the `i+1`-th occurrence of a bit set to `1`.
+    /// Returns `None` if there is no such position.
     fn select1(&self, i: usize) -> Option<usize>;
 
-    /// Returns the position `pos` such that the element is `1` and rank1(pos) = i.
+    /// Returns the position of the `i+1`-th occurrence of a bit set to `1`.
     ///
     /// # Safety
     /// This method doesn't check that such element exists
     /// Calling this method with an i >= maximum rank1 is undefined behaviour.
     unsafe fn select1_unchecked(&self, i: usize) -> usize;
 
-    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
-    /// Returns `None` if the data structure has no such element (i >= maximum rank0)
+    /// Returns the position of the `i+1`-th occurrence of a bit set to `0`.
+    /// Returns `None` if there is no such position.
     fn select0(&self, i: usize) -> Option<usize>;
 
-    /// Returns the position `pos` such that the element is `0` and rank0(pos) = i.
+    /// Returns the position of the `i+1`-th occurrence of a bit set to  `0`.
     ///
     /// # Safety
     /// This method doesnt check that such element exists

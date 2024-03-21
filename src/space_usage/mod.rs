@@ -1,3 +1,5 @@
+//! This module reports the space usage of a data structure.
+
 use std::mem;
 
 /// A trait to report the space usage of a data structure.

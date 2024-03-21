@@ -1,5 +1,3 @@
-//! # Quad Wavelet Tree
-//!
 //! This module implements a Quad Wavelet Tree, providing efficient implementations of [`AccessUnsigned`], [`RankUnsigned`], and [`SelectUnsigned`] for a vector of unsigned integers.
 //!
 //! The Quad Wavelet Tree indexes a sequence of unsigned integers and facilitates the following three operations:
