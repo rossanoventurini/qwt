@@ -388,7 +388,7 @@ impl SelectBin for RSWide {
 impl SpaceUsage for RSWide {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte()
+        self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte() + self.select_samples[0].space_usage_byte() + self.select_samples[1].space_usage_byte()
     }
 }
 

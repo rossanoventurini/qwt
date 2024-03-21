@@ -25,6 +25,8 @@ pub mod quadwt;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
 
+pub mod huff_qwt;
+
 pub mod space_usage;
 pub use space_usage::SpaceUsage;
 

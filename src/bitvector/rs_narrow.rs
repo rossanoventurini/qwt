@@ -317,7 +317,7 @@ impl SelectBin for RSNarrow {
 impl SpaceUsage for RSNarrow {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte() + self.block_rank_pairs.space_usage_byte()
+        self.bv.space_usage_byte() + self.block_rank_pairs.space_usage_byte() + self.select_samples[0].space_usage_byte() + self.select_samples[1].space_usage_byte()
     }
 }
 
