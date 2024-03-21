@@ -42,7 +42,7 @@ pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
 
 use num_traits::Unsigned;
 
-/// A trait fro the support `get` query over an `Unsigned` alphabet.
+/// A trait for the support `get` query over an `Unsigned` alphabet.
 pub trait AccessUnsigned {
     type Item: Unsigned;
 
@@ -190,12 +190,12 @@ pub trait RankQuad {
 
 /// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
-    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of `symbol`
     /// (0-indexed, mening the first occurrence is obtained using `i = 0`).
     fn select(&self, symbol: u8, i: usize) -> Option<usize>;
 
-    /// Returns the position in the indexed sequence of the `i`th occurrence of `symbol`.
-    /// We start counting from 1, so that `select(symbol, 1)` refers to the first
+    /// Returns the position in the indexed sequence of the `i+1`th occurrence of `symbol`.
+    /// We start counting from 0, so that `select(symbol, 0)` refers to the first
     /// occurrence of `symbol`.
     ///
     /// # Safety
