@@ -26,6 +26,7 @@ pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
 
 pub mod huff_qwt;
+pub use huff_qwt::HuffQWaveletTree;
 
 pub mod space_usage;
 pub use space_usage::SpaceUsage;
@@ -39,6 +40,8 @@ pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 // Quad Wavelet tree with support for prefetching
 pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
 pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
+
+pub type HQWT512<T> = HuffQWaveletTree<T, RSWide, RSQVector512>;
 
 use num_traits::Unsigned;
 

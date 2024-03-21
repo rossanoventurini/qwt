@@ -392,5 +392,11 @@ impl SpaceUsage for RSWide {
     }
 }
 
+impl From<BitVector> for RSWide {
+    fn from(bv: BitVector) -> Self {
+        RSWide::new(bv)
+    }
+}
+
 #[cfg(test)]
 mod tests;

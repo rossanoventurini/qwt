@@ -12,7 +12,13 @@ fn playgroud(){
         map
     });
 
-    let huffman = Coding::from_frequencies(BitsPerFragment(1), freqs);    
+    let huffman: HashMap<char, minimum_redundancy::Code> = Coding::from_frequencies(BitsPerFragment(1), freqs)
+        .codes_for_values()
+        .into_iter()
+        .map(|mut c| {
+            c.1.content |= std::u32::MAX << c.1.len;
+            c
+        }).collect();
 
-    println!("{:?}", huffman.codes_for_values());
+    println!("{:?}", huffman);
 }

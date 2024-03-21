@@ -1,7 +1,9 @@
 //! The module provides low-level utilities to perform
 //! bitwise operations, aligned allocation, and so on.
+use minimum_redundancy::Code;
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::ops::Shr;
 
 #[allow(non_snake_case)]
@@ -268,6 +270,32 @@ where
 
     let mut pos = 0;
     for i in 0..4 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
+pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &HashMap<T, Code>)
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
+    u8: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)
+
+    for &a in sequence.iter() {
+        let code = codes.get(&a).unwrap();
+        if code.len < shift as u32 {
+            //we dont care about this symbol (already taken care of)
+            vecs[4].push(a);
+        }else{
+            //we partition as normal
+            let two_bits = (a >> shift).as_() & 3;
+            vecs[two_bits as usize].push(a);
+        }
+    }
+
+    let mut pos = 0;
+    for i in 0..5 {
         sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
         pos += vecs[i].len()
     }
