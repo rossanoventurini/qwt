@@ -165,11 +165,7 @@ assert_eq!(qwt.get(5), Some(1000000));
 assert_eq!(qwt.get(8), None);
 ```
 
-<<<<<<< HEAD
 Even faster rank queries are obtained with the use of prefetching data structures with [`QWT256Pfs`] and  [`QWT512Pfs`].
-=======
-Even faster rank queries are obtained with the use of prefetching data structures with `QWT256Pfs` and  `QWT512Pfs`.
->>>>>>> 2bebab12f645486930cf915dd26d40342ce46054
 In this case use the methods `rank_prefetch` or `rank_prefetch_unchecked`. Here is an example.
 
 ```rust
