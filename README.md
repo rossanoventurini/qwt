@@ -32,14 +32,14 @@ The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.
 | [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          2860 |       4112 | C++ |
 | [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
 | [Simple-SDS 0.3.1](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
-| [`Qwt256`]                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
-| [`Qwt256Pfs`]                                    |          515 |         363 |          1226 |        4626 | Rust |
-| [`Qwt512`]                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
-| ['Qwt512Pfs`]                                    |          526 |         398 |         1197 |        4369 | Rust |
+| [`QWT256`]                                       |          516 |         542 |          1226 |       4616 | C++/Rust |
+| [`QWT256Pfs`]                                    |          515 |         363 |          1226 |        4626 | Rust |
+| [`QWT512`]                                       |          525 |         569 |          1196 |       4360 | C++/Rust |
+| ['QWT512Pfs`]                                    |          526 |         398 |         1197 |        4369 | Rust |
 
 We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
 
-There are four instances of our proposed wavelet trees, [`Qwt256`] and [`Qwt512`], which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `Pfs` in [`Qwt256Pfs`] and [`Qwt512Pfs`] indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
+There are four instances of our proposed wavelet trees, [`QWT256`] and [`QWT512`], which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `Pfs` in [`QWT256Pfs`] and [`QWT512Pfs`] indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
 
 To run the experiments, we need to compile the binary executables with
 
@@ -152,7 +152,7 @@ assert_eq!(qwt.select(4, 0), Some(5));
 assert_eq!(qwt.select(1, 3), None);
 ```
 
-In the following example, we use [`Qwt256`] to index a sequence over a larger alphabet.
+In the following example, we use [`QWT256`] to index a sequence over a larger alphabet.
 
 ```rust
 use qwt::{QWT256, AccessUnsigned, RankUnsigned, SelectUnsigned};
