@@ -91,6 +91,10 @@ impl RankBin for DataLine {
         }
         rank
     }
+
+    fn n_zeros(&self) -> usize {
+        self.n_zeros()
+    }
 }
 
 impl SpaceUsage for DataLine {

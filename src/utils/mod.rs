@@ -275,8 +275,11 @@ where
     }
 }
 
-pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &HashMap<T, Code>)
-where
+pub fn stable_partition_of_4_with_codes<T>(
+    sequence: &mut [T],
+    shift: usize,
+    codes: &HashMap<T, Code>,
+) where
     T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
     u8: AsPrimitive<T>,
 {
@@ -287,15 +290,38 @@ where
         if code.len < shift as u32 {
             //we dont care about this symbol (already taken care of)
             vecs[4].push(a);
-        }else{
+        } else {
             //we partition as normal
-            let two_bits = (a >> shift).as_() & 3;
+            let two_bits = (code.content >> (code.len - shift as u32)) & 3;
             vecs[two_bits as usize].push(a);
         }
     }
 
     let mut pos = 0;
     for i in 0..5 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
+pub fn stable_partition_of_2_with_codes<T>(
+    sequence: &mut [T],
+    shift: usize,
+    codes: &HashMap<T, Code>,
+) where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
+    u8: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new()];
+
+    for &a in sequence.iter() {
+        let code = codes.get(&a).unwrap();
+        let bit = (code.content >> (code.len - shift as u32)) & 1;
+        vecs[bit as usize].push(a);
+    }
+
+    let mut pos = 0;
+    for i in 0..2 {
         sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
         pos += vecs[i].len()
     }

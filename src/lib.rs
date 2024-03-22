@@ -41,6 +41,7 @@ pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
 pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
 
+pub type HQWT256<T> = HuffQWaveletTree<T, RSWide, RSQVector256>;
 pub type HQWT512<T> = HuffQWaveletTree<T, RSWide, RSQVector512>;
 
 use num_traits::Unsigned;
@@ -137,6 +138,8 @@ pub trait RankBin {
     unsafe fn rank0_unchecked(&self, i: usize) -> usize {
         i - self.rank1_unchecked(i)
     }
+
+    fn n_zeros(&self) -> usize;
 }
 
 pub trait SelectBin {
