@@ -9,17 +9,24 @@ use qwt::RSWide;
 use qwt::SpaceUsage;
 use qwt::{RankBin, SelectBin};
 
+use simple_sds::bit_vector::BitVector as sds_BitVector;
 use simple_sds::ops::Rank;
 use simple_sds::ops::Select;
 use simple_sds::raw_vector::AccessRaw;
 use simple_sds::raw_vector::RawVector;
+use simple_sds::serialize::Serialize as simple_sds_Serialize;
+
 use sucds::bit_vectors::Rank as SucdsRank;
 use sucds::bit_vectors::Rank9Sel;
 use sucds::bit_vectors::Select as SucdsSelect;
 use sucds::Serializable;
 
-use simple_sds::bit_vector::BitVector as sds_BitVector;
-use simple_sds::serialize::Serialize as simple_sds_Serialize;
+use bitm::ArrayWithRank101111;
+use bitm::BitAccess;
+use bitm::BitVec;
+use bitm::Rank as bsucc_Rank;
+use bitm::RankSelect101111;
+use bitm::Select as bsucc_Select;
 
 pub trait Operations {
     fn rank(&self, i: usize) -> usize;
@@ -86,6 +93,20 @@ impl Operations for sds_BitVector {
     }
 }
 
+impl Operations for RankSelect101111 {
+    fn rank(&self, i: usize) -> usize {
+        bsucc_Rank::rank(self, i)
+    }
+
+    fn select(&self, i: usize) -> usize {
+        bsucc_Select::select(self, i)
+    }
+
+    fn space_usage_byte(&self) -> usize {
+        0
+    }
+}
+
 fn test_rank_performace<T: Operations>(ds: &T, n: usize, queries: &[usize]) {
     let mut result = 0;
     let mut t = TimingQueries::new(N_RUNS, queries.len());
@@ -138,11 +159,14 @@ const N_RUNS: usize = 3;
 const N_QUERIES: usize = 100000;
 
 fn main() {
-    for logn in 23..26 {
+    for logn in 23..31 {
         let n = 1 << logn;
         let u = 2 * n;
 
-        println!("NEW ROUND OF TESTING -------------------------------------");
+        println!(
+            "NEW ROUND OF TESTING (logn = {})-------------------------------------",
+            logn
+        );
 
         let seq = gen_strictly_increasing_sequence(n, u);
         let queries = gen_queries(N_QUERIES, n);
@@ -154,21 +178,29 @@ fn main() {
         let rank9 = Rank9Sel::from_bits(bv.iter().collect::<Vec<_>>()).select1_hints();
 
         let mut rv = RawVector::with_len(u, false);
-        for i in seq {
+        for &i in seq.iter() {
             rv.set_bit(i, true);
         }
         let mut sds = sds_BitVector::from(rv);
         sds.enable_rank();
         sds.enable_select();
 
+        let mut b = Box::<[u64]>::with_zeroed_bits(u);
+        for &i in seq.iter() {
+            b.set_bit(i);
+        }
+        let (bsucc, _) = ArrayWithRank101111::build(b);
+
         test_rank_performace(&rsnarrow, n, &queries);
         test_rank_performace(&rswide, n, &queries);
         test_rank_performace(&rank9, n, &queries);
         test_rank_performace(&sds, n, &queries);
+        test_rank_performace(&bsucc, n, &queries);
 
         test_select_performace(&rsnarrow, n, &queries);
         test_select_performace(&rswide, n, &queries);
         test_select_performace(&rank9, n, &queries);
         test_select_performace(&sds, n, &queries);
+        test_select_performace(&bsucc, n, &queries);
     }
 }
