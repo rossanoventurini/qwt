@@ -493,5 +493,28 @@ where
     }
 }
 
+impl<T, RS: SpaceUsage, const WITH_PREFETCH_SUPPORT: bool> SpaceUsage
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+{
+    /// Gives the space usage in bytes of the struct.
+    fn space_usage_byte(&self) -> usize {
+        // let space_prefetch_support: usize = self
+        //     .prefetch_support
+        //     .iter()
+        //     .flatten()
+        //     .map(|ps| ps.space_usage_byte())
+        //     .sum();
+
+        8 + 8
+            + 256 * 8 // codes 256 + 2 * sizeof(u32)
+            + self.lens.len() * 8
+            + self
+                .qvs
+                .iter()
+                .fold(0, |acc, ds| acc + ds.space_usage_byte())
+        // + space_prefetch_support
+    }
+}
+
 #[cfg(test)]
 mod tests;
