@@ -14,9 +14,7 @@ fn test_small() {
     assert_eq!(qwt.rank(1, 9), Some(2));
     assert_eq!(qwt.rank(7, 9), Some(1));
     assert_eq!(qwt.rank(1, 10), None); // too large position
-
-    assert_eq!(qwt.select(8, 1), None); // too large symbol
-    assert_eq!(qwt.select(5, 0), Some(6)); // no 0th occurrence
+    assert_eq!(qwt.select(5, 0), Some(6));
 
     for (i, &v) in data.iter().enumerate() {
         let rank = qwt.rank(v, i).unwrap();

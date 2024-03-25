@@ -1,6 +1,5 @@
 //! The module provides low-level utilities to perform
 //! bitwise operations, aligned allocation, and so on.
-use minimum_redundancy::Code;
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -187,6 +186,8 @@ pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
 
 use std::mem;
 
+use crate::huff_qwt::PrefixCode;
+
 #[repr(C, align(64))]
 struct AlignToSixtyFour([u8; 64]);
 
@@ -275,18 +276,15 @@ where
     }
 }
 
-pub fn stable_partition_of_4_with_codes<T>(
-    sequence: &mut [T],
-    shift: usize,
-    codes: &HashMap<T, Code>,
-) where
+pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
+where
     T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
     u8: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)
 
     for &a in sequence.iter() {
-        let code = codes.get(&a).unwrap();
+        let code = &codes[a.as_() as usize];
         if code.len < shift as u32 {
             //we dont care about this symbol (already taken care of)
             vecs[4].push(a);
@@ -304,18 +302,15 @@ pub fn stable_partition_of_4_with_codes<T>(
     }
 }
 
-pub fn stable_partition_of_2_with_codes<T>(
-    sequence: &mut [T],
-    shift: usize,
-    codes: &HashMap<T, Code>,
-) where
+pub fn stable_partition_of_2_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
+where
     T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
     u8: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new()];
 
     for &a in sequence.iter() {
-        let code = codes.get(&a).unwrap();
+        let code = &codes[a.as_() as usize];
         let bit = (code.content >> (code.len - shift as u32)) & 1;
         vecs[bit as usize].push(a);
     }

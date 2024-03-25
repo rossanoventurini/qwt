@@ -1,12 +1,12 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, vec};
 
-use minimum_redundancy::{BitsPerFragment, Code, Coding};
+use minimum_redundancy::{BitsPerFragment, Coding, Frequencies};
 use num_traits::AsPrimitive;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    utils::{stable_partition_of_2_with_codes, stable_partition_of_4_with_codes},
-    AccessBin, AccessUnsigned, BitVector, BitVectorMut, QVector, QVectorBuilder, RankBin,
-    SelectBin, SpaceUsage, WTIndexable, WTSupport,
+    utils::stable_partition_of_4_with_codes, AccessBin, AccessUnsigned, BitVector, QVector,
+    QVectorBuilder, RankBin, SelectBin, SpaceUsage, WTIndexable, WTSupport,
 };
 
 pub trait HWTIndexable: WTIndexable + Hash + Debug {}
@@ -22,23 +22,26 @@ pub trait RSforWT: From<QVector> + WTSupport + SpaceUsage + Default {}
 // Generic implementation for any T
 impl<T> RSforWT for T where T: From<QVector> + WTSupport + SpaceUsage + Default {}
 
-#[derive(Default, Clone, PartialEq, Debug)] // TODO: implement Serialize, Deserialize
-pub struct HuffQWaveletTree<T, BRS, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
-    n: usize,        // The length of the represented sequence
-    n_levels: usize, // The number of levels of the wavelet matrix
-    codes: Vec<(T, Code)>,
-    bvs: Vec<BRS>, // A bit vector for each final level
-    qvs: Vec<RS>,  // A quad vector for each level
-    lens: Vec<[usize; 2]>, //len of qv and bv for each level
-                   // prefetch_support: Option<Vec<PrefetchSupport>>,
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub struct PrefixCode {
+    pub content: u32,
+    pub len: u32,
 }
 
-impl<T, BRS, RS, const WITH_PREFETCH_SUPPORT: bool>
-    HuffQWaveletTree<T, BRS, RS, WITH_PREFETCH_SUPPORT>
+#[derive(Default, Clone, PartialEq, Debug)] // TODO: implement Serialize, Deserialize
+pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
+    n: usize,        // The length of the represented sequence
+    n_levels: usize, // The number of levels of the wavelet matrix
+    codes: Vec<PrefixCode>,
+    qvs: Vec<RS>, // A quad vector for each level
+    lens: Vec<usize>,
+    phantom_data: PhantomData<T>, // prefetch_support: Option<Vec<PrefetchSupport>>,
+}
+
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
-    T: WTIndexable + Hash + Debug,
+    T: HWTIndexable,
     u8: AsPrimitive<T>,
-    BRS: BinRSforWT,
     RS: RSforWT,
 {
     /// Builds the compressed wavelet tree of the `sequence` of unsigned integers.
@@ -67,76 +70,52 @@ where
                 n: 0,
                 n_levels: 0,
                 codes: Vec::default(),
-                bvs: vec![BRS::default()],
                 qvs: vec![RS::default()],
-                lens: Vec::default(), // prefetch_support: None,
+                lens: vec![0],
+                // prefetch_support: None,
+                phantom_data: PhantomData,
             };
         }
 
         //count symbol frequences
-        let freqs: HashMap<T, usize> = sequence.iter().fold(HashMap::new(), |mut map, &c| {
-            *map.entry(c).or_insert(0) += 1;
+        let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
+            *map.entry(c.as_()).or_insert(0u32) += 1;
             map
         });
 
+        println!("entropy: {}", Frequencies::entropy(&freqs));
+
         //we get the codes and we fill the uninteresting bits with 1 (useful for partitioning later)
-        let codes: HashMap<T, Code> = Coding::from_frequencies(BitsPerFragment(1), freqs)
-            .codes_for_values()
-            .into_iter()
-            // .map(|mut c| {  // fill with ones
-            //     c.1.content |= std::u32::MAX << c.1.len;
-            //     c
-            // })
-            .collect();
+        let codes = Coding::from_frequencies(BitsPerFragment(2), freqs)
+            .codes_for_values_array()
+            .iter()
+            .map(|&x| PrefixCode {
+                len: x.len * 2, //convert fragments -> bits
+                content: x.content,
+            })
+            .collect::<Vec<_>>();
 
-        println!("{:?}", codes);
-
-        println!("INITIAL SEQ: ");
-        println!("{:?}", sequence);
-
-        //the first level has to be a bitvector because we need to index the first time in the correct order (for a correct get)
-        //we cant start partitioning into qvs and bvs straight from the first level
         let max_len = codes
             .iter()
-            .map(|x| x.1.len)
+            .map(|x| x.len)
             .max()
             .expect("error while finding max code length") as usize;
-        let n_levels = 1 + (max_len - 1) / 2 + (max_len - 1) % 2; //if max len is odd the last level is a bv
+        let n_levels = max_len / 2;
 
-        let mut bvs = Vec::with_capacity(n_levels);
         let mut qvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
 
-        let mut shift = 1;
-        //first level is separated
-        let cur_qv = QVectorBuilder::new(); //first level qv is empty because we need to index by bv
-        let mut cur_bv = BitVectorMut::new();
-        for s in sequence.iter() {
-            let cur_code = codes.get(s).expect("could not tanslate symbol into code");
-            cur_bv.push((cur_code.content >> (cur_code.len - shift)) & 1 == 1);
-        }
+        let mut shift = 0;
 
-        let qv = cur_qv.build();
-        let cur_len = [qv.len(), cur_bv.len()];
-        lens.push(cur_len);
-        qvs.push(RS::from(qv));
-        bvs.push(BRS::from(cur_bv.iter().collect()));
-
-        stable_partition_of_2_with_codes(sequence, shift as usize, &codes);
-        println!("partition now: ");
-        println!("{:?}", sequence);
-        //now we partitioned the codes and we can index them correctly
-
-        for _level in 1..n_levels {
+        for _level in 0..n_levels {
             let mut cur_qv = QVectorBuilder::new();
-            let mut cur_bv = BitVectorMut::new();
 
             for s in sequence.iter() {
                 let cur_code = codes
-                    .get(s)
+                    .get(s.as_() as usize)
                     .expect("some error occurred during code translation while building huffqwt");
                 //different paths if it goes in qv of bv
-                if cur_code.len < shift {
+                if cur_code.len <= shift {
                     //we finished handling this symbol in an upper level
                     continue;
                 }
@@ -145,38 +124,24 @@ where
                     //we put in a qvector
                     let qv_symbol = (cur_code.content >> (cur_code.len - shift - 2)) & 3;
                     cur_qv.push(qv_symbol as u8);
-                } else {
-                    //we are at a bitvector leaf
-                    let bv_symbol = cur_code.content & 1;
-                    cur_bv.push(bv_symbol == 1);
                 }
             }
 
             shift += 2;
 
             let qv = cur_qv.build();
-            let cur_len = [qv.len(), cur_bv.len()];
-            lens.push(cur_len);
+            lens.push(qv.len());
             qvs.push(RS::from(qv));
-            bvs.push(BRS::from(cur_bv.iter().collect()));
 
             stable_partition_of_4_with_codes(sequence, shift as usize, &codes);
-            println!("partition now: ");
-            println!("{:?}", sequence);
-            shift += 2;
         }
 
         qvs.shrink_to_fit();
-        bvs.shrink_to_fit();
-        lens.shrink_to_fit();
-
-        // println!("{:?}", sequence);
 
         Self {
             n: sequence.len(),
             n_levels,
             codes: codes.into_iter().collect::<Vec<_>>(),
-            bvs,
             qvs,
             lens,
             // prefetch_support: if WITH_PREFETCH_SUPPORT {
@@ -184,6 +149,7 @@ where
             // } else {
             //     None
             // },
+            phantom_data: PhantomData,
         }
     }
 
@@ -241,13 +207,12 @@ where
     }
 }
 
-impl<T, BRS, RS, const WITH_PREFETCH_SUPPORT: bool> AccessUnsigned
-    for HuffQWaveletTree<T, BRS, RS, WITH_PREFETCH_SUPPORT>
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AccessUnsigned
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
     u8: AsPrimitive<T>,
     RS: RSforWT,
-    BRS: BinRSforWT,
 {
     type Item = T;
 
@@ -266,54 +231,41 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            //we check which bv we need to lookup
-            if cur_i < self.lens[level][0] {
-                //we can access qv
-                shift += 2;
+            // println!(
+            //     "[level {}] cur_i: {}, self.lens[level]: {}",
+            //     level, cur_i, self.lens[level]
+            // );
 
-                let symbol = self.qvs[level].get_unchecked(cur_i);
-                result = (result << 2) | symbol as u32;
-
-                let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
-                cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
-            } else if cur_i - self.lens[level][0] < self.lens[level][1] {
-                //we can access bv
-                shift += 1;
-
-                let symbol = self.bvs[level].get_unchecked(cur_i - self.lens[level][0]);
-                result = (result << 1) | symbol as u32;
-
-                let offset = if symbol { self.bvs[level].n_zeros() } else { 0 };
-
-                cur_i = if symbol {
-                    self.bvs[level].rank1_unchecked(cur_i)
-                } else {
-                    self.bvs[level].rank0_unchecked(cur_i)
-                };
-                cur_i += offset;
-            } else {
-                //we finished contructing the result in the upper level
+            if cur_i >= self.lens[level] {
                 break;
             }
+            shift += 2;
+
+            let symbol = self.qvs[level].get_unchecked(cur_i);
+            result = (result << 2) | symbol as u32;
+
+            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
+            cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
         }
 
-        println!("found result: {}", result);
-        println!("found shift: {}", shift);
+        // println!("found result: {}", result);
+        // println!("found shift: {}", shift);
 
-        self.codes
-            .iter()
-            .find(|x| x.1.content == result && x.1.len == shift)
-            .expect("could not translate symbol")
-            .0
+        T::from(
+            self.codes
+                .iter()
+                .position(|x| x.len == shift && x.content == result)
+                .expect("could not translate symbol"),
+        )
+        .unwrap()
     }
 }
 
-impl<T, BRS, RS, const WITH_PREFETCH_SUPPORT: bool> From<Vec<T>>
-    for HuffQWaveletTree<T, BRS, RS, WITH_PREFETCH_SUPPORT>
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> From<Vec<T>>
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: HWTIndexable,
     u8: AsPrimitive<T>,
-    BRS: BinRSforWT,
     RS: RSforWT,
 {
     fn from(mut v: Vec<T>) -> Self {

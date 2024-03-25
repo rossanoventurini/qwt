@@ -41,8 +41,8 @@ pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
 pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
 
-pub type HQWT256<T> = HuffQWaveletTree<T, RSWide, RSQVector256>;
-pub type HQWT512<T> = HuffQWaveletTree<T, RSWide, RSQVector512>;
+pub type HQWT256<T> = HuffQWaveletTree<T, RSQVector256>;
+pub type HQWT512<T> = HuffQWaveletTree<T, RSQVector512>;
 
 use num_traits::Unsigned;
 
