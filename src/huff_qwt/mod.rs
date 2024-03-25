@@ -516,5 +516,13 @@ impl<T, RS: SpaceUsage, const WITH_PREFETCH_SUPPORT: bool> SpaceUsage
     }
 }
 
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+{
+    fn as_ref(&self) -> &HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT> {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests;
