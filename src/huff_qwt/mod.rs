@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     utils::stable_partition_of_4_with_codes, AccessBin, AccessUnsigned, BitVector, QVector,
-    QVectorBuilder, RankBin, SelectBin, SpaceUsage, WTIndexable, WTSupport,
+    QVectorBuilder, RankBin, RankUnsigned, SelectBin, SelectUnsigned, SpaceUsage, WTIndexable,
+    WTSupport,
 };
 
 pub trait HWTIndexable: WTIndexable + Hash + Debug {}
@@ -28,14 +29,15 @@ pub struct PrefixCode {
     pub len: u32,
 }
 
-#[derive(Default, Clone, PartialEq, Debug)] // TODO: implement Serialize, Deserialize
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
     codes: Vec<PrefixCode>,
     qvs: Vec<RS>, // A quad vector for each level
     lens: Vec<usize>,
-    phantom_data: PhantomData<T>, // prefetch_support: Option<Vec<PrefetchSupport>>,
+    phantom_data: PhantomData<T>,
+    // prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
@@ -84,6 +86,11 @@ where
         });
 
         println!("entropy: {}", Frequencies::entropy(&freqs));
+
+        println!(
+            "{:?}",
+            Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
+        );
 
         //we get the codes and we fill the uninteresting bits with 1 (useful for partitioning later)
         let codes = Coding::from_frequencies(BitsPerFragment(2), freqs)
@@ -270,6 +277,181 @@ where
 {
     fn from(mut v: Vec<T>) -> Self {
         HuffQWaveletTree::new(&mut v[..])
+    }
+}
+
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> RankUnsigned
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// `None` is returned if `i` is out of bound or if `symbol` is not valid
+    /// (i.e., it is greater than or equal to the alphabet size).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{HQWT256, RankUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// assert_eq!(qwt.rank(6, 1), None);  // Too large symbol
+    /// assert_eq!(qwt.rank(1, 2), Some(1));
+    /// assert_eq!(qwt.rank(3, 8), Some(1));
+    /// assert_eq!(qwt.rank(1, 0), Some(0));
+    /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
+        if i > self.n || self.codes[symbol.as_() as usize].len == 0 {
+            return None;
+        }
+
+        // SAFETY: Check above guarantees we are not out of bound
+        Some(unsafe { self.rank_unchecked(symbol, i) })
+    }
+
+    /// Returns rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with a position `i` larger than the size of the sequence
+    /// or with an invalid symbol is undefined behavior.
+    ///
+    /// Users must ensure that the position `i` is within the bounds of the sequence
+    /// and that the symbol is valid.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{HQWT256, RankUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// unsafe {
+    ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
+    /// }
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
+        let mut cur_i = i;
+        let mut cur_p = 0;
+
+        let code = &self.codes[symbol.as_() as usize];
+        let mut shift: i64 = code.len as i64 - 2;
+        let repr = code.content;
+        let mut level = 0;
+
+        while shift >= 0 {
+            let two_bits = ((repr >> shift as usize) & 3) as u8;
+
+            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
+            cur_p = self.qvs[level].rank_unchecked(two_bits, cur_p) + offset;
+            cur_i = self.qvs[level].rank_unchecked(two_bits, cur_i) + offset;
+
+            level += 1;
+            shift -= 2;
+        }
+
+        cur_i - cur_p
+    }
+}
+
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> SelectUnsigned
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
+    ///
+    /// `None` is returned if the is no (i+1)th such occurrence for the symbol
+    /// or if `symbol` is not valid (i.e., it is greater than or equal to the alphabet size).
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::{QWT256, SelectUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = QWT256::from(data);
+    ///
+    /// assert_eq!(qwt.select(1, 1), Some(2));
+    /// assert_eq!(qwt.select(0, 1), Some(3));
+    /// assert_eq!(qwt.select(0, 2), None);
+    /// assert_eq!(qwt.select(1, 0), Some(0));
+    /// assert_eq!(qwt.select(5, 0), Some(6));
+    /// assert_eq!(qwt.select(6, 1), None);
+    /// ```    
+    #[must_use]
+    #[inline(always)]
+    fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
+        if self.codes[symbol.as_() as usize].len == 0 {
+            return None;
+        }
+
+        let mut path_off = Vec::with_capacity(self.n_levels);
+        let mut rank_path_off = Vec::with_capacity(self.n_levels);
+
+        let code = &self.codes[symbol.as_() as usize];
+        let mut shift: i64 = code.len as i64 - 2;
+        let repr = code.content;
+
+        let mut b = 0;
+
+        let mut level = 0;
+        while shift >= 0 {
+            path_off.push(b);
+
+            let two_bits = ((repr >> shift as usize) & 3) as u8;
+
+            let rank_b = self.qvs[level].rank(two_bits, b)?;
+
+            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
+            rank_path_off.push(rank_b);
+
+            level += 1;
+            shift -= 2;
+        }
+
+        shift = 0;
+        let mut result = i;
+        for level in (0..level).rev() {
+            b = path_off[level];
+            let rank_b = rank_path_off[level];
+            let two_bits = ((repr >> shift as usize) & 3) as u8;
+
+            result = self.qvs[level].select(two_bits, rank_b + result)? - b;
+            shift += 2;
+        }
+
+        Some(result)
+    }
+
+    /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with a value of `i` larger than the number of occurrences
+    /// of the `symbol`, or if the `symbol` is not valid, is undefined behavior.
+    ///
+    /// In the current implementation, there is no efficiency reason to prefer this
+    /// unsafe `select` over the safe one.
+    #[must_use]
+    #[inline(always)]
+    unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
+        self.select(symbol, i).unwrap()
     }
 }
 
