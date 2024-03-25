@@ -223,6 +223,23 @@ where
 {
     type Item = T;
 
+    /// Returns the `i`-th symbol of the indexed sequence.
+    ///
+    /// `None` is returned if `i` is out of bound.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{HQWT256, AccessUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// assert_eq!(qwt.get(2), Some(1));
+    /// assert_eq!(qwt.get(3), Some(0));
+    /// assert_eq!(qwt.get(8), None);
+    /// ```
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
             return None;
@@ -231,6 +248,27 @@ where
         Some(unsafe { self.get_unchecked(i) })
     }
 
+    /// Returns the `i`-th symbol of the indexed sequence.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    ///
+    /// Users must ensure that the index `i` is within the bounds of the sequence.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::{HQWT256, AccessUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// unsafe {
+    ///     assert_eq!(qwt.get_unchecked(2), 1);
+    ///     assert_eq!(qwt.get_unchecked(3), 0);
+    /// }
+    /// ```
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
         let mut result: u32 = 0;
@@ -381,11 +419,11 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWT256, SelectUnsigned};
+    /// use qwt::{HQWT256, SelectUnsigned};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
-    /// let qwt = QWT256::from(data);
+    /// let qwt = HQWT256::from(data);
     ///
     /// assert_eq!(qwt.select(1, 1), Some(2));
     /// assert_eq!(qwt.select(0, 1), Some(3));
