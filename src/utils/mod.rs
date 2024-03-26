@@ -285,12 +285,12 @@ where
 
     for &a in sequence.iter() {
         let code = &codes[a.as_() as usize];
-        if code.len < shift as u32 {
+        if code.len <= shift as u32 {
             //we dont care about this symbol (already taken care of)
             vecs[4].push(a);
         } else {
             //we partition as normal
-            let two_bits = (code.content >> (code.len - shift as u32)) & 3;
+            let two_bits = (code.content >> (code.len - shift as u32 - 2)) & 3;
             vecs[two_bits as usize].push(a);
         }
     }

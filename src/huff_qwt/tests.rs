@@ -56,17 +56,22 @@ fn pg2() {
 
 #[test]
 fn playgroud3() {
-    let mut sequence = String::from("aaaaaaaaccccbbdAAAABBEFawegf")
-        .bytes()
-        .collect::<Vec<_>>();
-    let seq_check = sequence.to_vec();
+    // let mut sequence = String::from("aaaaaaaaccccbbdAAAABBEFawegf")
+    let mut sequence = vec![
+        1u32, 1, 1, 1, 5, 6, 8, 34, 34, 65, 7, 8, 9, 34, 2, 45, 7, 21, 22, 23, 34, 25, 26, 3, 234,
+        255,
+    ];
+    let seq_check = sequence.clone();
 
     let hqwt = HQWT256::new(sequence.as_mut_slice());
 
     println!("hqwt levels: {:?}", hqwt.n_levels);
 
     for i in 0..hqwt.len() {
-        println!("index {} | should be {}", i, seq_check[i]);
+        println!(
+            "-------------------\nindex {} | should be {} | {:?}",
+            i, seq_check[i], hqwt.codes[seq_check[i] as usize]
+        );
         assert_eq!(hqwt.get(i), Some(seq_check[i]));
     }
     assert_eq!(hqwt.get(hqwt.len()), None);

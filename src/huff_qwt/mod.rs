@@ -92,12 +92,14 @@ where
             Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
         );
 
+        let huff_tree_arity: u32 = 4 >> 1;
+
         //we get the codes and we fill the uninteresting bits with 1 (useful for partitioning later)
-        let codes = Coding::from_frequencies(BitsPerFragment(2), freqs)
+        let codes = Coding::from_frequencies(BitsPerFragment(huff_tree_arity as u8), freqs)
             .codes_for_values_array()
             .iter()
             .map(|&x| PrefixCode {
-                len: x.len * 2, //convert fragments -> bits
+                len: x.len * huff_tree_arity, //convert fragments -> bits
                 content: x.content,
             })
             .collect::<Vec<_>>();
@@ -107,7 +109,7 @@ where
             .map(|x| x.len)
             .max()
             .expect("error while finding max code length") as usize;
-        let n_levels = max_len / 2;
+        let n_levels = max_len / huff_tree_arity as usize;
 
         let mut qvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
@@ -121,26 +123,26 @@ where
                 let cur_code = codes
                     .get(s.as_() as usize)
                     .expect("some error occurred during code translation while building huffqwt");
-                //different paths if it goes in qv of bv
-                if cur_code.len <= shift {
-                    //we finished handling this symbol in an upper level
-                    continue;
-                }
 
-                if cur_code.len - shift >= 2 {
+                // if cur_code.len <= shift {
+                //     //we finished handling this symbol in an upper level
+                //     continue;
+                // }
+
+                if cur_code.len > shift {
                     //we put in a qvector
                     let qv_symbol = (cur_code.content >> (cur_code.len - shift - 2)) & 3;
                     cur_qv.push(qv_symbol as u8);
                 }
             }
 
-            shift += 2;
-
             let qv = cur_qv.build();
-            lens.push(qv.len());
+            let cur_qv_len = qv.len();
+            lens.push(cur_qv_len);
             qvs.push(RS::from(qv));
 
             stable_partition_of_4_with_codes(sequence, shift as usize, &codes);
+            shift += 2;
         }
 
         qvs.shrink_to_fit();
@@ -276,25 +278,26 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            // println!(
-            //     "[level {}] cur_i: {}, self.lens[level]: {}",
-            //     level, cur_i, self.lens[level]
-            // );
+            println!(
+                "[level {}] cur_i: {}, self.lens[level]: {}",
+                level, cur_i, self.lens[level]
+            );
 
             if cur_i >= self.lens[level] {
+                println!("exited early");
                 break;
             }
-            shift += 2;
 
             let symbol = self.qvs[level].get_unchecked(cur_i);
             result = (result << 2) | symbol as u32;
 
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
             cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
+
+            shift += 2;
         }
 
-        // println!("found result: {}", result);
-        // println!("found shift: {}", shift);
+        println!("found result len:{}, repr:{}", shift, result);
 
         T::from(
             self.codes
