@@ -53,7 +53,7 @@ The former is used to measure the performance of QuadVectors, which are the buil
 
 The latter measures the performance of a Quad Wavelet Tree built on a given input text.
 
-We can now download and uncompress in the current directory the [Big English](http://pages.di.unipi.it/rossano/big_english.gz). Then, we take its prefix of length 4 GiB.
+We can now download and uncompress the [Big English](http://pages.di.unipi.it/rossano/big_english.gz) in the current directory. Then, we take its prefix of length 4 GiB.
 
 ```bash
 wget http://pages.di.unipi.it/rossano/big_english.gz
@@ -67,7 +67,7 @@ The following command builds the wavelet trees (QWT 256 and 512 with or without 
 ./target/release/perf_wavelet_tree --input-file big_english.4GiB --access --rank --select
 ```
 
-We can use the flag `--test-correctness` to perform some extra tests for the correctness of the index. We can also specify the number of queries with `n_queries` (default is 10,000,000 queries).
+We can use the flag `--test-correctness` to perform extra tests to check the index's correctness. We can also specify the number of queries with `n_queries` (default is 10,000,000 queries).
 
 The code measures the *latency* of the queries by forcing the input of each query to depend on the output of the previous one. This is consistent with the use of the queries in a real setting. For example, the more advanced queries supported by compressed text indexes (e.g., CSA or FM-index) decompose into several dependent queries on the underlying wavelet tree.
 
