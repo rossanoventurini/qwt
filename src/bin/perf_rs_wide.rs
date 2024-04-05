@@ -5,7 +5,7 @@ use qwt::{
 };
 
 const N_RUNS: usize = 5;
-const N_QUERIES: usize = 10000000;
+const N_QUERIES: usize = 10_000_000;
 
 fn perf_rank1<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where

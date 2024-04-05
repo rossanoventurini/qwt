@@ -5,6 +5,8 @@ use num_traits::AsPrimitive;
 
 use crate::{perf_and_test_utils::TimingQueries, AccessUnsigned, HQWT256, HQWT512};
 
+use super::craft_wm_codes;
+
 #[test]
 fn playgroud() {
     let sequence = String::from("aaaaaaaaccccbbdef");
@@ -46,7 +48,7 @@ fn pg2() {
     let mut data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     let qwt = HQWT512::new(&mut data);
 
-    println!("{:?}", qwt);
+    // println!("{:?}", qwt);
 
     unsafe {
         println!("{}", qwt.get_unchecked(1));
@@ -56,11 +58,14 @@ fn pg2() {
 
 #[test]
 fn playgroud3() {
-    // let mut sequence = String::from("aaaaaaaaccccbbdAAAABBEFawegf")
+    // let mut sequence: Vec<u8> = String::from("aaaaaaaaccccbbdAAAABBEFawegf")
+    //     .bytes()
+    //     .collect();
     let mut sequence = vec![
         1u32, 1, 1, 1, 5, 6, 8, 34, 34, 65, 7, 8, 9, 34, 2, 45, 7, 21, 22, 23, 34, 25, 26, 3, 234,
-        255,
+        255, 234, 234, 234, 234, 234, 234,
     ];
+    // sequence.reverse();
     let seq_check = sequence.clone();
 
     let hqwt = HQWT256::new(sequence.as_mut_slice());
@@ -75,4 +80,75 @@ fn playgroud3() {
         assert_eq!(hqwt.get(i), Some(seq_check[i]));
     }
     assert_eq!(hqwt.get(hqwt.len()), None);
+}
+
+#[test]
+fn playgroud1() {
+    let s = "tobeornottobethatisthequestion";
+
+    let freqs = s.chars().fold(HashMap::new(), |mut map, c| {
+        *map.entry(c as u8).or_insert(0u32) += 1;
+        map
+    });
+
+    let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
+    println!("{:?}", lengths);
+
+    let codes = craft_wm_codes(&mut lengths);
+
+    println!(
+        "{}, {:?}",
+        s.chars().nth(0).unwrap(),
+        codes[s.chars().nth(0).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(1).unwrap(),
+        codes[s.chars().nth(1).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(2).unwrap(),
+        codes[s.chars().nth(2).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(3).unwrap(),
+        codes[s.chars().nth(3).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(5).unwrap(),
+        codes[s.chars().nth(5).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(15).unwrap(),
+        codes[s.chars().nth(15).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(17).unwrap(),
+        codes[s.chars().nth(17).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(20).unwrap(),
+        codes[s.chars().nth(20).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(25).unwrap(),
+        codes[s.chars().nth(25).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(22).unwrap(),
+        codes[s.chars().nth(22).unwrap() as usize]
+    );
+    println!(
+        "{}, {:?}",
+        s.chars().nth(23).unwrap(),
+        codes[s.chars().nth(23).unwrap() as usize]
+    );
 }

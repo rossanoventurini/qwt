@@ -40,6 +40,63 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     // prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
+struct LenInfo(u8, u32); //symbol, len
+
+fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
+    println!("building codes");
+    //count size of the alphabet
+    let sigma = freq.iter().count();
+
+    let mut f = freq
+        .iter()
+        .map(|(&k, &v)| LenInfo(k, v * 2))
+        .collect::<Vec<_>>();
+
+    f.sort_by_key(|x| x.1);
+
+    let mut c = vec![0; sigma * 4];
+    let mut assignments = vec![PrefixCode { content: 0, len: 0 }; 256];
+    let mut m = 1; //how many codes we have so far
+    let mut l = 0;
+
+    for j in 0..sigma {
+        // println!("f[{}]: ({}, {})", j, f[j].0, f[j].1);
+
+        while f[j].1 > l {
+            for r in j..m {
+                c[(m - j) * 3 + r] = c[r];
+                c[(m - j) * 2 + r] = c[r] | 1 << l;
+                c[(m - j) * 1 + r] = c[r] | 2 << l;
+                c[r] |= 3 << l;
+            }
+            m = 4 * m - 3 * j;
+            l += 2;
+        }
+        println!("m = {}", m);
+        println!("{:?}", &c[0..m]);
+
+        //the codes are stored in lexicographic order of their reverse codes,
+        //now we get the actual one we need
+        let mut reversed_code = 0;
+        for t in (0..l).step_by(2) {
+            reversed_code |= ((c[j] >> t) & 3) << (l - t - 2);
+        }
+
+        assignments[f[j].0 as usize] = PrefixCode {
+            content: reversed_code,
+            len: l,
+        };
+
+        println!("{}: {:?}", f[j].0, assignments[f[j].0 as usize]);
+    }
+    println!("FINISH building codes");
+
+    assignments
+}
+
+// 3 2 1 0 | 33 32 31 30| 23 22 21 20 | 13 12 11 10 | 03 02 01 00 |
+// 0 1 2 3   4   5  6 7   8   9 10 11   12 13 14 15   16 17 18 19
+
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: HWTIndexable,
@@ -85,24 +142,27 @@ where
             map
         });
 
-        println!("entropy: {}", Frequencies::entropy(&freqs));
+        // println!("entropy: {}", Frequencies::entropy(&freqs));
 
-        println!(
-            "{:?}",
-            Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
-        );
+        // println!(
+        //     "{:?}",
+        //     Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
+        // );
 
         let huff_tree_arity: u32 = 4 >> 1;
 
-        //we get the codes and we fill the uninteresting bits with 1 (useful for partitioning later)
-        let codes = Coding::from_frequencies(BitsPerFragment(huff_tree_arity as u8), freqs)
-            .codes_for_values_array()
-            .iter()
-            .map(|&x| PrefixCode {
-                len: x.len * huff_tree_arity, //convert fragments -> bits
-                content: x.content,
-            })
-            .collect::<Vec<_>>();
+        // let codes = Coding::from_frequencies(BitsPerFragment(huff_tree_arity as u8), freqs)
+        //     .codes_for_values_array()
+        //     .iter()
+        //     .map(|&x| PrefixCode {
+        //         len: x.len * huff_tree_arity, //convert fragments -> bits
+        //         content: x.content,
+        //     })
+        //     .collect::<Vec<_>>();
+
+        let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
+
+        let codes = craft_wm_codes(&mut lengths);
 
         let max_len = codes
             .iter()
@@ -114,30 +174,27 @@ where
         let mut qvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
 
-        let mut shift = 0;
+        let mut shift = 2;
 
         for _level in 0..n_levels {
             let mut cur_qv = QVectorBuilder::new();
 
-            for s in sequence.iter() {
+            for &s in sequence.iter() {
                 let cur_code = codes
                     .get(s.as_() as usize)
                     .expect("some error occurred during code translation while building huffqwt");
 
-                // if cur_code.len <= shift {
-                //     //we finished handling this symbol in an upper level
-                //     continue;
-                // }
-
-                if cur_code.len > shift {
+                if cur_code.len >= shift {
                     //we put in a qvector
-                    let qv_symbol = (cur_code.content >> (cur_code.len - shift - 2)) & 3;
+                    let qv_symbol = (cur_code.content >> (cur_code.len - shift)) & 3;
                     cur_qv.push(qv_symbol as u8);
                 }
             }
 
             let qv = cur_qv.build();
             let cur_qv_len = qv.len();
+            println!("{:?}", &sequence[0..cur_qv_len]);
+
             lens.push(cur_qv_len);
             qvs.push(RS::from(qv));
 
@@ -289,6 +346,7 @@ where
             }
 
             let symbol = self.qvs[level].get_unchecked(cur_i);
+            println!("got symbol: {}", symbol);
             result = (result << 2) | symbol as u32;
 
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
@@ -299,13 +357,32 @@ where
 
         println!("found result len:{}, repr:{}", shift, result);
 
-        T::from(
-            self.codes
-                .iter()
-                .position(|x| x.len == shift && x.content == result)
-                .expect("could not translate symbol"),
+        // T::from(
+        //     self.codes
+        //         .iter()
+        //         .position(|x| x.len == shift && x.content == result)
+        //         .expect("could not translate symbol"),
+        // )
+        // .unwrap()
+        find_code::<T>(
+            PrefixCode {
+                content: result,
+                len: shift,
+            },
+            &self.codes,
         )
-        .unwrap()
+        .expect("could not translate symbol")
+    }
+}
+
+fn find_code<T: WTIndexable>(code: PrefixCode, codes: &[PrefixCode]) -> Option<T> {
+    let pos = codes
+        .iter()
+        .position(|x| x.len == code.len && x.content == code.content);
+
+    match pos {
+        None => None,
+        Some(x) => T::from(x),
     }
 }
 
