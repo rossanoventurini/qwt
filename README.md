@@ -1,7 +1,7 @@
 # QWT: Rust Quad Wavelet Tree
 <p align="center">
-<a href="-"><img src="https://badgen.infra.medigy.com/crates/v/qwt" /></a>
-<a href="-"><img src="https://badgen.infra.medigy.com/crates/d/qwt" /></a>
+<a href="https://crates.io/crates/qwt"><img src="https://badgen.infra.medigy.com/crates/v/qwt" /></a>
+<a href="https://crates.io/crates/qwt"><img src="https://badgen.infra.medigy.com/crates/d/qwt" /></a>
 <a href="LICENSE"><img src="https://badgen.net/static/license/MIT/blue" /></a>
 </p>
 
