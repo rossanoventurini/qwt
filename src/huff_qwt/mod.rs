@@ -43,7 +43,7 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
 struct LenInfo(u8, u32); //symbol, len
 
 fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
-    println!("building codes");
+    // println!("building codes");
     //count size of the alphabet
     let sigma = freq.iter().count();
 
@@ -72,8 +72,8 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
             m = 4 * m - 3 * j;
             l += 2;
         }
-        println!("m = {}", m);
-        println!("{:?}", &c[0..m]);
+        // println!("m = {}", m);
+        // println!("{:?}", &c[0..m]);
 
         //the codes are stored in lexicographic order of their reverse codes,
         //now we get the actual one we need
@@ -87,9 +87,9 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
             len: l,
         };
 
-        println!("{}: {:?}", f[j].0, assignments[f[j].0 as usize]);
+        // println!("{}: {:?}", f[j].0, assignments[f[j].0 as usize]);
     }
-    println!("FINISH building codes");
+    // println!("FINISH building codes");
 
     assignments
 }
@@ -193,7 +193,7 @@ where
 
             let qv = cur_qv.build();
             let cur_qv_len = qv.len();
-            println!("{:?}", &sequence[0..cur_qv_len]);
+            // println!("{:?}", &sequence[0..cur_qv_len]);
 
             lens.push(cur_qv_len);
             qvs.push(RS::from(qv));
