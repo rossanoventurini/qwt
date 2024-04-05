@@ -1,4 +1,9 @@
 # QWT: Rust Quad Wavelet Tree
+<p align="center">
+<a href="-"><img src="https://badgen.infra.medigy.com/crates/v/qwt" /></a>
+<a href="-"><img src="https://badgen.infra.medigy.com/crates/d/qwt" /></a>
+<a href="LICENSE.md"><img src="https://badgen.net/static/license/MIT/blue" /></a>
+</p>
 
 The [wavelet tree](https://en.wikipedia.org/wiki/Wavelet_Tree) [[1](#bib)] is a compact data structure that for a sequence $S$ of length $n$ over an alphabet of size $\sigma$ requires only $n\lceil\log \sigma \rceil (1+o(1))$ bits of space and can answer *rank* and *select* queries in $\Theta(\log \sigma)$ time.
 
