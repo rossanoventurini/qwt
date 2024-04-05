@@ -335,18 +335,18 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            println!(
-                "[level {}] cur_i: {}, self.lens[level]: {}",
-                level, cur_i, self.lens[level]
-            );
+            // println!(
+            //     "[level {}] cur_i: {}, self.lens[level]: {}",
+            //     level, cur_i, self.lens[level]
+            // );
 
             if cur_i >= self.lens[level] {
-                println!("exited early");
+                // println!("exited early");
                 break;
             }
 
             let symbol = self.qvs[level].get_unchecked(cur_i);
-            println!("got symbol: {}", symbol);
+            // println!("got symbol: {}", symbol);
             result = (result << 2) | symbol as u32;
 
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
@@ -355,7 +355,7 @@ where
             shift += 2;
         }
 
-        println!("found result len:{}, repr:{}", shift, result);
+        // println!("found result len:{}, repr:{}", shift, result);
 
         // T::from(
         //     self.codes
