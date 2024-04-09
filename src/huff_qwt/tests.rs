@@ -75,7 +75,7 @@ fn playgroud3() {
     for i in 0..hqwt.len() {
         println!(
             "-------------------\nindex {} | should be {} | {:?}",
-            i, seq_check[i], hqwt.codes[seq_check[i] as usize]
+            i, seq_check[i], hqwt.codes_encode[seq_check[i] as usize]
         );
         assert_eq!(hqwt.get(i), Some(seq_check[i]));
     }

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, vec};
 
-use minimum_redundancy::{BitsPerFragment, Coding, Frequencies};
+use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +33,8 @@ pub struct PrefixCode {
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
-    codes: Vec<PrefixCode>,
+    codes_encode: Vec<PrefixCode>,
+    codes_decode: Vec<Vec<(u32, u8)>>,
     qvs: Vec<RS>, // A quad vector for each level
     lens: Vec<usize>,
     phantom_data: PhantomData<T>,
@@ -42,6 +43,7 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
 
 struct LenInfo(u8, u32); //symbol, len
 
+#[allow(clippy::identity_op)]
 fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
     // println!("building codes");
     //count size of the alphabet
@@ -128,7 +130,8 @@ where
             return Self {
                 n: 0,
                 n_levels: 0,
-                codes: Vec::default(),
+                codes_encode: Vec::default(),
+                codes_decode: Vec::default(),
                 qvs: vec![RS::default()],
                 lens: vec![0],
                 // prefetch_support: None,
@@ -149,17 +152,6 @@ where
         //     Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
         // );
 
-        let huff_tree_arity: u32 = 4 >> 1;
-
-        // let codes = Coding::from_frequencies(BitsPerFragment(huff_tree_arity as u8), freqs)
-        //     .codes_for_values_array()
-        //     .iter()
-        //     .map(|&x| PrefixCode {
-        //         len: x.len * huff_tree_arity, //convert fragments -> bits
-        //         content: x.content,
-        //     })
-        //     .collect::<Vec<_>>();
-
         let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
 
         let codes = craft_wm_codes(&mut lengths);
@@ -169,7 +161,19 @@ where
             .map(|x| x.len)
             .max()
             .expect("error while finding max code length") as usize;
-        let n_levels = max_len / huff_tree_arity as usize;
+        let n_levels = max_len / 2; //we handle 2 bits for each level
+
+        let mut codes_decode = vec![Vec::default(); max_len + 1];
+        for (i, c) in codes.iter().enumerate() {
+            if c.len != 0 {
+                codes_decode[c.len as usize].push((c.content, i as u8));
+            }
+        }
+
+        //sort codes to make it easier to search
+        for v in codes_decode.iter_mut() {
+            v.sort_by_key(|(x, _)| *x)
+        }
 
         let mut qvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
@@ -207,7 +211,8 @@ where
         Self {
             n: sequence.len(),
             n_levels,
-            codes: codes.into_iter().collect::<Vec<_>>(),
+            codes_encode: codes.into_iter().collect::<Vec<_>>(),
+            codes_decode,
             qvs,
             lens,
             // prefetch_support: if WITH_PREFETCH_SUPPORT {
@@ -364,14 +369,21 @@ where
         //         .expect("could not translate symbol"),
         // )
         // .unwrap()
-        find_code::<T>(
-            PrefixCode {
-                content: result,
-                len: shift,
-            },
-            &self.codes,
-        )
-        .expect("could not translate symbol")
+
+        // find_code::<T>(
+        //     PrefixCode {
+        //         content: result,
+        //         len: shift,
+        //     },
+        //     &self.codes_encode,
+        // )
+        // .expect("could not translate symbol")
+
+        //find the symbol
+        let idx = self.codes_decode[shift]
+            .binary_search_by_key(&result, |(x, _)| *x)
+            .expect("could not translate symbol");
+        T::from(self.codes_decode[shift][idx].1).unwrap()
     }
 }
 
@@ -428,7 +440,7 @@ where
     #[must_use]
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i > self.n || self.codes[symbol.as_() as usize].len == 0 {
+        if i > self.n || self.codes_encode[symbol.as_() as usize].len == 0 {
             return None;
         }
 
@@ -465,7 +477,7 @@ where
         let mut cur_i = i;
         let mut cur_p = 0;
 
-        let code = &self.codes[symbol.as_() as usize];
+        let code = &self.codes_encode[symbol.as_() as usize];
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
         let mut level = 0;
@@ -515,14 +527,14 @@ where
     #[must_use]
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if self.codes[symbol.as_() as usize].len == 0 {
+        if self.codes_encode[symbol.as_() as usize].len == 0 {
             return None;
         }
 
         let mut path_off = Vec::with_capacity(self.n_levels);
         let mut rank_path_off = Vec::with_capacity(self.n_levels);
 
-        let code = &self.codes[symbol.as_() as usize];
+        let code = &self.codes_encode[symbol.as_() as usize];
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
 
