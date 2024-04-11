@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, vec};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, vec};
 
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
@@ -9,9 +9,6 @@ use crate::{
     QVectorBuilder, RankBin, RankUnsigned, SelectBin, SelectUnsigned, SpaceUsage, WTIndexable,
     WTSupport,
 };
-
-pub trait HWTIndexable: WTIndexable + Hash + Debug {}
-impl<T> HWTIndexable for T where T: WTIndexable + Hash + Debug {} //helper to inlcude debug and hash for now
 
 pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
 impl<T> BinWTSupport for T where T: AccessBin + RankBin + SelectBin {}
@@ -31,12 +28,12 @@ pub struct PrefixCode {
 
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
-    n: usize,        // The length of the represented sequence
-    n_levels: usize, // The number of levels of the wavelet matrix
-    codes_encode: Vec<PrefixCode>,
-    codes_decode: Vec<Vec<(u32, u8)>>,
-    qvs: Vec<RS>, // A quad vector for each level
-    lens: Vec<usize>,
+    n: usize,                          // The length of the represented sequence
+    n_levels: usize,                   // The number of levels of the wavelet matrix
+    codes_encode: Vec<PrefixCode>,     // Lookup table for encoding
+    codes_decode: Vec<Vec<(u32, u8)>>, // Lookup table for decoding symbols
+    qvs: Vec<RS>,                      // A quad vector for each level
+    lens: Vec<usize>,                  // Length of each qv
     phantom_data: PhantomData<T>,
     // prefetch_support: Option<Vec<PrefetchSupport>>,
 }
@@ -45,13 +42,12 @@ struct LenInfo(u8, u32); //symbol, len
 
 #[allow(clippy::identity_op)]
 fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
-    // println!("building codes");
-    //count size of the alphabet
+    // count size of the alphabet
     let sigma = freq.iter().count();
 
     let mut f = freq
         .iter()
-        .map(|(&k, &v)| LenInfo(k, v * 2))
+        .map(|(&k, &v)| LenInfo(k, v * 2)) // each fragment is 2 bits
         .collect::<Vec<_>>();
 
     f.sort_by_key(|x| x.1);
@@ -74,11 +70,9 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
             m = 4 * m - 3 * j;
             l += 2;
         }
-        // println!("m = {}", m);
-        // println!("{:?}", &c[0..m]);
 
         //the codes are stored in lexicographic order of their reverse codes,
-        //now we get the actual one we need
+        //now we get the actual one we need by reversing it
         let mut reversed_code = 0;
         for t in (0..l).step_by(2) {
             reversed_code |= ((c[j] >> t) & 3) << (l - t - 2);
@@ -88,20 +82,14 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
             content: reversed_code,
             len: l,
         };
-
-        // println!("{}: {:?}", f[j].0, assignments[f[j].0 as usize]);
     }
-    // println!("FINISH building codes");
 
     assignments
 }
 
-// 3 2 1 0 | 33 32 31 30| 23 22 21 20 | 13 12 11 10 | 03 02 01 00 |
-// 0 1 2 3   4   5  6 7   8   9 10 11   12 13 14 15   16 17 18 19
-
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
-    T: HWTIndexable,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
@@ -146,11 +134,6 @@ where
         });
 
         // println!("entropy: {}", Frequencies::entropy(&freqs));
-
-        // println!(
-        //     "{:?}",
-        //     Coding::from_frequencies(BitsPerFragment(2), freqs.clone()).codes_for_values()
-        // );
 
         let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
 
@@ -276,6 +259,33 @@ where
     pub fn n_levels(&self) -> usize {
         self.n_levels
     }
+
+    /// Returns an iterator over the values in the wavelet tree.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::HQWT256;
+    ///
+    /// let data: Vec<u8> = (0..10u8).into_iter().cycle().take(100).collect();
+    ///
+    /// let qwt = HQWT256::from(data.clone());
+    ///
+    /// assert_eq!(qwt.iter().collect::<Vec<_>>(), data);
+    ///
+    /// assert_eq!(qwt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
+    /// ```
+    pub fn iter(
+        &self,
+    ) -> HQWTIterator<T, RS, &HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>, WITH_PREFETCH_SUPPORT>
+    {
+        HQWTIterator {
+            i: 0,
+            end: self.len(),
+            qwt: self,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AccessUnsigned
@@ -340,18 +350,11 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            // println!(
-            //     "[level {}] cur_i: {}, self.lens[level]: {}",
-            //     level, cur_i, self.lens[level]
-            // );
-
             if cur_i >= self.lens[level] {
-                // println!("exited early");
                 break;
             }
 
             let symbol = self.qvs[level].get_unchecked(cur_i);
-            // println!("got symbol: {}", symbol);
             result = (result << 2) | symbol as u32;
 
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
@@ -362,46 +365,19 @@ where
 
         // println!("found result len:{}, repr:{}", shift, result);
 
-        // T::from(
-        //     self.codes
-        //         .iter()
-        //         .position(|x| x.len == shift && x.content == result)
-        //         .expect("could not translate symbol"),
-        // )
-        // .unwrap()
-
-        // find_code::<T>(
-        //     PrefixCode {
-        //         content: result,
-        //         len: shift,
-        //     },
-        //     &self.codes_encode,
-        // )
-        // .expect("could not translate symbol")
-
         //find the symbol
         let idx = self.codes_decode[shift]
             .binary_search_by_key(&result, |(x, _)| *x)
             .expect("could not translate symbol");
+
         T::from(self.codes_decode[shift][idx].1).unwrap()
-    }
-}
-
-fn find_code<T: WTIndexable>(code: PrefixCode, codes: &[PrefixCode]) -> Option<T> {
-    let pos = codes
-        .iter()
-        .position(|x| x.len == code.len && x.content == code.content);
-
-    match pos {
-        None => None,
-        Some(x) => T::from(x),
     }
 }
 
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> From<Vec<T>>
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
-    T: HWTIndexable,
+    T: WTIndexable,
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
@@ -420,7 +396,7 @@ where
     /// Returns the rank of `symbol` up to position `i` **excluded**.
     ///
     /// `None` is returned if `i` is out of bound or if `symbol` is not valid
-    /// (i.e., it is greater than or equal to the alphabet size).
+    /// (i.e., there is no occurence of the symbol in the original sequence).
     ///
     /// # Examples
     ///
@@ -598,7 +574,7 @@ impl<T, RS: SpaceUsage, const WITH_PREFETCH_SUPPORT: bool> SpaceUsage
         //     .sum();
 
         8 + 8
-            + 256 * 8 // codes 256 + 2 * sizeof(u32)
+            + 256 * 8 // 256 + 2 * sizeof(u32)+
             + self.lens.len() * 8
             + self
                 .qvs
@@ -613,6 +589,143 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AsRef<HuffQWaveletTree<T, RS, WIT
 {
     fn as_ref(&self) -> &HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT> {
         self
+    }
+}
+
+// This is a naive implementation of an iterator for WT.
+// We could do better by storing more information and
+// avoid rank operations!
+#[derive(Debug, PartialEq)]
+pub struct HQWTIterator<
+    T,
+    RS,
+    Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+    const WITH_PREFETCH_SUPPORT: bool = false,
+> {
+    i: usize,
+    end: usize,
+    qwt: Q,
+    _phantom: PhantomData<(T, RS)>,
+}
+
+impl<
+        T,
+        RS,
+        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > Iterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            self.i += 1;
+            // SAFETY: bounds are checked
+            Some(unsafe { qwt.get_unchecked(self.i - 1) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        RS,
+        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > DoubleEndedIterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            // SAFETY: bounds are checked
+            self.end -= 1;
+            Some(unsafe { qwt.get_unchecked(self.end) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        RS,
+        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > ExactSizeIterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn len(&self) -> usize {
+        self.end - self.i
+    }
+}
+
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    type IntoIter =
+        HQWTIterator<T, RS, HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>, WITH_PREFETCH_SUPPORT>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        HQWTIterator {
+            i: 0,
+            end: self.len(),
+            qwt: self,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
+    for &'a HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    type IntoIter = HQWTIterator<
+        T,
+        RS,
+        &'a HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+        WITH_PREFETCH_SUPPORT,
+    >;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> FromIterator<T>
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        HuffQWaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
     }
 }
 

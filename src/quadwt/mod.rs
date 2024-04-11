@@ -97,7 +97,7 @@ where
     RS: RSforWT,
 {
     /// Builds the wavelet tree of the `sequence` of unsigned integers.
-    /// The input `sequence`` will be **destroyed**.
+    /// The input `sequence` will be **destroyed**.
     ///
     /// The alphabet size `sigma` is the largest value in the `sequence`.
     /// Both space usage and query time of a QWaveletTree depend on

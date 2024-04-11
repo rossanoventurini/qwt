@@ -199,7 +199,7 @@ fn test_access_latency<T: AccessUnsigned<Item = u8> + SpaceUsage>(
 fn main() {
     let args = Args::parse();
     let input_filename = args.input_file;
-    let mut text = std::fs::read(&input_filename).expect("Cannot read the input file.");
+    let text = std::fs::read(&input_filename).expect("Cannot read the input file.");
 
     let n = text.len();
     println!("Text length: {:?}", n);

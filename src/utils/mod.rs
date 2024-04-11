@@ -278,7 +278,7 @@ where
 
 pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
     u8: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)

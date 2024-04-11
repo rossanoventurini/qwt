@@ -1,154 +1,108 @@
-use std::collections::HashMap;
-
-use minimum_redundancy::{BitsPerFragment, Coding};
-use num_traits::AsPrimitive;
-
-use crate::{perf_and_test_utils::TimingQueries, AccessUnsigned, HQWT256, HQWT512};
-
-use super::craft_wm_codes;
+use crate::{
+    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, RSQVector512,
+    RankUnsigned, SelectUnsigned, HQWT256,
+};
 
 #[test]
-fn playgroud() {
-    let sequence = String::from("aaaaaaaaccccbbdef");
+fn test_small() {
+    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let qwt = HuffQWaveletTree::<_, RSQVector512>::new(&mut data.clone());
 
-    //count symbol frequences
-    let freqs: HashMap<char, usize> = sequence.chars().fold(HashMap::new(), |mut map, c| {
-        *map.entry(c.as_()).or_insert(0) += 1;
-        map
-    });
+    assert_eq!(qwt.rank(1, 4), Some(2));
+    assert_eq!(qwt.rank(1, 0), Some(0));
+    assert_eq!(qwt.rank(8, 1), None); // too large symbol
+    assert_eq!(qwt.rank(1, 9), Some(2));
+    assert_eq!(qwt.rank(7, 9), Some(1));
+    assert_eq!(qwt.rank(1, 10), None); // too large position
+    assert_eq!(qwt.select(5, 0), Some(6));
 
-    let huffman = Coding::from_frequencies(BitsPerFragment(2), freqs);
-    // .codes_for_values()
-    // .into_iter()
-    // // .map(|mut c| {
-    // //     c.1.content |= std::u32::MAX << c.1.len;
-    // //     c
-    // // })
-    // .collect::<HashMap<_, _>>();
-
-    let mut t = TimingQueries::new(1, 1);
-    t.start();
-    let mut d = huffman.decoder();
-    t.stop();
-    println!("decoder creation took {:?}", t.get());
-
-    let mut t1 = TimingQueries::new(1, 1);
-    let fragments: Vec<u32> = vec![0, 0, 1];
-    t1.start();
-    let val = d.decode(&mut fragments.into_iter());
-    t1.stop();
-
-    println!("{:?} | decoding took {:?}", val, t1.get());
-
-    println!("{:?}", huffman.codes_for_values());
-}
-
-#[test]
-fn pg2() {
-    let mut data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
-    let qwt = HQWT512::new(&mut data);
-
-    // println!("{:?}", qwt);
-
-    unsafe {
-        println!("{}", qwt.get_unchecked(1));
+    for (i, &v) in data.iter().enumerate() {
+        let rank = qwt.rank(v, i).unwrap();
+        let s = qwt.select(v, rank).unwrap();
+        assert_eq!(s, i);
     }
-    assert_eq!(qwt.len(), 8);
+
+    // test iterators
+    assert!(qwt.iter().eq(data.iter().copied()));
+    assert!(qwt.into_iter().eq(data.iter().copied()));
+
+    // test from_iterator
+    let qwt: HQWT256<_> = (0..10_u32).cycle().take(1000).collect();
+
+    assert_eq!(qwt.len(), 1000);
 }
 
 #[test]
-fn playgroud3() {
-    // let mut sequence: Vec<u8> = String::from("aaaaaaaaccccbbdAAAABBEFawegf")
-    //     .bytes()
-    //     .collect();
-    let mut sequence = vec![
-        1u32, 1, 1, 1, 5, 6, 8, 34, 34, 65, 7, 8, 9, 34, 2, 45, 7, 21, 22, 23, 34, 25, 26, 3, 234,
-        255, 234, 234, 234, 234, 234, 234,
-    ];
-    // sequence.reverse();
-    let seq_check = sequence.clone();
+fn test_from_iterator() {
+    let qwt: HQWT256<_> = (0..10u32).cycle().take(100).collect();
 
-    let hqwt = HQWT256::new(sequence.as_mut_slice());
+    assert!(qwt.into_iter().eq((0..10u32).cycle().take(100)));
+}
 
-    println!("hqwt levels: {:?}", hqwt.n_levels);
+#[test]
+fn test() {
+    const N: usize = 1025;
+    for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255] {
+        let mut sequence: [u8; N] = [0; N];
+        sequence[N - 1] = sigma - 1;
+        let qwt = HuffQWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
 
-    for i in 0..hqwt.len() {
-        println!(
-            "-------------------\nindex {} | should be {} | {:?}",
-            i, seq_check[i], hqwt.codes_encode[seq_check[i] as usize]
-        );
-        assert_eq!(hqwt.get(i), Some(seq_check[i]));
+        for i in 0..N - 1 {
+            assert_eq!(qwt.rank(0, i).unwrap(), i);
+        }
+
+        for (i, &symbol) in sequence.iter().enumerate() {
+            let rank = qwt.rank(symbol, i).unwrap();
+            let s = qwt.select(symbol, rank).unwrap();
+            assert_eq!(s, i);
+        }
+
+        // Select out of bound
+        assert_eq!(qwt.select(0, N), None);
+        assert_eq!(qwt.select(1, 1), None);
+        assert_eq!(qwt.select(sigma - 1, 2), None);
     }
-    assert_eq!(hqwt.get(hqwt.len()), None);
+
+    for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256, 16000] {
+        let mut sequence: [u16; N] = [0; N];
+        sequence[N - 1] = sigma - 1;
+        let qwt = HuffQWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
+
+        for i in 1..N - 1 {
+            assert_eq!(qwt.rank(0, i).unwrap(), i);
+        }
+
+        for (i, &symbol) in sequence.iter().enumerate() {
+            let rank = qwt.rank(symbol, i).unwrap();
+            let s = qwt.select(symbol, rank).unwrap();
+            assert_eq!(s, i);
+        }
+
+        // Select out of bound
+        assert_eq!(qwt.select(0, N), None);
+        assert_eq!(qwt.select(1, 1), None);
+        assert_eq!(qwt.select(sigma - 1, 2), None);
+    }
 }
 
 #[test]
-fn playgroud1() {
-    let s = "tobeornottobethatisthequestion";
+fn test_get() {
+    let n = 1025;
+    for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 256] {
+        let sequence = gen_sequence(n, sigma);
+        let qwt = HuffQWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
+        for (i, &symbol) in sequence.iter().enumerate() {
+            assert_eq!(qwt.get(i), Some(symbol));
+        }
+    }
+}
 
-    let freqs = s.chars().fold(HashMap::new(), |mut map, c| {
-        *map.entry(c as u8).or_insert(0u32) += 1;
-        map
-    });
+#[test]
+fn test_serialize() {
+    let qwt = HuffQWaveletTree::<_, RSQVector512>::new(&mut [0_u8; 10]);
+    let s = bincode::serialize(&qwt).unwrap();
 
-    let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
-    println!("{:?}", lengths);
+    let des_qwt = bincode::deserialize::<HuffQWaveletTree<u8, RSQVector512>>(&s).unwrap();
 
-    let codes = craft_wm_codes(&mut lengths);
-
-    println!(
-        "{}, {:?}",
-        s.chars().nth(0).unwrap(),
-        codes[s.chars().nth(0).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(1).unwrap(),
-        codes[s.chars().nth(1).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(2).unwrap(),
-        codes[s.chars().nth(2).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(3).unwrap(),
-        codes[s.chars().nth(3).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(5).unwrap(),
-        codes[s.chars().nth(5).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(15).unwrap(),
-        codes[s.chars().nth(15).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(17).unwrap(),
-        codes[s.chars().nth(17).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(20).unwrap(),
-        codes[s.chars().nth(20).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(25).unwrap(),
-        codes[s.chars().nth(25).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(22).unwrap(),
-        codes[s.chars().nth(22).unwrap() as usize]
-    );
-    println!(
-        "{}, {:?}",
-        s.chars().nth(23).unwrap(),
-        codes[s.chars().nth(23).unwrap() as usize]
-    );
+    assert_eq!(des_qwt, qwt);
 }
