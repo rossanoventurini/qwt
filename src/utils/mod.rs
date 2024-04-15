@@ -2,7 +2,6 @@
 //! bitwise operations, aligned allocation, and so on.
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 use std::ops::Shr;
 
 #[allow(non_snake_case)]
@@ -304,19 +303,24 @@ where
 
 pub fn stable_partition_of_2_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8> + Hash,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
     u8: AsPrimitive<T>,
 {
-    let mut vecs = [Vec::new(), Vec::new()];
+    let mut vecs = [Vec::new(), Vec::new(), Vec::new()];
 
     for &a in sequence.iter() {
         let code = &codes[a.as_() as usize];
-        let bit = (code.content >> (code.len - shift as u32)) & 1;
-        vecs[bit as usize].push(a);
+        if code.len <= shift as u32 {
+            //we dont care about this symbol (already taken care of)
+            vecs[2].push(a);
+        } else {
+            let bit = (code.content >> (code.len - shift as u32)) & 1;
+            vecs[bit as usize].push(a);
+        }
     }
 
     let mut pos = 0;
-    for i in 0..2 {
+    for i in 0..3 {
         sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
         pos += vecs[i].len()
     }

@@ -26,6 +26,8 @@ pub struct PrefixCode {
     pub len: u32,
 }
 
+/// Implements a compressed wavelet tree on quad vectors.
+/// It doesn't achieve maximum compression, but the queries are faster
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,                          // The length of the represented sequence
@@ -314,6 +316,8 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
+    #[must_use]
+    #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
             return None;
@@ -343,6 +347,8 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
+    #[must_use]
+    #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
         let mut result: u32 = 0;

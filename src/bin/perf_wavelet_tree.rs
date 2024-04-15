@@ -268,7 +268,7 @@ fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
             let i = std::cmp::max(1, i);
-            result = unsafe { ds.select_unchecked(symbol, i) };
+            result = unsafe { ds.select_unchecked(symbol, i - 1) };
         }
         t.stop()
     }
