@@ -79,7 +79,7 @@ fn test_correctness<
     print!("\nTesting correctness... ");
     for (i, &symbol) in sequence.iter().enumerate() {
         assert_eq!(ds.get(i), Some(symbol));
-        let rank = ds.rank(symbol, i + 1).unwrap();
+        let rank = ds.rank(symbol, i).unwrap();
         let s = ds.select(symbol, rank).unwrap();
         assert_eq!(s, i);
     }
