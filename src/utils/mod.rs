@@ -185,7 +185,7 @@ pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
 
 use std::mem;
 
-use crate::huff_qwt::PrefixCode;
+use crate::quadwt::huffqwt::PrefixCode;
 
 #[repr(C, align(64))]
 struct AlignToSixtyFour([u8; 64]);

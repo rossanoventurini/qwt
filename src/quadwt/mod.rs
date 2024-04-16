@@ -49,6 +49,8 @@ use std::marker::PhantomData;
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::ops::{Shl, Shr};
 
+pub mod huffqwt;
+
 mod prefetch_support;
 use crate::quadwt::prefetch_support::PrefetchSupport;
 

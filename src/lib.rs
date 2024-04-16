@@ -22,11 +22,9 @@ pub use qvector::rs_qvector::RSQVector256;
 pub use qvector::rs_qvector::RSQVector512;
 
 pub mod quadwt;
+pub use quadwt::huffqwt::HuffQWaveletTree;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
-
-pub mod huff_qwt;
-pub use huff_qwt::HuffQWaveletTree;
 
 pub mod space_usage;
 pub use space_usage::SpaceUsage;
