@@ -312,7 +312,7 @@ where
             self.qvs[0].prefetch_info(range.end);
 
             #[allow(clippy::needless_range_loop)]
-            while shift >= 0 {
+            while shift >= 2 {
                 let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
 
                 // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
