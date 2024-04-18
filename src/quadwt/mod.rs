@@ -49,6 +49,7 @@ use std::marker::PhantomData;
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 use std::ops::{Shl, Shr};
 
+// pub mod compressedqwt;
 pub mod huffqwt;
 
 mod prefetch_support;

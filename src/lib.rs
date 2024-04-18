@@ -42,6 +42,9 @@ pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
 pub type HQWT256<T> = HuffQWaveletTree<T, RSQVector256>;
 pub type HQWT512<T> = HuffQWaveletTree<T, RSQVector512>;
 
+pub type HQWT256Pfs<T> = HuffQWaveletTree<T, RSQVector256, true>;
+pub type HQWT512Pfs<T> = HuffQWaveletTree<T, RSQVector512, true>;
+
 use num_traits::Unsigned;
 
 /// A trait fro the support `get` query over an `Unsigned` alphabet.

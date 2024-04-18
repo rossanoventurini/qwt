@@ -5,8 +5,10 @@ use qwt::{
     perf_and_test_utils::{
         gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
     },
+    quadwt::RSforWT,
     utils::msb,
-    AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, HQWT256,
+    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned, SpaceUsage,
+    HQWT256,
 };
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +109,46 @@ fn test_rank_latency<T: RankUnsigned<Item = u8> + SpaceUsage>(
     let (t_min, t_max, t_avg) = t.get();
     println!(
     "RESULT algo={} exp=rank_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        t_min,
+        t_max,
+        t_avg,
+        ds.space_usage_byte(),
+        ds.space_usage_MiB(),
+        queries.len(),
+        N_RUNS
+    );
+
+    println!("Result: {}", result);
+}
+
+fn test_rank_prefetch_latency<RS, const WITH_PREFETCH_SUPPORT: bool>(
+    ds: &HuffQWaveletTree<u8, RS, WITH_PREFETCH_SUPPORT>,
+    n: usize,
+    queries: &[(usize, u8)],
+    file: String,
+) where
+    RS: SpaceUsage,
+    RS: RSforWT,
+{
+    let mut result = 0;
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(pos, symbol) in queries.iter() {
+            let i = (pos + result) % n;
+            result = unsafe { ds.rank_prefetch_unchecked(symbol, i) };
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=rank_prefetch_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
         type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
     file,
         n,
@@ -229,5 +271,32 @@ fn main() {
     if args.select {
         test_select_latency(&ds, n, &select_queries, input_filename.clone());
         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    let output_filename = input_filename.clone() + ".256Pfs.hqwt";
+    let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 }

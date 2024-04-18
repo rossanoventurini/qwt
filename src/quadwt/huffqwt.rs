@@ -5,20 +5,11 @@ use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    utils::stable_partition_of_4_with_codes, AccessBin, AccessUnsigned, BitVector, QVector,
-    QVectorBuilder, RankBin, RankUnsigned, SelectBin, SelectUnsigned, SpaceUsage, WTIndexable,
-    WTSupport,
+    utils::stable_partition_of_4_with_codes, AccessUnsigned, QVectorBuilder, RankUnsigned,
+    SelectUnsigned, SpaceUsage, WTIndexable,
 };
 
-pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
-impl<T> BinWTSupport for T where T: AccessBin + RankBin + SelectBin {}
-
-pub trait BinRSforWT: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
-impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
-
-pub trait RSforWT: From<QVector> + WTSupport + SpaceUsage + Default {}
-// Generic implementation for any T
-impl<T> RSforWT for T where T: From<QVector> + WTSupport + SpaceUsage + Default {}
+use super::{prefetch_support::PrefetchSupport, RSforWT};
 
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct PrefixCode {
@@ -37,7 +28,7 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     qvs: Vec<RS>,                      // A quad vector for each level
     lens: Vec<usize>,                  // Length of each qv
     phantom_data: PhantomData<T>,
-    // prefetch_support: Option<Vec<PrefetchSupport>>,
+    prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
 struct LenInfo(u8, u32); //symbol, len
@@ -124,7 +115,7 @@ where
                 codes_decode: Vec::default(),
                 qvs: vec![RS::default()],
                 lens: vec![0],
-                // prefetch_support: None,
+                prefetch_support: None,
                 phantom_data: PhantomData,
             };
         }
@@ -160,6 +151,8 @@ where
             v.sort_by_key(|(x, _)| *x)
         }
 
+        let mut prefetch_support = Vec::with_capacity(n_levels); // used only if WITH_PREFETCH_SUPPORT
+
         let mut qvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
 
@@ -184,6 +177,11 @@ where
             let cur_qv_len = qv.len();
             // println!("{:?}", &sequence[0..cur_qv_len]);
 
+            if WITH_PREFETCH_SUPPORT {
+                let pfs = PrefetchSupport::new(&qv, 11); // 11 -> sample_rate = 2048
+                prefetch_support.push(pfs);
+            }
+
             lens.push(cur_qv_len);
             qvs.push(RS::from(qv));
 
@@ -200,11 +198,11 @@ where
             codes_decode,
             qvs,
             lens,
-            // prefetch_support: if WITH_PREFETCH_SUPPORT {
-            //     Some(prefetch_support)
-            // } else {
-            //     None
-            // },
+            prefetch_support: if WITH_PREFETCH_SUPPORT {
+                Some(prefetch_support)
+            } else {
+                None
+            },
             phantom_data: PhantomData,
         }
     }
@@ -287,6 +285,237 @@ where
             qwt: self,
             _phantom: PhantomData,
         }
+    }
+
+    #[inline]
+    unsafe fn rank_prefetch_superblocks_unchecked(&self, symbol: T, i: usize) -> usize {
+        if !WITH_PREFETCH_SUPPORT {
+            return 0;
+        }
+
+        if let Some(ref prefetch_support) = self.prefetch_support {
+            // let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
+            //we get the code on which we rank
+            let code = &self.codes_encode[symbol.as_() as usize];
+
+            let mut shift: i64 = code.len as i64 - 2;
+            let repr = code.content;
+
+            let mut range = 0..i;
+
+            let mut level = 0;
+
+            self.qvs[0].prefetch_data(range.end);
+            self.qvs[0].prefetch_info(range.start);
+            self.qvs[0].prefetch_info(range.end);
+
+            #[allow(clippy::needless_range_loop)]
+            while shift >= 0 {
+                let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
+
+                // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
+                let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+
+                let rank_start =
+                    prefetch_support[level].approx_rank_unchecked(two_bits, range.start);
+                let rank_end = prefetch_support[level].approx_rank_unchecked(two_bits, range.end);
+
+                range = (rank_start + offset)..(rank_end + offset);
+                self.qvs[level + 1].prefetch_info(range.start);
+                self.qvs[level + 1].prefetch_info(range.start + 2048);
+
+                self.qvs[level + 1].prefetch_info(range.end);
+                self.qvs[level + 1].prefetch_info(range.end + 2048);
+                if level > 0 {
+                    self.qvs[level + 1].prefetch_info(range.start + 2 * 2048);
+                    self.qvs[level + 1].prefetch_info(range.end + 2 * 2048);
+                    self.qvs[level + 1].prefetch_info(range.end + 3 * 2048);
+                }
+                // self.qvs[level + 1].prefetch_info(range.end + 4 * 2048);
+
+                // // CHECK!
+                // let rank_start = self.qvs[level].rank_unchecked(two_bits, real_range.start);
+                // let rank_end = self.qvs[level].rank_unchecked(two_bits, real_range.end);
+
+                // real_range = (rank_start + offset)..(rank_end + offset);
+
+                // //if range.start > real_range.start || range.end > real_range.end {
+                // //     println!("Happen this");
+                // // }
+
+                // if range.start / 2048 != real_range.start / 2048
+                //     && range.start / 2048 + 1 != real_range.start / 2048
+                //     && range.start / 2048 + 2 != real_range.start / 2048
+                // {
+                //     println!("Level: {}", level);
+                //     println!("Real range.start: {:?}", real_range);
+                //     println!("Appr range.start: {:?}", range);
+                //     println!("real_range.start / 2048:   {}", real_range.start / 2048);
+                //     println!("approx range.start / 2048: {}\n", range.start / 2048);
+                // }
+
+                // if range.end / 2048 != real_range.end / 2048
+                //     && range.end / 2048 + 1 != real_range.end / 2048
+                //     && range.end / 2048 + 2 != real_range.end / 2048
+                //     && range.end / 2048 + 3 != real_range.end / 2048
+                // {
+                //     println!("Level: {}", level);
+                //     println!("Real range.end: {:?}", real_range);
+                //     println!("Appr range.end: {:?}", range);
+                //     println!("real_range.end / 2048:   {}", real_range.end / 2048);
+                //     println!("approx range.end / 2048: {}\n", range.end / 2048);
+                // }
+
+                level += 1;
+                shift -= 2;
+            }
+
+            return range.end - range.start;
+        }
+
+        0
+    }
+
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// `None` is returned if `i` is out of bound or if `symbol` is not valid
+    /// (i.e., there is no occurence of the symbol in the original sequence).
+    ///
+    /// Differently from the `rank` function, `rank_prefetch` runs a first phase
+    /// in which it estimates the positions in the wavelet tree needed by rank queries
+    /// and prefetches these data. It is faster than the original `rank` function whenever
+    /// the superblock/block counters fit in L3 cache but the sequence is larger.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{HQWT256, RankUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// assert_eq!(qwt.rank_prefetch(1, 2), Some(1));
+    /// assert_eq!(qwt.rank_prefetch(3, 8), Some(1));
+    /// assert_eq!(qwt.rank_prefetch(1, 0), Some(0));
+    /// assert_eq!(qwt.rank_prefetch(1, 9), None);  // Too large position
+    /// assert_eq!(qwt.rank_prefetch(6, 1), None);  // Too large symbol
+    /// ```
+    #[inline(always)]
+    #[must_use]
+    pub fn rank_prefetch(&self, symbol: T, i: usize) -> Option<usize> {
+        if i > self.n || self.codes_encode[symbol.as_() as usize].len == 0 {
+            return None;
+        }
+
+        // SAFETY: Check the above guarantees we are not out of bound
+        Some(unsafe { self.rank_prefetch_unchecked(symbol, i) })
+    }
+
+    /// Returns the rank of `symbol` up to position `i` **excluded**.
+    ///
+    /// Differently from the `rank_unchecked` function, `rank_prefetch` runs a first phase
+    /// in which it estimates the positions in the wavelet tree needed by rank queries
+    /// and prefetches these data. It is faster than the original `rank` function whenever
+    /// the superblock/block counters fit in L3 cache but the sequence is larger.
+    ///
+    /// # Safety
+    /// Calling this method with a position `i` larger than the size of the sequence
+    /// of with invalid symbol is undefined behavior.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::{HQWT256, RankUnsigned};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = HQWT256::from(data);
+    ///
+    /// unsafe {
+    ///     assert_eq!(qwt.rank_prefetch_unchecked(1, 2), 1);
+    /// }
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    pub unsafe fn rank_prefetch_unchecked(&self, symbol: T, i: usize) -> usize {
+        if WITH_PREFETCH_SUPPORT {
+            let _ = self.rank_prefetch_superblocks_unchecked(symbol, i);
+        }
+
+        let mut range = 0..i;
+
+        //we get the code on which we rank
+        let code = &self.codes_encode[symbol.as_() as usize];
+
+        let mut shift: i64 = code.len as i64 - 2;
+        let repr = code.content;
+
+        const BLOCK_SIZE: usize = 256; // TODO: fix me!
+
+        let mut level = 0;
+
+        self.qvs[0].prefetch_data(range.start);
+        self.qvs[0].prefetch_data(range.end);
+        while shift >= 2 {
+            let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
+
+            // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
+            let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+
+            let rank_start = self.qvs[level].rank_block_unchecked(two_bits, range.start);
+            let rank_end = self.qvs[level].rank_block_unchecked(two_bits, range.end);
+
+            range = (rank_start + offset)..(rank_end + offset);
+
+            // The estimated position can be off by BLOCK_SIZE for every level
+
+            self.qvs[level + 1].prefetch_data(range.start);
+            self.qvs[level + 1].prefetch_data(range.start + BLOCK_SIZE);
+
+            self.qvs[level + 1].prefetch_data(range.end);
+            self.qvs[level + 1].prefetch_data(range.end + BLOCK_SIZE);
+            for i in 0..level {
+                self.qvs[level + 1].prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
+            }
+
+            // // CHECK!
+            // let rank_start = self.qvs[level].rank_unchecked(two_bits, real_range.start);
+            // let rank_end = self.qvs[level].rank_unchecked(two_bits, real_range.end);
+
+            // real_range = (rank_start + offset)..(rank_end + offset);
+
+            // //if range.start > real_range.start || range.end > real_range.end {
+            // //     // THIS NEVER HAPPEN!
+            // // }
+
+            // if range.start / 256 != real_range.start / 256
+            //     && range.start / 256 + 1 != real_range.start / 256
+            // {
+            //     println!("Level: {}", level);
+            //     println!("Real range.start: {:?}", real_range);
+            //     println!("Appr range.start: {:?}", range);
+            //     println!("real_range.start / 256:   {}", real_range.start / 256);
+            //     println!("approx range.start / 256: {}\n", range.start / 256);
+            // }
+
+            // if !(range.end / 256 <= real_range.end / 256
+            //     && range.end / 256 + level + 1 >= real_range.end / 256)
+            // {
+            //     println!("{}", range.end / 256 <= real_range.end / 256);
+            //     println!("{}", range.end / 256 + level + 1 >= real_range.end / 256);
+            //     println!("{}", range.end / 256 + level >= real_range.end / 256);
+            //     println!("{}", range.end / 256 <= real_range.end / 256);
+            //     println!("Level: {}", level);
+            //     println!("Real range.end: {:?}", real_range);
+            //     println!("Appr range.end: {:?}", range);
+            //     println!("real_range.end / 256:   {}", real_range.end / 256);
+            //     println!("approx range.end / 256: {}\n", range.end / 256);
+            // }
+
+            level += 1;
+            shift -= 2;
+        }
+        self.rank_unchecked(symbol, i)
     }
 }
 
