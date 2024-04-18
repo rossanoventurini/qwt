@@ -288,18 +288,20 @@ where
     }
 
     #[inline]
-    unsafe fn rank_prefetch_superblocks_unchecked(&self, symbol: T, i: usize) -> usize {
+    unsafe fn rank_prefetch_superblocks_unchecked(
+        &self,
+        repr: u32,
+        code_len: u32,
+        i: usize,
+    ) -> usize {
         if !WITH_PREFETCH_SUPPORT {
             return 0;
         }
 
         if let Some(ref prefetch_support) = self.prefetch_support {
-            // let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
             //we get the code on which we rank
-            let code = &self.codes_encode[symbol.as_() as usize];
 
-            let mut shift: i64 = code.len as i64 - 2;
-            let repr = code.content;
+            let mut shift: i64 = code_len as i64 - 2;
 
             let mut range = 0..i;
 
@@ -438,14 +440,14 @@ where
     #[must_use]
     #[inline(always)]
     pub unsafe fn rank_prefetch_unchecked(&self, symbol: T, i: usize) -> usize {
+        //we get the code on which we rank
+        let code = &self.codes_encode[symbol.as_() as usize];
+
         if WITH_PREFETCH_SUPPORT {
-            let _ = self.rank_prefetch_superblocks_unchecked(symbol, i);
+            let _ = self.rank_prefetch_superblocks_unchecked(code.content, code.len, i);
         }
 
         let mut range = 0..i;
-
-        //we get the code on which we rank
-        let code = &self.codes_encode[symbol.as_() as usize];
 
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
