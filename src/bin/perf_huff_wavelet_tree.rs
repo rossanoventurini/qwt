@@ -1,14 +1,15 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use clap::Parser;
+use minimum_redundancy::Frequencies;
 use qwt::{
     perf_and_test_utils::{
         gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
     },
     quadwt::RSforWT,
     utils::msb,
-    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned, SpaceUsage,
-    HQWT256,
+    AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned,
+    SpaceUsage, HQWT256, HQWT512,
 };
 use serde::{Deserialize, Serialize};
 
@@ -243,6 +244,12 @@ fn main() {
     let input_filename = args.input_file;
     let text = std::fs::read(&input_filename).expect("Cannot read the input file.");
 
+    let freqs = text.iter().fold(HashMap::new(), |mut map, &c| {
+        *map.entry(c).or_insert(0u32) += 1;
+        map
+    });
+    println!("Text entropy: {}", Frequencies::entropy(&freqs));
+
     let n = text.len();
     println!("Text length: {:?}", n);
 
@@ -273,8 +280,67 @@ fn main() {
         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
 
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
     let output_filename = input_filename.clone() + ".256Pfs.hqwt";
     let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    let output_filename = input_filename.clone() + ".512.hqwt";
+    let ds = load_or_build_and_save_qwt::<HQWT512<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
+
+    if args.rank_prefetch {
+        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    let output_filename = input_filename.clone() + ".512Pfs.hqwt";
+    let ds = load_or_build_and_save_qwt::<HQWT512Pfs<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);

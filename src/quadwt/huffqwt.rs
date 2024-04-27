@@ -299,11 +299,12 @@ where
         }
 
         if let Some(ref prefetch_support) = self.prefetch_support {
-            //we get the code on which we rank
-
             let mut shift: i64 = code_len as i64 - 2;
 
             let mut range = 0..i;
+
+            // //CHECK
+            // let mut real_range = range.start..range.end;
 
             let mut level = 0;
 
@@ -311,7 +312,6 @@ where
             self.qvs[0].prefetch_info(range.start);
             self.qvs[0].prefetch_info(range.end);
 
-            #[allow(clippy::needless_range_loop)]
             while shift >= 2 {
                 let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
 
@@ -449,6 +449,9 @@ where
 
         let mut range = 0..i;
 
+        // //CHECK
+        // let mut real_range = range.start..range.end;
+
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
 
@@ -479,6 +482,14 @@ where
             for i in 0..level {
                 self.qvs[level + 1].prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
             }
+
+            // println!("Level: {} | two_bits {}", level, two_bits);
+            // println!("prefetch range start: {}", range.start >> 8);
+            // println!(
+            //     "prefetch range end: {} .. {}",
+            //     range.end >> 8,
+            //     last_prefetch >> 8
+            // );
 
             // // CHECK!
             // let rank_start = self.qvs[level].rank_unchecked(two_bits, real_range.start);
