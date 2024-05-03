@@ -369,6 +369,17 @@ where
     }
 }
 
+impl<T, BRS, const COMPRESSED: bool> From<Vec<T>> for WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    fn from(mut v: Vec<T>) -> Self {
+        WaveletTree::new(&mut v[..])
+    }
+}
+
 impl<T, BRS: SpaceUsage, const COMPRESSED: bool> SpaceUsage for WaveletTree<T, BRS, COMPRESSED> {
     /// Gives the space usage in bytes of the struct.
     fn space_usage_byte(&self) -> usize {

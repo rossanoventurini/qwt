@@ -9,7 +9,7 @@ use qwt::{
     quadwt::RSforWT,
     utils::msb,
     AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned,
-    SpaceUsage, HQWT256, HQWT512,
+    SpaceUsage, HQWT256, HQWT512, HWT,
 };
 use serde::{Deserialize, Serialize};
 
@@ -257,6 +257,28 @@ fn main() {
     let rank_queries = gen_rank_queries(args.n_queries, &text);
     let access_queries = gen_queries(args.n_queries, n);
     let select_queries = gen_select_queries(args.n_queries, &text);
+
+    let output_filename = input_filename.clone() + ".wt";
+    let ds = load_or_build_and_save_qwt::<HWT<_>>(&output_filename, &text);
+
+    if args.test_correctness {
+        test_correctness(&ds, &text);
+    }
+
+    if args.rank {
+        test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    }
+
+    if args.access {
+        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    }
+
+    if args.select {
+        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    }
 
     let output_filename = input_filename.clone() + ".256.hqwt";
     let ds = load_or_build_and_save_qwt::<HQWT256<_>>(&output_filename, &text);
