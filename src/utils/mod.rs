@@ -326,5 +326,24 @@ where
     }
 }
 
+pub fn stable_partition_of_2<T>(sequence: &mut [T], shift: usize)
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
+    u8: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new()];
+
+    for &a in sequence.iter() {
+        let bit = (a >> shift).as_() & 1;
+        vecs[bit as usize].push(a);
+    }
+
+    let mut pos = 0;
+    for i in 0..2 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
 #[cfg(test)]
 mod tests;

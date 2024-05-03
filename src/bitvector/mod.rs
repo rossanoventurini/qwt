@@ -470,7 +470,7 @@ impl SpaceUsage for BitVector {
     /// Returns the space usage in bytes.
     #[must_use]
     fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8
+        self.data.space_usage_byte() + 8 + 8
     }
 }
 
@@ -1387,7 +1387,7 @@ impl SpaceUsage for BitVectorMut {
     /// Returns the space usage in bytes.
     #[must_use]
     fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8
+        self.data.space_usage_byte() + 8 + 8
     }
 }
 
