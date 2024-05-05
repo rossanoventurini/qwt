@@ -17,6 +17,7 @@ pub struct RSWide {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[usize]>; 2],
+    n_zeros: usize,
 }
 
 impl RSWide {
@@ -105,6 +106,8 @@ impl RSWide {
         select_samples[0].push(superblock_metadata.len() - 1);
         select_samples[1].push(superblock_metadata.len() - 1);
 
+        let n_zeros = bv.len() - total_rank as usize;
+
         Self {
             bv,
             superblock_metadata: superblock_metadata.into_boxed_slice(),
@@ -114,19 +117,20 @@ impl RSWide {
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap(),
+            n_zeros,
         }
     }
 
     /// Returns the number of bits set to 1 in the bitvector.
     #[inline(always)]
     pub fn n_ones(&self) -> usize {
-        self.rank1(self.bv.len() - 1).unwrap() + self.bv.get(self.bv.len() - 1).unwrap() as usize
+        self.bv.len() - self.n_zeros()
     }
 
     /// Returns the number of bits set to 0 in the bitvector.
     #[inline(always)]
     pub fn n_zeros(&self) -> usize {
-        self.bv.len() - self.n_ones()
+        self.n_zeros
     }
 
     /// Returns the number of bits in the bitvector.

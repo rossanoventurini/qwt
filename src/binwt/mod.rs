@@ -21,6 +21,7 @@ impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + SpaceUsage + 
 pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     n: usize,                                  // The length of the represented sequence
     n_levels: usize,                           // The number of levels of the wavelet matrix
+    sigma: Option<T>,                          // Sigma used only if no compressed
     codes_encode: Option<Vec<PrefixCode>>,     // Lookup table for encoding
     codes_decode: Option<Vec<Vec<(u32, u8)>>>, // Lookup table for decoding symbols
     bvs: Vec<BRS>,                             // Each level uses either a quad or bit vector
@@ -86,6 +87,7 @@ where
             return Self {
                 n: 0,
                 n_levels: 0,
+                sigma: None,
                 codes_encode: None,
                 codes_decode: None,
                 bvs: vec![],
@@ -97,6 +99,7 @@ where
         let mut codes_encode = None;
         let mut codes_decode = None;
         let n_levels;
+        let sig;
 
         if COMPRESSED {
             //we craft the codes
@@ -132,11 +135,13 @@ where
             }
 
             codes_decode = Some(decoder);
-            codes_encode = Some(codes)
+            codes_encode = Some(codes);
+            sig = None;
         } else {
             let sigma = *sequence.iter().max().unwrap();
             let log_sigma = msb(sigma) + 1; // Note that sigma equals the largest symbol, so it's already "alphabet_size - 1"
-            n_levels = (log_sigma + 1) as usize;
+            n_levels = log_sigma as usize;
+            sig = Some(sigma);
         }
 
         //populate bvs
@@ -187,6 +192,7 @@ where
         Self {
             n: sequence.len(),
             n_levels,
+            sigma: sig,
             codes_encode,
             codes_decode,
             bvs,
@@ -244,7 +250,7 @@ where
 
             T::from(self.codes_decode.as_ref().unwrap()[shift][idx].1).unwrap()
         } else {
-            T::from(result).unwrap()
+            T::from(result as u8).unwrap()
         }
     }
 }
@@ -257,6 +263,10 @@ where
 {
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n {
+            return None;
+        }
+
+        if !COMPRESSED && symbol > *self.sigma.as_ref().unwrap() {
             return None;
         }
 
@@ -286,18 +296,18 @@ where
         for level in 0..symbol_len {
             let bit = ((repr >> (symbol_len - level - 1)) & 1) == 1;
 
-            let offset = if bit { self.bvs[level].n_zeros() } else { 0 };
+            let offset = self.bvs[level].n_zeros();
             cur_p = if bit {
                 self.bvs[level].rank1_unchecked(cur_p) + offset
             } else {
-                self.bvs[level].rank0_unchecked(cur_p) + offset
+                self.bvs[level].rank0_unchecked(cur_p)
             };
 
             cur_i = if bit {
                 self.bvs[level].rank1_unchecked(cur_i) + offset
             } else {
-                self.bvs[level].rank0_unchecked(cur_i) + offset
-            }
+                self.bvs[level].rank0_unchecked(cur_i)
+            };
         }
 
         cur_i - cur_p
@@ -342,7 +352,6 @@ where
                 self.bvs[level].rank0(b)
             }?;
 
-            // Safety: we are sure the symbol `two_bits` is in [0..3]
             b = rank_b + if bit { self.bvs[level].n_zeros() } else { 0 };
 
             rank_path_off.push(rank_b);
