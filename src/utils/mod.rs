@@ -6,7 +6,7 @@ use std::ops::Shr;
 
 #[allow(non_snake_case)]
 pub fn prefetch_read_NTA<T>(data: &[T], offset: usize) {
-    let _p = unsafe { data.as_ptr().add(offset) as *const i8 };
+    let _p = data.as_ptr().wrapping_add(offset) as *const i8;
 
     #[cfg(all(feature = "prefetch", any(target_arch = "x86", target_arch = "x86_64")))]
     {
