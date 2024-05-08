@@ -9,7 +9,7 @@ use qwt::{
     quadwt::RSforWT,
     utils::{msb, text_remap},
     AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned,
-    SpaceUsage, HQWT256, HQWT512, HWT, WT,
+    SpaceUsage, HQWT256, HQWT512, HWT, QWT256, WT,
 };
 use serde::{Deserialize, Serialize};
 
@@ -325,35 +325,8 @@ fn main() {
         // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
     }
 
-    // let output_filename = input_filename.clone() + ".256Pfs.hqwt";
-    // let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
-
-    // if args.test_correctness {
-    //     test_correctness(&ds, &text);
-    // }
-
-    // if args.rank {
-    //     test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-    //     // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-    // }
-
-    // if args.access {
-    //     test_access_latency(&ds, n, &access_queries, input_filename.clone());
-    //     // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-    // }
-
-    // if args.select {
-    //     test_select_latency(&ds, n, &select_queries, input_filename.clone());
-    //     // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-    // }
-
-    // if args.rank_prefetch {
-    //     test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-    //     // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
-    // }
-
-    let output_filename = input_filename.clone() + ".512.hqwt";
-    let ds = load_or_build_and_save_qwt::<HQWT512<_>>(&output_filename, &text);
+    let output_filename = input_filename.clone() + ".256.qwt";
+    let ds = load_or_build_and_save_qwt::<QWT256<_>>(&output_filename, &text);
 
     if args.test_correctness {
         test_correctness(&ds, &text);
@@ -373,36 +346,4 @@ fn main() {
         test_select_latency(&ds, n, &select_queries, input_filename.clone());
         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
     }
-
-    if args.rank_prefetch {
-        test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-        // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
-    }
-
-    // let output_filename = input_filename.clone() + ".512Pfs.hqwt";
-    // let ds = load_or_build_and_save_qwt::<HQWT512Pfs<_>>(&output_filename, &text);
-
-    // if args.test_correctness {
-    //     test_correctness(&ds, &text);
-    // }
-
-    // if args.rank {
-    //     test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-    //     // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-    // }
-
-    // if args.access {
-    //     test_access_latency(&ds, n, &access_queries, input_filename.clone());
-    //     // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-    // }
-
-    // if args.select {
-    //     test_select_latency(&ds, n, &select_queries, input_filename.clone());
-    //     // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-    // }
-
-    // if args.rank_prefetch {
-    //     test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-    //     // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
-    // }
 }

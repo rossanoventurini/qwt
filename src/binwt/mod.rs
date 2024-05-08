@@ -220,6 +220,7 @@ where
         Some(unsafe { self.get_unchecked(i) })
     }
 
+    #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
         let mut result: u32 = 0;
@@ -261,6 +262,7 @@ where
     u8: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
+    #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n {
             return None;
@@ -277,6 +279,7 @@ where
         Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
+    #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut cur_i = i;
         let mut cur_p = 0;
@@ -320,6 +323,7 @@ where
     u8: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
+    #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if COMPRESSED && self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0 {
             return None;
@@ -373,6 +377,7 @@ where
         Some(result)
     }
 
+    #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
     }
