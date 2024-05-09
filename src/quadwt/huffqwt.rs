@@ -602,6 +602,7 @@ where
                 break;
             }
 
+            self.qvs[level].prefetch_info(cur_i);
             let symbol = self.qvs[level].get_unchecked(cur_i);
             result = (result << 2) | symbol as u32;
 
