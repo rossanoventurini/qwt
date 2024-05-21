@@ -201,7 +201,7 @@ impl BitVector {
     #[must_use]
     #[inline]
     pub fn get_bits(&self, index: usize, len: usize) -> Option<u64> {
-        if (len == 0) | (len > 64) | (index + len >= self.n_bits) {
+        if (len == 0) | (len > 64) | (index + len > self.n_bits) {
             return None;
         }
         // SAFETY: safe access due to the above checks
