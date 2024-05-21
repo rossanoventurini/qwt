@@ -43,6 +43,8 @@ struct Args {
     #[arg(short, long)]
     hqwt: bool,
     #[arg(short, long)]
+    hqwtpfs: bool,
+    #[arg(short, long)]
     all_structs: bool,
 }
 
@@ -346,6 +348,35 @@ fn main() {
 
         if args.rank {
             test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+        }
+
+        if args.access {
+            test_access_latency(&ds, n, &access_queries, input_filename.clone());
+            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+        }
+
+        if args.select {
+            test_select_latency(&ds, n, &select_queries, input_filename.clone());
+            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+        }
+
+        if args.rank_prefetch {
+            test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+            // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+        }
+    }
+
+    if args.hqwtpfs || args.all_structs {
+        let output_filename = input_filename.clone() + ".256pfs.hqwt";
+        let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
+
+        if args.test_correctness {
+            test_correctness(&ds, &text);
+        }
+
+        if args.rank {
+            test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
             // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
         }
 

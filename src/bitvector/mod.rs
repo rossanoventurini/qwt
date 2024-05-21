@@ -19,8 +19,6 @@ struct DataLine {
     words: [u64; 8],
 }
 
-//misurare miss per rank con perf
-
 impl DataLine {
     //set symbol to position `i`
     #[inline]
