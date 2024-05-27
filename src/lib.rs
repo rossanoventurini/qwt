@@ -48,7 +48,12 @@ pub type HQWT512<T> = HuffQWaveletTree<T, RSQVector512>;
 pub type HQWT256Pfs<T> = HuffQWaveletTree<T, RSQVector256, true>;
 pub type HQWT512Pfs<T> = HuffQWaveletTree<T, RSQVector512, true>;
 
+/// This type represents a binary wavelet tree,
+/// Each level of this tree is handled by a RSWide bitvector
 pub type WT<T> = WaveletTree<T, RSWide>;
+
+/// This type represents a binary wavelet tree compressed using huffman coding.
+/// Each level of this tree is handled by a RSWide bitvector
 pub type HWT<T> = WaveletTree<T, RSWide, true>;
 
 use num_traits::Unsigned;

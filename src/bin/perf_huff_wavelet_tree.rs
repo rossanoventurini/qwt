@@ -1,15 +1,14 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{fs, path::Path};
 
 use clap::Parser;
-use minimum_redundancy::Frequencies;
 use qwt::{
     perf_and_test_utils::{
         gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
     },
     quadwt::RSforWT,
     utils::{msb, text_remap},
-    AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned,
-    SpaceUsage, HQWT256, HQWT512, HWT, QWT256, WT,
+    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, RankUnsigned, SelectUnsigned, SpaceUsage,
+    HQWT256, HWT, QWT256, WT,
 };
 use serde::{Deserialize, Serialize};
 

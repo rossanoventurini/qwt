@@ -82,6 +82,29 @@ where
     u8: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
+    /// Builds a binary wavelet tree of the `sequence` of unsigned integers.
+    /// The input `sequence` will be **destroyed**.
+    /// If `[COMPRESSED == true]` the wavelet tree will be compressed, meaning the symbols
+    /// will be represented using huffman coding.
+    ///
+    ///
+    /// Both space usage and query time of a QWaveletTree depend on the length
+    /// of the representation of the symbols.
+    ///
+    /// ## Panics
+    /// Panics if the sequence is longer than the largest possible length.
+    /// The largest possible length is 2^{43} symbols.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::WT;
+    ///
+    /// let mut data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let wt = WT::new(&mut data);
+    ///
+    /// assert_eq!(wt.len(), 8);
+    /// ```
     pub fn new(sequence: &mut [T]) -> Self {
         if sequence.is_empty() {
             return Self {
@@ -198,6 +221,85 @@ where
             bvs,
             lens,
             phantom_data: PhantomData,
+        }
+    }
+
+    /// Returns the length of the indexed sequence.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::WT;
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    ///
+    /// let qwt = WT::from(data);
+    ///
+    /// assert_eq!(qwt.len(), 8);
+    /// ```
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    /// Checks if the indexed sequence is empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::WT;
+    ///
+    /// let wt = WT::<u8>::default();
+    ///
+    /// assert_eq!(wt.is_empty(), true);
+    /// ```
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
+    /// Returns the number of levels in the wavelet tree.
+    ///
+    /// The number of levels represents the depth of the wavelet tree.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{WT, HWT};
+    ///
+    /// let data = vec![1u8, 0, 1, 0, 255, 4, 5, 3];
+    ///
+    /// let wt = WT::from(data.clone());
+    /// assert_eq!(wt.n_levels(), 8);
+    ///
+    /// let hwt = HWT::from(data.clone());
+    /// assert_eq!(hwt.n_levels(), 3);
+    /// ```
+    #[must_use]
+    pub fn n_levels(&self) -> usize {
+        self.n_levels
+    }
+
+    /// Returns an iterator over the values in the wavelet tree.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::WT;
+    ///
+    /// let data: Vec<u8> = (0..10u8).into_iter().cycle().take(100).collect();
+    ///
+    /// let wt = WT::from(data.clone());
+    ///
+    /// assert_eq!(wt.iter().collect::<Vec<_>>(), data);
+    ///
+    /// assert_eq!(wt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
+    /// ```
+    pub fn iter(&self) -> WTIterator<T, BRS, &WaveletTree<T, BRS, COMPRESSED>, COMPRESSED> {
+        WTIterator {
+            i: 0,
+            end: self.len(),
+            qwt: self,
+            _phantom: PhantomData,
         }
     }
 }
@@ -391,6 +493,135 @@ where
 {
     fn from(mut v: Vec<T>) -> Self {
         WaveletTree::new(&mut v[..])
+    }
+}
+
+impl<T, BRS, const COMPRESSED: bool> AsRef<WaveletTree<T, BRS, COMPRESSED>>
+    for WaveletTree<T, BRS, COMPRESSED>
+{
+    fn as_ref(&self) -> &WaveletTree<T, BRS, COMPRESSED> {
+        self
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WTIterator<
+    T,
+    BRS,
+    Q: AsRef<WaveletTree<T, BRS, COMPRESSED>>,
+    const COMPRESSED: bool = false,
+> {
+    i: usize,
+    end: usize,
+    qwt: Q,
+    _phantom: PhantomData<(T, BRS)>,
+}
+
+impl<T, BRS, Q: AsRef<WaveletTree<T, BRS, COMPRESSED>>, const COMPRESSED: bool> Iterator
+    for WTIterator<T, BRS, Q, COMPRESSED>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            self.i += 1;
+            // SAFETY: bounds are checked
+            Some(unsafe { qwt.get_unchecked(self.i - 1) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        BRS,
+        Q: AsRef<WaveletTree<T, BRS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > DoubleEndedIterator for WTIterator<T, BRS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            // SAFETY: bounds are checked
+            self.end -= 1;
+            Some(unsafe { qwt.get_unchecked(self.end) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<
+        T,
+        BRS,
+        Q: AsRef<WaveletTree<T, BRS, WITH_PREFETCH_SUPPORT>>,
+        const WITH_PREFETCH_SUPPORT: bool,
+    > ExactSizeIterator for WTIterator<T, BRS, Q, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    fn len(&self) -> usize {
+        self.end - self.i
+    }
+}
+
+impl<T, BRS, const COMPRESSED: bool> IntoIterator for WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    type IntoIter = WTIterator<T, BRS, WaveletTree<T, BRS, COMPRESSED>, COMPRESSED>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        WTIterator {
+            i: 0,
+            end: self.len(),
+            qwt: self,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T, BRS, const COMPRESSED: bool> IntoIterator for &'a WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    type IntoIter = WTIterator<T, BRS, &'a WaveletTree<T, BRS, COMPRESSED>, COMPRESSED>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<T, BRS, const COMPRESSED: bool> FromIterator<T> for WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        WaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
     }
 }
 
