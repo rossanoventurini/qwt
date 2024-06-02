@@ -82,8 +82,12 @@ impl RankBin for DataLine {
                 break;
             }
             let cur_word = self.words.get_unchecked(w);
-            let x = if left > 64 { 64 } else { left };
-            rank += (cur_word & ((1u128 << x) - 1) as u64).count_ones() as usize;
+            let mask: u64 = if left > 63 {
+                0xFFFFFFFFFFFFFFFF
+            } else {
+                (1 << left) - 1
+            };
+            rank += (cur_word & mask).count_ones() as usize;
 
             left -= 64;
         }
