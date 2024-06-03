@@ -6,6 +6,9 @@
 
 pub mod perf_and_test_utils;
 pub mod qvector;
+use std::marker::PhantomData;
+
+use num_traits::AsPrimitive;
 pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
@@ -259,4 +262,60 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
 
     /// Prefetches data containing the position `pos`.
     fn prefetch_data(&self, pos: usize);
+}
+
+//should be WTIterator<T, Q: AsRef<S: AccessUnsigned<Item = T>>>, but throws compiler error
+#[derive(Debug, PartialEq)]
+pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
+    i: usize,
+    end: usize,
+    qwt: Q,
+    _phantom: PhantomData<(T, S)>,
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> Iterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            self.i += 1;
+            // SAFETY: bounds are checked
+            Some(unsafe { qwt.get_unchecked(self.i - 1) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> DoubleEndedIterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            // SAFETY: bounds are checked
+            self.end -= 1;
+            Some(unsafe { qwt.get_unchecked(self.end) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> ExactSizeIterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    fn len(&self) -> usize {
+        self.end - self.i
+    }
 }

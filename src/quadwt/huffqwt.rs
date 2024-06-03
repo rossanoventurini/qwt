@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     utils::stable_partition_of_4_with_codes, AccessUnsigned, QVectorBuilder, RankUnsigned,
-    SelectUnsigned, SpaceUsage, WTIndexable,
+    SelectUnsigned, SpaceUsage, WTIndexable, WTIterator,
 };
 
 use super::{prefetch_support::PrefetchSupport, RSforWT};
@@ -277,9 +277,12 @@ where
     /// ```
     pub fn iter(
         &self,
-    ) -> HQWTIterator<T, RS, &HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>, WITH_PREFETCH_SUPPORT>
-    {
-        HQWTIterator {
+    ) -> WTIterator<
+        T,
+        HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+        &HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+    > {
+        WTIterator {
             i: 0,
             end: self.len(),
             qwt: self,
@@ -844,87 +847,6 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AsRef<HuffQWaveletTree<T, RS, WIT
     }
 }
 
-// This is a naive implementation of an iterator for WT.
-// We could do better by storing more information and
-// avoid rank operations!
-#[derive(Debug, PartialEq)]
-pub struct HQWTIterator<
-    T,
-    RS,
-    Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
-    const WITH_PREFETCH_SUPPORT: bool = false,
-> {
-    i: usize,
-    end: usize,
-    qwt: Q,
-    _phantom: PhantomData<(T, RS)>,
-}
-
-impl<
-        T,
-        RS,
-        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
-        const WITH_PREFETCH_SUPPORT: bool,
-    > Iterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: this may be faster without calling get.
-        let qwt = self.qwt.as_ref();
-        if self.i < self.end {
-            self.i += 1;
-            // SAFETY: bounds are checked
-            Some(unsafe { qwt.get_unchecked(self.i - 1) })
-        } else {
-            None
-        }
-    }
-}
-
-impl<
-        T,
-        RS,
-        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
-        const WITH_PREFETCH_SUPPORT: bool,
-    > DoubleEndedIterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
-    fn next_back(&mut self) -> Option<Self::Item> {
-        // TODO: this may be faster without calling get.
-        let qwt = self.qwt.as_ref();
-        if self.i < self.end {
-            // SAFETY: bounds are checked
-            self.end -= 1;
-            Some(unsafe { qwt.get_unchecked(self.end) })
-        } else {
-            None
-        }
-    }
-}
-
-impl<
-        T,
-        RS,
-        Q: AsRef<HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>>,
-        const WITH_PREFETCH_SUPPORT: bool,
-    > ExactSizeIterator for HQWTIterator<T, RS, Q, WITH_PREFETCH_SUPPORT>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    RS: RSforWT,
-{
-    fn len(&self) -> usize {
-        self.end - self.i
-    }
-}
-
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
@@ -932,12 +854,15 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    type IntoIter =
-        HQWTIterator<T, RS, HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>, WITH_PREFETCH_SUPPORT>;
+    type IntoIter = WTIterator<
+        T,
+        HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+        HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+    >;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
-        HQWTIterator {
+        WTIterator {
             i: 0,
             end: self.len(),
             qwt: self,
@@ -953,11 +878,10 @@ where
     u8: AsPrimitive<T>,
     RS: RSforWT,
 {
-    type IntoIter = HQWTIterator<
+    type IntoIter = WTIterator<
         T,
-        RS,
+        HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
         &'a HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
-        WITH_PREFETCH_SUPPORT,
     >;
     type Item = T;
 

@@ -8,7 +8,7 @@ use crate::{
     quadwt::huffqwt::PrefixCode,
     utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
     AccessBin, AccessUnsigned, BitVector, BitVectorMut, RankBin, RankUnsigned, SelectBin,
-    SelectUnsigned, SpaceUsage, WTIndexable,
+    SelectUnsigned, SpaceUsage, WTIndexable, WTIterator,
 };
 
 pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
@@ -294,7 +294,9 @@ where
     ///
     /// assert_eq!(wt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
     /// ```
-    pub fn iter(&self) -> WTIterator<T, BRS, &WaveletTree<T, BRS, COMPRESSED>, COMPRESSED> {
+    pub fn iter(
+        &self,
+    ) -> WTIterator<T, WaveletTree<T, BRS, COMPRESSED>, &WaveletTree<T, BRS, COMPRESSED>> {
         WTIterator {
             i: 0,
             end: self.len(),
@@ -504,87 +506,13 @@ impl<T, BRS, const COMPRESSED: bool> AsRef<WaveletTree<T, BRS, COMPRESSED>>
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct WTIterator<
-    T,
-    BRS,
-    Q: AsRef<WaveletTree<T, BRS, COMPRESSED>>,
-    const COMPRESSED: bool = false,
-> {
-    i: usize,
-    end: usize,
-    qwt: Q,
-    _phantom: PhantomData<(T, BRS)>,
-}
-
-impl<T, BRS, Q: AsRef<WaveletTree<T, BRS, COMPRESSED>>, const COMPRESSED: bool> Iterator
-    for WTIterator<T, BRS, Q, COMPRESSED>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    BRS: BinRSforWT,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: this may be faster without calling get.
-        let qwt = self.qwt.as_ref();
-        if self.i < self.end {
-            self.i += 1;
-            // SAFETY: bounds are checked
-            Some(unsafe { qwt.get_unchecked(self.i - 1) })
-        } else {
-            None
-        }
-    }
-}
-
-impl<
-        T,
-        BRS,
-        Q: AsRef<WaveletTree<T, BRS, WITH_PREFETCH_SUPPORT>>,
-        const WITH_PREFETCH_SUPPORT: bool,
-    > DoubleEndedIterator for WTIterator<T, BRS, Q, WITH_PREFETCH_SUPPORT>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    BRS: BinRSforWT,
-{
-    fn next_back(&mut self) -> Option<Self::Item> {
-        // TODO: this may be faster without calling get.
-        let qwt = self.qwt.as_ref();
-        if self.i < self.end {
-            // SAFETY: bounds are checked
-            self.end -= 1;
-            Some(unsafe { qwt.get_unchecked(self.end) })
-        } else {
-            None
-        }
-    }
-}
-
-impl<
-        T,
-        BRS,
-        Q: AsRef<WaveletTree<T, BRS, WITH_PREFETCH_SUPPORT>>,
-        const WITH_PREFETCH_SUPPORT: bool,
-    > ExactSizeIterator for WTIterator<T, BRS, Q, WITH_PREFETCH_SUPPORT>
-where
-    T: WTIndexable,
-    u8: AsPrimitive<T>,
-    BRS: BinRSforWT,
-{
-    fn len(&self) -> usize {
-        self.end - self.i
-    }
-}
-
 impl<T, BRS, const COMPRESSED: bool> IntoIterator for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
     u8: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
-    type IntoIter = WTIterator<T, BRS, WaveletTree<T, BRS, COMPRESSED>, COMPRESSED>;
+    type IntoIter = WTIterator<T, WaveletTree<T, BRS, COMPRESSED>, WaveletTree<T, BRS, COMPRESSED>>;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -603,7 +531,8 @@ where
     u8: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
-    type IntoIter = WTIterator<T, BRS, &'a WaveletTree<T, BRS, COMPRESSED>, COMPRESSED>;
+    type IntoIter =
+        WTIterator<T, WaveletTree<T, BRS, COMPRESSED>, &'a WaveletTree<T, BRS, COMPRESSED>>;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
