@@ -332,16 +332,15 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            if cur_i >= self.lens[level] {
+            if COMPRESSED && cur_i >= self.lens[level] {
                 break;
             }
 
             let symbol = self.bvs[level].get_unchecked(cur_i);
             result = (result << 1) | symbol as u32;
 
-            let offset = self.bvs[level].n_zeros();
             cur_i = if symbol {
-                self.bvs[level].rank1_unchecked(cur_i) + offset
+                self.bvs[level].rank1_unchecked(cur_i) + self.bvs[level].n_zeros()
             } else {
                 self.bvs[level].rank0_unchecked(cur_i)
             };

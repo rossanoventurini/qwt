@@ -328,5 +328,11 @@ impl SpaceUsage for RSNarrow {
     }
 }
 
+impl From<BitVector> for RSNarrow {
+    fn from(bv: BitVector) -> Self {
+        RSNarrow::new(bv)
+    }
+}
+
 #[cfg(test)]
 mod tests;
