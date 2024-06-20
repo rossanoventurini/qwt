@@ -1,7 +1,9 @@
 //! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
 //! This implementation is inspired by [this paper by Florian Kurpicz] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
-use crate::{AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
+use crate::{
+    utils::prefetch_read_NTA, AccessBin, BinWTSupport, BitVector, RankBin, SelectBin, SpaceUsage,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -241,6 +243,16 @@ impl RSWide {
         let rank = max_rank_for_subblock * position - self.sub_block_rank(position);
 
         (position, rank)
+    }
+}
+
+impl BinWTSupport for RSWide {
+    fn prefetch_info(&self, pos: usize) {
+        prefetch_read_NTA(&self.superblock_metadata, pos / 512)
+    }
+
+    fn prefetch_data(&self, pos: usize) {
+        prefetch_read_NTA(&self.bv.data, pos / 512)
     }
 }
 

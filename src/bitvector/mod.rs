@@ -59,7 +59,7 @@ impl AccessBin for DataLine {
 
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> bool {
-        (self.words.get_unchecked(i >> 6) >> (i % 64)) & 1 == 1
+        (self.words[i >> 6] >> (i % 64)) & 1 == 1
     }
 }
 

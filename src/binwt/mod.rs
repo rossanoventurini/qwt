@@ -7,12 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     quadwt::huffqwt::PrefixCode,
     utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
-    AccessBin, AccessUnsigned, BitVector, BitVectorMut, RankBin, RankUnsigned, SelectBin,
-    SelectUnsigned, SpaceUsage, WTIndexable, WTIterator,
+    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, RankUnsigned, SelectUnsigned,
+    SpaceUsage, WTIndexable, WTIterator,
 };
-
-pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
-impl<T> BinWTSupport for T where T: AccessBin + RankBin + SelectBin {}
 
 pub trait BinRSforWT: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
 impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
@@ -339,10 +336,12 @@ where
             let symbol = self.bvs[level].get_unchecked(cur_i);
             result = (result << 1) | symbol as u32;
 
+            let tmp = self.bvs[level].rank1_unchecked(cur_i);
+
             cur_i = if symbol {
-                self.bvs[level].rank1_unchecked(cur_i) + self.bvs[level].n_zeros()
+                tmp + self.bvs[level].n_zeros()
             } else {
-                self.bvs[level].rank0_unchecked(cur_i)
+                cur_i - tmp
             };
             shift += 1;
         }
@@ -403,17 +402,13 @@ where
             let bit = ((repr >> (symbol_len - level - 1)) & 1) == 1;
 
             let offset = self.bvs[level].n_zeros();
-            cur_p = if bit {
-                self.bvs[level].rank1_unchecked(cur_p) + offset
-            } else {
-                self.bvs[level].rank0_unchecked(cur_p)
-            };
 
-            cur_i = if bit {
-                self.bvs[level].rank1_unchecked(cur_i) + offset
-            } else {
-                self.bvs[level].rank0_unchecked(cur_i)
-            };
+            let tmp_p = self.bvs[level].rank1_unchecked(cur_p);
+            let tmp_i = self.bvs[level].rank1_unchecked(cur_i);
+
+            cur_p = if bit { tmp_p + offset } else { cur_p - tmp_p };
+
+            cur_i = if bit { tmp_i + offset } else { cur_i - tmp_i };
         }
 
         cur_i - cur_p

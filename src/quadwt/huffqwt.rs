@@ -122,13 +122,30 @@ where
 
         //count symbol frequences
         let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
-            *map.entry(c.as_()).or_insert(0u32) += 1;
+            *map.entry(c.as_()).or_insert(0usize) += 1;
             map
         });
 
         // println!("entropy: {}", Frequencies::entropy(&freqs));
 
-        let mut lengths = Coding::from_frequencies(BitsPerFragment(2), freqs).code_lengths();
+        // println!("freqs: {:?}", &freqs);
+
+        // let tot_occs = sequence.len();
+        // println!("total occurrences: {}", tot_occs);
+
+        let mut lengths =
+            Coding::from_frequencies_cloned(BitsPerFragment(2), &freqs).code_lengths();
+
+        // println!("lengths: {:?}", &lengths);
+
+        // let mut awpl = 0;
+
+        // for (&k, &v) in lengths.iter() {
+        //     // println!("{} {} {}", &k, &v, freqs[&k]);
+        //     awpl += v as usize * 2 * freqs[&k];
+        // }
+
+        // println!("awpl in bits: {}", awpl as f64 / tot_occs as f64);
 
         let codes = craft_wm_codes(&mut lengths);
 
@@ -190,6 +207,8 @@ where
         }
 
         qvs.shrink_to_fit();
+
+        println!("lens of qwt: {:?}", &lens);
 
         Self {
             n: sequence.len(),
