@@ -1,6 +1,6 @@
 [package]
 name = "qwt"
-version = "0.1.33"
+version = "0.2.0"
 edition = "2021"
 authors = ["Rossano Venturini <rossano.venturini@unipi.it>"]
 readme = "README.md"
@@ -22,6 +22,7 @@ bincode = "1.3.3"
 sucds = "0.8.1"
 simple-sds = { git = "https://github.com/jltsiren/simple-sds.git" }
 bitm = "0.4.1"
+minimum_redundancy = "0.3.1" 
 
 [features]
 default = ["prefetch"]

@@ -19,8 +19,6 @@ struct DataLine {
     words: [u64; 8],
 }
 
-//misurare miss per rank con perf
-
 impl DataLine {
     //set symbol to position `i`
     #[inline]
@@ -61,7 +59,7 @@ impl AccessBin for DataLine {
 
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> bool {
-        (self.words.get_unchecked(i >> 6) >> (i % 64)) & 1 == 1
+        (self.words[i >> 6] >> (i % 64)) & 1 == 1
     }
 }
 
@@ -84,12 +82,20 @@ impl RankBin for DataLine {
                 break;
             }
             let cur_word = self.words.get_unchecked(w);
-            let x = if left > 64 { 64 } else { left };
-            rank += (cur_word & ((1u128 << x) - 1) as u64).count_ones() as usize;
+            let mask: u64 = if left > 63 {
+                0xFFFFFFFFFFFFFFFF
+            } else {
+                (1 << left) - 1
+            };
+            rank += (cur_word & mask).count_ones() as usize;
 
             left -= 64;
         }
         rank
+    }
+
+    fn n_zeros(&self) -> usize {
+        self.n_zeros()
     }
 }
 
@@ -466,7 +472,7 @@ impl SpaceUsage for BitVector {
     /// Returns the space usage in bytes.
     #[must_use]
     fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8
+        self.data.space_usage_byte() + 8 + 8
     }
 }
 
@@ -1383,7 +1389,7 @@ impl SpaceUsage for BitVectorMut {
     /// Returns the space usage in bytes.
     #[must_use]
     fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8
+        self.data.space_usage_byte() + 8 + 8
     }
 }
 

@@ -2,7 +2,7 @@ use qwt::perf_and_test_utils::{
     gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
 };
 use qwt::utils::{msb, text_remap};
-use qwt::{QWT256Pfs, QWT512Pfs, QWT256, QWT512};
+use qwt::{HQWT256Pfs, QWT256Pfs, QWT512Pfs, HQWT256, QWT256, QWT512, WT};
 
 use sucds::bit_vectors::{Access, Build, NumBits, Rank, Rank9Sel, Select};
 use sucds::char_sequences::WaveletMatrix;
@@ -82,7 +82,52 @@ impl Operations for QWT256<u8> {
     }
 }
 
+impl Operations for WT<u8> {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        unsafe { self.rank_unchecked(s, i) }
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        unsafe { self.select_unchecked(s, i) }
+    }
+    fn get(&self, i: usize) -> u8 {
+        unsafe { self.get_unchecked(i) }
+    }
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
 impl Operations for QWT256Pfs<u8> {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        unsafe { self.rank_prefetch_unchecked(s, i) }
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        unsafe { self.select_unchecked(s, i) }
+    }
+    fn get(&self, i: usize) -> u8 {
+        unsafe { self.get_unchecked(i) }
+    }
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
+impl Operations for HQWT256<u8> {
+    fn rank(&self, s: u8, i: usize) -> usize {
+        unsafe { self.rank_unchecked(s, i) }
+    }
+    fn select(&self, s: u8, i: usize) -> usize {
+        unsafe { self.select_unchecked(s, i) }
+    }
+    fn get(&self, i: usize) -> u8 {
+        unsafe { self.get_unchecked(i) }
+    }
+    fn space_usage_byte(&self) -> usize {
+        SpaceUsage::space_usage_byte(self)
+    }
+}
+
+impl Operations for HQWT256Pfs<u8> {
     fn rank(&self, s: u8, i: usize) -> usize {
         unsafe { self.rank_prefetch_unchecked(s, i) }
     }
@@ -192,11 +237,12 @@ fn test_select_performace<T: Operations>(ds: &T, _n: usize, queries: &[(usize, u
     let mut t = TimingQueries::new(N_RUNS, queries.len());
 
     let mut result = 0;
-    for _ in 0..N_RUNS {
+    for r in 0..N_RUNS {
+        println!("starting run {}", r);
         t.start();
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
-            let i = std::cmp::max(1, i);
+            let i = std::cmp::max(1, i) - 1;
             result = ds.select(symbol, i);
         }
         t.stop()
@@ -253,10 +299,13 @@ fn main() {
     seq.extend(text.iter().map(|&c| c as usize)).unwrap();
     let sucds_wm = WaveletMatrix::<Rank9Sel>::new(seq).unwrap();
 
-    let qwt256 = QWT256::from(text.clone());
-    let qwt512 = QWT512::from(text.clone());
+    let wt = WT::from(text.clone());
+    // let qwt256 = QWT256::from(text.clone());
+    // let qwt512 = QWT512::from(text.clone());
     let qwt256pfs = QWT256Pfs::from(text.clone());
-    let qwt512pfs = QWT512Pfs::from(text.clone());
+    // let qwt512pfs = QWT512Pfs::from(text.clone());
+    // let hqwt256 = HQWT256::from(text.clone());
+    let hqwt256pfs = HQWT256Pfs::from(text.clone());
 
     let simple_sds = simple_sds_WM::from(text.clone());
 
@@ -270,30 +319,39 @@ fn main() {
 
     if args.rank {
         test_rank_performace(&sucds_wm, n, &rank_queries);
-        test_rank_performace(&qwt256, n, &rank_queries);
+        // test_rank_performace(&qwt256, n, &rank_queries);
+        test_rank_performace(&wt, n, &rank_queries);
         test_rank_performace(&qwt256pfs, n, &rank_queries);
-        test_rank_performace(&qwt512, n, &rank_queries);
-        test_rank_performace(&qwt512pfs, n, &rank_queries);
+        // test_rank_performace(&hqwt256, n, &rank_queries);
+        test_rank_performace(&hqwt256pfs, n, &rank_queries);
+        // test_rank_performace(&qwt512, n, &rank_queries);
+        // test_rank_performace(&qwt512pfs, n, &rank_queries);
         test_rank_performace(&simple_sds, n, &rank_queries);
         //test_rank_performace(&sdsl_wt, n, &rank_queries);
     }
 
     if args.access {
         test_access_performace(&sucds_wm, n, &access_queries);
-        test_access_performace(&qwt256, n, &access_queries);
+        // test_access_performace(&qwt256, n, &access_queries);
+        test_access_performace(&wt, n, &access_queries);
         test_access_performace(&qwt256pfs, n, &access_queries);
-        test_access_performace(&qwt512, n, &access_queries);
-        test_access_performace(&qwt512pfs, n, &access_queries);
+        // test_access_performace(&hqwt256, n, &access_queries);
+        test_access_performace(&hqwt256pfs, n, &access_queries);
+        // test_access_performace(&qwt512, n, &access_queries);
+        // test_access_performace(&qwt512pfs, n, &access_queries);
         test_access_performace(&simple_sds, n, &access_queries);
         //test_access_performace(&sdsl_wt, n, &access_queries);
     }
 
     if args.select {
         test_select_performace(&sucds_wm, n, &select_queries);
-        test_select_performace(&qwt256, n, &select_queries);
+        // test_select_performace(&qwt256, n, &select_queries);
+        test_select_performace(&wt, n, &select_queries);
         test_select_performace(&qwt256pfs, n, &select_queries);
-        test_select_performace(&qwt512, n, &select_queries);
-        test_select_performace(&qwt512pfs, n, &select_queries);
+        // test_select_performace(&hqwt256, n, &select_queries);
+        test_select_performace(&hqwt256pfs, n, &select_queries);
+        // test_select_performace(&qwt512, n, &select_queries);
+        // test_select_performace(&qwt512pfs, n, &select_queries);
         test_select_performace(&simple_sds, n, &select_queries);
         //test_access_performace(&sdsl_wt, n, &access_queries);
     }

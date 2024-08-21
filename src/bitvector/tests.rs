@@ -1,5 +1,8 @@
 use super::*;
-use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector};
+use crate::{
+    perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector},
+    RSWide,
+};
 
 #[test]
 fn test_is_empty() {
@@ -133,4 +136,21 @@ fn test_set_symbol() {
     println!("{:?}", dl);
 
     println!("got bit: {:?}", dl.get(i));
+}
+
+#[test]
+fn boh() {
+    let mut bv1 = BitVectorMut::new();
+    bv1.push(true);
+    bv1.push(false);
+    bv1.push(true);
+
+    //negate bitvector using iterators;
+    let bv2: BitVector = bv1.iter().map(|x| !x).collect();
+    assert_eq!(bv2.get(0), Some(false));
+
+    //create rank/select support
+    let rs = RSWide::from(bv2);
+    assert_eq!(rs.rank0(1), Some(1));
+    assert_eq!(rs.select0(1), Some(2));
 }

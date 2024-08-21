@@ -6,6 +6,9 @@
 
 pub mod perf_and_test_utils;
 pub mod qvector;
+use std::marker::PhantomData;
+
+use num_traits::AsPrimitive;
 pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
@@ -22,8 +25,12 @@ pub use qvector::rs_qvector::RSQVector256;
 pub use qvector::rs_qvector::RSQVector512;
 
 pub mod quadwt;
+pub use quadwt::huffqwt::HuffQWaveletTree;
 pub use quadwt::QWaveletTree;
 pub use quadwt::WTIndexable;
+
+pub mod binwt;
+pub use binwt::WaveletTree;
 
 pub mod space_usage;
 pub use space_usage::SpaceUsage;
@@ -37,6 +44,20 @@ pub type QWT512<T> = QWaveletTree<T, RSQVector512>;
 // Quad Wavelet tree with support for prefetching
 pub type QWT256Pfs<T> = QWaveletTree<T, RSQVector256, true>;
 pub type QWT512Pfs<T> = QWaveletTree<T, RSQVector512, true>;
+
+pub type HQWT256<T> = HuffQWaveletTree<T, RSQVector256>;
+pub type HQWT512<T> = HuffQWaveletTree<T, RSQVector512>;
+
+pub type HQWT256Pfs<T> = HuffQWaveletTree<T, RSQVector256, true>;
+pub type HQWT512Pfs<T> = HuffQWaveletTree<T, RSQVector512, true>;
+
+/// This type represents a binary wavelet tree,
+/// Each level of this tree is handled by a RSWide bitvector
+pub type WT<T> = WaveletTree<T, RSWide>;
+
+/// This type represents a binary wavelet tree compressed using huffman coding.
+/// Each level of this tree is handled by a RSWide bitvector
+pub type HWT<T> = WaveletTree<T, RSWide, true>;
 
 use num_traits::Unsigned;
 
@@ -132,6 +153,8 @@ pub trait RankBin {
     unsafe fn rank0_unchecked(&self, i: usize) -> usize {
         i - self.rank1_unchecked(i)
     }
+
+    fn n_zeros(&self) -> usize;
 }
 
 pub trait SelectBin {
@@ -239,4 +262,68 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
 
     /// Prefetches data containing the position `pos`.
     fn prefetch_data(&self, pos: usize);
+}
+
+pub trait BinWTSupport: AccessBin + RankBin + SelectBin {
+    /// Prefetches counter of superblock and blocks containing the position `pos`.
+    fn prefetch_info(&self, pos: usize);
+
+    /// Prefetches data containing the position `pos`.
+    fn prefetch_data(&self, pos: usize);
+}
+
+//should be WTIterator<T, Q: AsRef<S: AccessUnsigned<Item = T>>>, but throws compiler error
+#[derive(Debug, PartialEq)]
+pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
+    i: usize,
+    end: usize,
+    qwt: Q,
+    _phantom: PhantomData<(T, S)>,
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> Iterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            self.i += 1;
+            // SAFETY: bounds are checked
+            Some(unsafe { qwt.get_unchecked(self.i - 1) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> DoubleEndedIterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // TODO: this may be faster without calling get.
+        let qwt = self.qwt.as_ref();
+        if self.i < self.end {
+            // SAFETY: bounds are checked
+            self.end -= 1;
+            Some(unsafe { qwt.get_unchecked(self.end) })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> ExactSizeIterator for WTIterator<T, S, Q>
+where
+    T: WTIndexable,
+    u8: AsPrimitive<T>,
+{
+    fn len(&self) -> usize {
+        self.end - self.i
+    }
 }

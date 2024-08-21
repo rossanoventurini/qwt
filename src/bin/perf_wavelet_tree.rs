@@ -268,7 +268,7 @@ fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         for &(pos, symbol) in queries.iter() {
             let i = pos - 1 + result % 2;
             let i = std::cmp::max(1, i);
-            result = unsafe { ds.select_unchecked(symbol, i) };
+            result = unsafe { ds.select_unchecked(symbol, i - 1) };
         }
         t.stop()
     }
@@ -337,7 +337,7 @@ fn test_correctness<
     print!("\nTesting correctness... ");
     for (i, &symbol) in sequence.iter().enumerate() {
         assert_eq!(ds.get(i), Some(symbol));
-        let rank = ds.rank(symbol, i + 1).unwrap();
+        let rank = ds.rank(symbol, i).unwrap();
         let s = ds.select(symbol, rank).unwrap();
         assert_eq!(s, i);
     }
