@@ -65,14 +65,15 @@ impl<T> RSforWT for T where T: From<QVector> + WTSupport + SpaceUsage + Default 
 /// Alias for the trait bounds of the type T to be indexable in the
 /// wavelet tree.
 pub trait WTIndexable:
-    Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>
+    Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<usize>
 {
 }
 
 impl<T> WTIndexable for T
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<u8>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + Shl<usize> + AsPrimitive<usize> + AsPrimitive<u8>,
     u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
 }
 
@@ -95,7 +96,7 @@ pub struct QWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Builds the wavelet tree of the `sequence` of unsigned integers.
@@ -147,7 +148,7 @@ where
         for _level in 0..n_levels {
             let mut cur_qv = QVectorBuilder::with_capacity(sequence.len());
             for &symbol in sequence.iter() {
-                let two_bits: u8 = (symbol >> shift).as_() & 3; // take the last 2 bits
+                let two_bits: u8 = ((symbol >> shift).as_() & 3) as u8; // take the last 2 bits
                 cur_qv.push(two_bits);
             }
 
@@ -304,7 +305,7 @@ where
 
             #[allow(clippy::needless_range_loop)]
             for level in 0..self.n_levels - 1 {
-                let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
+                let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
                 // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
                 let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
@@ -442,7 +443,7 @@ where
         self.qvs[0].prefetch_data(range.start);
         self.qvs[0].prefetch_data(range.end);
         for level in 0..self.n_levels - 1 {
-            let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
+            let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
             // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
             let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
@@ -507,7 +508,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> RankUnsigned
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Returns the rank of `symbol` up to position `i` **excluded**.
@@ -572,7 +573,7 @@ where
         let mut cur_p = 0;
 
         for level in 0..self.n_levels - 1 {
-            let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
+            let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
             // Safety: Here we are sure that two_bits is a symbol in [0..3]
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
@@ -582,7 +583,7 @@ where
             shift -= 2;
         }
 
-        let two_bits: u8 = (symbol >> shift as usize).as_() & 3;
+        let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
         cur_i = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_i);
         cur_p = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_p);
@@ -595,7 +596,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AccessUnsigned
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type Item = T;
@@ -659,7 +660,7 @@ where
 
             self.qvs[level].prefetch_info(cur_i); // Compiler is not able to infer that later it is needed for the rank query. Access is roughly 33% slower for large files without this.
             let symbol = self.qvs[level].get_unchecked(cur_i);
-            result = (result << 2) | symbol.as_();
+            result = (result << 2) | (symbol as usize).as_();
 
             // SAFETY: Here we are sure that symbol is in [0..3]
             let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
@@ -667,7 +668,7 @@ where
         }
 
         let symbol = self.qvs[self.n_levels - 1].get_unchecked(cur_i);
-        (result << 2) | symbol.as_()
+        (result << 2) | (symbol as usize).as_()
     }
 }
 
@@ -675,7 +676,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> SelectUnsigned
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
@@ -716,10 +717,10 @@ where
 
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            let rank_b = self.qvs[level].rank(two_bits, b)?;
+            let rank_b = self.qvs[level].rank(two_bits as u8, b)?;
 
             // Safety: we are sure the symbol `two_bits` is in [0..3]
-            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
+            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits as u8) };
             shift -= 2;
 
             rank_path_off.push(rank_b);
@@ -732,7 +733,7 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            result = self.qvs[level].select(two_bits, rank_b + result)? - b;
+            result = self.qvs[level].select(two_bits as u8, rank_b + result)? - b;
             shift += 2;
         }
 
@@ -788,7 +789,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type IntoIter = WTIterator<
@@ -812,7 +813,7 @@ impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
     for &'a QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type IntoIter = WTIterator<
@@ -831,7 +832,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> FromIterator<T>
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     fn from_iter<I>(iter: I) -> Self
@@ -846,7 +847,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> From<Vec<T>>
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     fn from(mut v: Vec<T>) -> Self {

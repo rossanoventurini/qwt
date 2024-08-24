@@ -284,7 +284,7 @@ pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> Iterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
@@ -303,7 +303,7 @@ where
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> DoubleEndedIterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         // TODO: this may be faster without calling get.
@@ -321,7 +321,7 @@ where
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> ExactSizeIterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     fn len(&self) -> usize {
         self.end - self.i

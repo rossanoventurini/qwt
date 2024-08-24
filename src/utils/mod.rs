@@ -258,13 +258,13 @@ pub fn text_remap(input: &mut [u8]) -> usize {
 /// This is used by the construction of WaveletTree.
 pub fn stable_partition_of_4<T>(sequence: &mut [T], shift: usize)
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
 
     for &a in sequence.iter() {
-        let two_bits = (a >> shift).as_() & 3;
+        let two_bits: usize = (a.as_() >> shift) & 3;
         vecs[two_bits as usize].push(a);
     }
 
@@ -277,8 +277,8 @@ where
 
 pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)
 
@@ -303,8 +303,8 @@ where
 
 pub fn stable_partition_of_2_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new()];
 
@@ -328,8 +328,8 @@ where
 
 pub fn stable_partition_of_2<T>(sequence: &mut [T], shift: usize)
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new()];
 

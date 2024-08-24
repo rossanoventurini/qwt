@@ -20,18 +20,18 @@ pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     n_levels: usize,                           // The number of levels of the wavelet matrix
     sigma: Option<T>,                          // Sigma used only if no compressed
     codes_encode: Option<Vec<PrefixCode>>,     // Lookup table for encoding
-    codes_decode: Option<Vec<Vec<(u32, u8)>>>, // Lookup table for decoding symbols
+    codes_decode: Option<Vec<Vec<(u32, T)>>>, // Lookup table for decoding symbols
     bvs: Vec<BRS>,                             // Each level uses either a quad or bit vector
     lens: Vec<usize>,                          // Length of each vector
     phantom_data: PhantomData<T>,
 }
 
-struct LenInfo(u8, u32); //symbol, len
+struct LenInfo(usize, u32); //symbol, len
 
 #[allow(clippy::identity_op)]
-fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
+fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
     // count size of the alphabet
-    let sigma = freq.iter().count();
+    let alph_size = freq.iter().count();
 
     let mut f = freq
         .iter()
@@ -40,12 +40,12 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
 
     f.sort_by_key(|x| x.1);
 
-    let mut c = vec![0; sigma];
-    let mut assignments = vec![PrefixCode { content: 0, len: 0 }; 256];
+    let mut c = vec![0; alph_size];
+    let mut assignments = vec![PrefixCode { content: 0, len: 0 }; sigma + 1];
     let mut m = 1; //how many codes we have so far
     let mut l = 0;
 
-    for j in 0..sigma {
+    for j in 0..alph_size {
         // println!("f[{}]: ({}, {})", j, f[j].0, f[j].1);
 
         while f[j].1 > l {
@@ -76,7 +76,7 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
 impl<T, BRS, const COMPRESSED: bool> WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     /// Builds a binary wavelet tree of the `sequence` of unsigned integers.
@@ -120,6 +120,7 @@ where
         let mut codes_decode = None;
         let n_levels;
         let sig;
+        let sigma = *sequence.iter().max().unwrap();
 
         if COMPRESSED {
             //we craft the codes
@@ -132,7 +133,7 @@ where
 
             let mut lengths = Coding::from_frequencies(BitsPerFragment(1), freqs).code_lengths();
 
-            let codes = craft_wm_codes(&mut lengths);
+            let codes = craft_wm_codes(&mut lengths, sigma.as_());
 
             let max_len = codes
                 .iter()
@@ -145,7 +146,7 @@ where
             let mut decoder = vec![Vec::default(); max_len + 1];
             for (i, c) in codes.iter().enumerate() {
                 if c.len != 0 {
-                    decoder[c.len as usize].push((c.content, i as u8));
+                    decoder[c.len as usize].push((c.content, i.as_()));
                 }
             }
 
@@ -158,7 +159,6 @@ where
             codes_encode = Some(codes);
             sig = None;
         } else {
-            let sigma = *sequence.iter().max().unwrap();
             let log_sigma = msb(sigma) + 1; // Note that sigma equals the largest symbol, so it's already "alphabet_size - 1"
             n_levels = log_sigma as usize;
             sig = Some(sigma);
@@ -306,7 +306,7 @@ where
 impl<T, BRS, const COMPRESSED: bool> AccessUnsigned for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     type Item = T;
@@ -353,7 +353,7 @@ where
 
             T::from(self.codes_decode.as_ref().unwrap()[shift][idx].1).unwrap()
         } else {
-            T::from(result as u8).unwrap()
+            T::from(result).unwrap()
         }
     }
 }
@@ -361,7 +361,7 @@ where
 impl<T, BRS, const COMPRESSED: bool> RankUnsigned for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     #[inline(always)]
@@ -374,7 +374,7 @@ where
             return None;
         }
 
-        if COMPRESSED && self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0 {
+        if COMPRESSED && (symbol.as_() >= self.codes_encode.as_ref().unwrap().len() || self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0) {
             return None;
         }
 
@@ -418,7 +418,7 @@ where
 impl<T, BRS, const COMPRESSED: bool> SelectUnsigned for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     #[inline(always)]
@@ -484,7 +484,7 @@ where
 impl<T, BRS, const COMPRESSED: bool> From<Vec<T>> for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     fn from(mut v: Vec<T>) -> Self {
@@ -503,7 +503,7 @@ impl<T, BRS, const COMPRESSED: bool> AsRef<WaveletTree<T, BRS, COMPRESSED>>
 impl<T, BRS, const COMPRESSED: bool> IntoIterator for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     type IntoIter = WTIterator<T, WaveletTree<T, BRS, COMPRESSED>, WaveletTree<T, BRS, COMPRESSED>>;
@@ -522,7 +522,7 @@ where
 impl<'a, T, BRS, const COMPRESSED: bool> IntoIterator for &'a WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     type IntoIter =
@@ -537,7 +537,7 @@ where
 impl<T, BRS, const COMPRESSED: bool> FromIterator<T> for WaveletTree<T, BRS, COMPRESSED>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
     fn from_iter<I>(iter: I) -> Self

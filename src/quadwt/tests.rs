@@ -42,8 +42,8 @@ fn test_from_iterator() {
 #[test]
 fn test() {
     const N: usize = 1025;
-    for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255] {
-        let mut sequence: [u8; N] = [0; N];
+    for sigma in [4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 255, 633] {
+        let mut sequence: [u16; N] = [0; N];
         sequence[N - 1] = sigma - 1;
         let qwt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
 
