@@ -16,13 +16,13 @@ impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + SpaceUsage + 
 
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
-    n: usize,                                  // The length of the represented sequence
-    n_levels: usize,                           // The number of levels of the wavelet matrix
-    sigma: Option<T>,                          // Sigma used only if no compressed
-    codes_encode: Option<Vec<PrefixCode>>,     // Lookup table for encoding
+    n: usize,                                 // The length of the represented sequence
+    n_levels: usize,                          // The number of levels of the wavelet matrix
+    sigma: Option<T>,                         // Sigma used only if no compressed
+    codes_encode: Option<Vec<PrefixCode>>,    // Lookup table for encoding
     codes_decode: Option<Vec<Vec<(u32, T)>>>, // Lookup table for decoding symbols
-    bvs: Vec<BRS>,                             // Each level uses either a quad or bit vector
-    lens: Vec<usize>,                          // Length of each vector
+    bvs: Vec<BRS>,                            // Each level uses either a quad or bit vector
+    lens: Vec<usize>,                         // Length of each vector
     phantom_data: PhantomData<T>,
 }
 
@@ -374,7 +374,10 @@ where
             return None;
         }
 
-        if COMPRESSED && (symbol.as_() >= self.codes_encode.as_ref().unwrap().len() || self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0) {
+        if COMPRESSED
+            && (symbol.as_() >= self.codes_encode.as_ref().unwrap().len()
+                || self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0)
+        {
             return None;
         }
 

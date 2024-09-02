@@ -429,7 +429,10 @@ where
     #[inline(always)]
     #[must_use]
     pub fn rank_prefetch(&self, symbol: T, i: usize) -> Option<usize> {
-        if i > self.n || symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_() as usize].len == 0 {
+        if i > self.n
+            || symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_() as usize].len == 0
+        {
             return None;
         }
 
@@ -688,7 +691,10 @@ where
     #[must_use]
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i > self.n || symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_()].len == 0   {
+        if i > self.n
+            || symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_()].len == 0
+        {
             return None;
         }
 
@@ -775,7 +781,9 @@ where
     #[must_use]
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_() as usize].len == 0 {
+        if symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_() as usize].len == 0
+        {
             return None;
         }
 

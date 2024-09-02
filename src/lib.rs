@@ -272,7 +272,6 @@ pub trait BinWTSupport: AccessBin + RankBin + SelectBin {
     fn prefetch_data(&self, pos: usize);
 }
 
-//should be WTIterator<T, Q: AsRef<S: AccessUnsigned<Item = T>>>, but throws compiler error
 #[derive(Debug, PartialEq)]
 pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
     i: usize,
