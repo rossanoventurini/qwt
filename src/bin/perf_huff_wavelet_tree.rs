@@ -7,8 +7,8 @@ use qwt::{
     },
     quadwt::RSforWT,
     utils::{msb, text_remap},
-    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, QWT256Pfs, QWaveletTree, RankUnsigned,
-    SelectUnsigned, SpaceUsage, HQWT256, HWT, QWT256, WT,
+    AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, QWT256Pfs, QWT512Pfs, QWaveletTree,
+    RankUnsigned, SelectUnsigned, SpaceUsage, HQWT256, HQWT512, HWT, QWT256, QWT512, WT,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,13 +38,21 @@ struct Args {
     #[arg(short, long)]
     hwt: bool,
     #[arg(short, long)]
-    qwt: bool,
+    qwt256: bool,
     #[arg(short, long)]
-    qwtpfs: bool,
+    qwt256pfs: bool,
     #[arg(short, long)]
-    hqwt: bool,
+    qwt512: bool,
     #[arg(short, long)]
-    hqwtpfs: bool,
+    qwt512pfs: bool,
+    #[arg(short, long)]
+    hqwt256: bool,
+    #[arg(short, long)]
+    hqwt256pfs: bool,
+    #[arg(short, long)]
+    hqwt512: bool,
+    #[arg(short, long)]
+    hqwt512pfs: bool,
     #[arg(short, long)]
     all_structs: bool,
 }
@@ -307,157 +315,200 @@ fn main() {
     let access_queries = gen_queries(args.n_queries, n);
     let select_queries = gen_select_queries(args.n_queries, &text);
 
-    if args.wt || args.all_structs {
-        let output_filename = input_filename.clone() + ".wt";
-        let ds = load_or_build_and_save_qwt::<WT<_>>(&output_filename, &text);
+    macro_rules! test_ds {
+        ($($t: ty: $e:ident: $rank_f:ident), *) => {
+            $({
+                if args.$e || args.all_structs {
+                    let output_filename = input_filename.clone() + "." + stringify!($e) + ".wt";
+                    let ds = load_or_build_and_save_qwt::<$t>(&output_filename, &text);
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+                    if args.test_correctness {
+                        test_correctness(&ds, &text);
+                    }
 
-        if args.rank {
-            test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+                    if args.rank {
+                        $rank_f(&ds, n, &rank_queries, input_filename.clone());
+                        // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+                    }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+                    if args.access {
+                        test_access_latency(&ds, n, &access_queries, input_filename.clone());
+                        // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+                    }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
+                    if args.select {
+                        test_select_latency(&ds, n, &select_queries, input_filename.clone());
+                        // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+                    }
+                }
+            })*
+        };
     }
 
-    if args.hwt || args.all_structs {
-        let output_filename = input_filename.clone() + ".hwt";
-        let ds = load_or_build_and_save_qwt::<HWT<_>>(&output_filename, &text);
+    test_ds!(
+        WT<_>: wt: test_rank_latency,
+        HWT<_>: hwt: test_rank_latency,
+        QWT256<_>: qwt256: test_rank_latency,
+        QWT512<_>: qwt256: test_rank_latency,
+        HQWT256<_>: hqwt256: test_rank_latency,
+        HQWT512<_>: hqwt512: test_rank_latency,
+        QWT256Pfs<_>: qwt256pfs: test_rank_prefetch_latency_qwt,
+        QWT512Pfs<_>: qwt512pfs: test_rank_prefetch_latency_qwt,
+        HQWT256Pfs<_>: hqwt256pfs: test_rank_prefetch_latency,
+        HQWT512Pfs<_>: hqwt512pfs: test_rank_prefetch_latency
+    );
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+    // if args.wt || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".wt";
+    //     let ds = load_or_build_and_save_qwt::<WT<_>>(&output_filename, &text);
 
-        if args.rank {
-            test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+    //     if args.rank {
+    //         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
-    }
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
 
-    if args.qwt || args.all_structs {
-        let output_filename = input_filename.clone() + ".256.qwt";
-        let ds = load_or_build_and_save_qwt::<QWT256<_>>(&output_filename, &text);
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
+    // }
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+    // if args.hwt || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".hwt";
+    //     let ds = load_or_build_and_save_qwt::<HWT<_>>(&output_filename, &text);
 
-        if args.rank {
-            test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+    //     if args.rank {
+    //         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
-    }
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
 
-    if args.qwtpfs || args.all_structs {
-        let output_filename = input_filename.clone() + ".256pfs.qwt";
-        let ds = load_or_build_and_save_qwt::<QWT256Pfs<_>>(&output_filename, &text);
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
+    // }
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+    // if args.qwt || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".256.qwt";
+    //     let ds = load_or_build_and_save_qwt::<QWT256<_>>(&output_filename, &text);
 
-        if args.rank {
-            test_rank_prefetch_latency_qwt(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+    //     if args.rank {
+    //         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
-    }
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
 
-    if args.hqwt || args.all_structs {
-        let output_filename = input_filename.clone() + ".256.hqwt";
-        let ds = load_or_build_and_save_qwt::<HQWT256<_>>(&output_filename, &text);
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
+    // }
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+    // if args.qwtpfs || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".256pfs.qwt";
+    //     let ds = load_or_build_and_save_qwt::<QWT256Pfs<_>>(&output_filename, &text);
 
-        if args.rank {
-            test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+    //     if args.rank {
+    //         test_rank_prefetch_latency_qwt(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
 
-        if args.rank_prefetch {
-            test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
-    }
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
+    // }
 
-    if args.hqwtpfs || args.all_structs {
-        let output_filename = input_filename.clone() + ".256pfs.hqwt";
-        let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
+    // if args.hqwt || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".256.hqwt";
+    //     let ds = load_or_build_and_save_qwt::<HQWT256<_>>(&output_filename, &text);
 
-        if args.test_correctness {
-            test_correctness(&ds, &text);
-        }
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
 
-        if args.rank {
-            test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
+    //     if args.rank {
+    //         test_rank_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
 
-        if args.access {
-            test_access_latency(&ds, n, &access_queries, input_filename.clone());
-            // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
-        }
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
 
-        if args.select {
-            test_select_latency(&ds, n, &select_queries, input_filename.clone());
-            // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
-        }
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
 
-        if args.rank_prefetch {
-            test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
-            // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
-        }
-    }
+    //     if args.rank_prefetch {
+    //         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
+    // }
+
+    // if args.hqwtpfs || args.all_structs {
+    //     let output_filename = input_filename.clone() + ".256pfs.hqwt";
+    //     let ds = load_or_build_and_save_qwt::<HQWT256Pfs<_>>(&output_filename, &text);
+
+    //     if args.test_correctness {
+    //         test_correctness(&ds, &text);
+    //     }
+
+    //     if args.rank {
+    //         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
+
+    //     if args.access {
+    //         test_access_latency(&ds, n, &access_queries, input_filename.clone());
+    //         // test_access_throughput(&ds, n, &access_queries, input_filename.clone());
+    //     }
+
+    //     if args.select {
+    //         test_select_latency(&ds, n, &select_queries, input_filename.clone());
+    //         // test_select_throughput(&ds, n, &select_queries, input_filename.clone());
+    //     }
+
+    //     if args.rank_prefetch {
+    //         test_rank_prefetch_latency(&ds, n, &rank_queries, input_filename.clone());
+    //         // test_rank_prefetch_throughput(&ds, n, &rank_queries, input_filename.clone());
+    //     }
+    // }
 }
