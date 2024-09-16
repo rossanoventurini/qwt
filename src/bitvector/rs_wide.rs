@@ -247,12 +247,14 @@ impl RSWide {
 }
 
 impl BinWTSupport for RSWide {
+    #[inline]
     fn prefetch_info(&self, pos: usize) {
         prefetch_read_NTA(&self.superblock_metadata, pos / 512)
     }
 
+    #[inline]
     fn prefetch_data(&self, pos: usize) {
-        prefetch_read_NTA(&self.bv.data, pos / 512)
+        self.bv.prefetch_line(pos / 512);
     }
 }
 
