@@ -264,13 +264,8 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
     fn prefetch_data(&self, pos: usize);
 }
 
-pub trait BinWTSupport: AccessBin + RankBin + SelectBin {
-    /// Prefetches counter of superblock and blocks containing the position `pos`.
-    fn prefetch_info(&self, pos: usize);
-
-    /// Prefetches data containing the position `pos`.
-    fn prefetch_data(&self, pos: usize);
-}
+pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
+impl<T> BinWTSupport for T where T: AccessBin + RankBin + SelectBin {}
 
 #[derive(Debug, PartialEq)]
 pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
