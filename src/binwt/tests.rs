@@ -3,7 +3,7 @@ use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, HWT, WT};
 
 #[test]
 fn build_test() {
-    let s: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 1, 1, 1, 1];
+    let s: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 1, 1, 1, 1, 30000];
 
     let wt = WT::new(&mut s.clone());
     let hwt = HWT::new(&mut s.clone());
@@ -19,15 +19,16 @@ fn build_test() {
 
 #[test]
 fn test_small() {
-    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let data: [u32; 10] = [1, 0, 1, 0, 3, 4, 5, 3, 7, 64001];
     let wt = WT::new(&mut data.clone());
 
     assert_eq!(wt.rank(1, 4), Some(2));
     assert_eq!(wt.rank(1, 0), Some(0));
-    assert_eq!(wt.rank(8, 1), None); // too large symbol
+    assert_eq!(wt.rank(8, 1), Some(0));
     assert_eq!(wt.rank(1, 9), Some(2));
     assert_eq!(wt.rank(7, 9), Some(1));
-    assert_eq!(wt.rank(1, 10), None); // too large position
+    assert_eq!(wt.rank(1, 10), Some(2));
+    assert_eq!(wt.rank(1, 11), None); // too large position
     assert_eq!(wt.select(5, 0), Some(6));
 
     for (i, &v) in data.iter().enumerate() {

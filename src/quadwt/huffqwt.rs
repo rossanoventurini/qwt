@@ -31,12 +31,12 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
-struct LenInfo(u8, u32); //symbol, len
+struct LenInfo(usize, u32); //symbol, len
 
 #[allow(clippy::identity_op)]
-fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
+fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
     // count size of the alphabet
-    let sigma = freq.iter().count();
+    let alph_size = freq.iter().count();
 
     let mut f = freq
         .iter()
@@ -45,12 +45,12 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
 
     f.sort_by_key(|x| x.1);
 
-    let mut c = vec![0; sigma * 4];
-    let mut assignments = vec![PrefixCode { content: 0, len: 0 }; 256];
+    let mut c = vec![0; alph_size * 4];
+    let mut assignments = vec![PrefixCode { content: 0, len: 0 }; sigma + 1];
     let mut m = 1; //how many codes we have so far
     let mut l = 0;
 
-    for j in 0..sigma {
+    for j in 0..alph_size {
         // println!("f[{}]: ({}, {})", j, f[j].0, f[j].1);
 
         while f[j].1 > l {
@@ -83,7 +83,7 @@ fn craft_wm_codes(freq: &mut HashMap<u8, u32>) -> Vec<PrefixCode> {
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Builds the compressed wavelet tree of the `sequence` of unsigned integers.
@@ -120,6 +120,7 @@ where
             };
         }
 
+        let sigma = *sequence.iter().max().unwrap();
         //count symbol frequences
         let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
             *map.entry(c.as_()).or_insert(0usize) += 1;
@@ -147,7 +148,7 @@ where
 
         // println!("awpl in bits: {}", awpl as f64 / tot_occs as f64);
 
-        let codes = craft_wm_codes(&mut lengths);
+        let codes = craft_wm_codes(&mut lengths, sigma.as_());
 
         let max_len = codes
             .iter()
@@ -428,7 +429,10 @@ where
     #[inline(always)]
     #[must_use]
     pub fn rank_prefetch(&self, symbol: T, i: usize) -> Option<usize> {
-        if i > self.n || self.codes_encode[symbol.as_() as usize].len == 0 {
+        if i > self.n
+            || symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_() as usize].len == 0
+        {
             return None;
         }
 
@@ -558,7 +562,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> AccessUnsigned
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type Item = T;
@@ -649,7 +653,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> From<Vec<T>>
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     fn from(mut v: Vec<T>) -> Self {
@@ -661,7 +665,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> RankUnsigned
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Returns the rank of `symbol` up to position `i` **excluded**.
@@ -687,7 +691,10 @@ where
     #[must_use]
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if i > self.n || self.codes_encode[symbol.as_() as usize].len == 0 {
+        if i > self.n
+            || symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_()].len == 0
+        {
             return None;
         }
 
@@ -748,7 +755,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> SelectUnsigned
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     /// Returns the position of the `i+1`-th occurrence of symbol `symbol`.
@@ -774,7 +781,9 @@ where
     #[must_use]
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if self.codes_encode[symbol.as_() as usize].len == 0 {
+        if symbol.as_() >= self.codes_encode.len()
+            || self.codes_encode[symbol.as_() as usize].len == 0
+        {
             return None;
         }
 
@@ -870,7 +879,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type IntoIter = WTIterator<
@@ -894,7 +903,7 @@ impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> IntoIterator
     for &'a HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     type IntoIter = WTIterator<
@@ -913,7 +922,7 @@ impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> FromIterator<T>
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
     RS: RSforWT,
 {
     fn from_iter<I>(iter: I) -> Self

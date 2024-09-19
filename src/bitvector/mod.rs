@@ -6,7 +6,10 @@
 //!
 //! For both data structures, it is possible to iterate over bits or positions of bits set either to zero or one.
 
-use crate::{utils::select_in_word, AccessBin, RankBin, SelectBin, SpaceUsage};
+use crate::{
+    utils::{prefetch_read_NTA, select_in_word},
+    AccessBin, RankBin, SelectBin, SpaceUsage,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -420,6 +423,17 @@ impl BitVector {
     #[must_use]
     pub fn count_zeros(&self) -> usize {
         self.len() - self.n_ones
+    }
+
+    /// Returns the number of DataLine in the bitvector
+    pub fn n_lines(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Prefetches the n-th DataLine
+    #[inline]
+    pub fn prefetch_line(&self, n: usize) {
+        prefetch_read_NTA(&self.data, n);
     }
 }
 

@@ -1,7 +1,7 @@
 use qwt::{
     bitvector::rs_wide::RSWide,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
-    RankBin, SelectBin, SpaceUsage,
+    AccessBin, RankBin, SelectBin, SpaceUsage,
 };
 
 const N_RUNS: usize = 5;
@@ -101,8 +101,38 @@ where
     );
 }
 
+fn perf_get<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
+where
+    T: AccessBin + SpaceUsage,
+{
+    let mut result = false;
+
+    let mut t = TimingQueries::new(N_RUNS, N_QUERIES);
+    for _ in 0..N_RUNS {
+        t.start();
+        for &query in queries.iter() {
+            let i = (query + result as usize) % n;
+            result = unsafe { ds.get_unchecked(i) };
+        }
+        t.stop();
+    }
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+        "GET: [ds_name: {}, n: {}, logn: {}, bitsize: {:?}, min_time (ns): {}, max_time (ns): {}, avg_time (ns): {}, space (bytes): {}, space (Mbytes): {:.2}]",
+        type_of(&ds),
+        n,
+        logn,
+        u,
+        t_min,
+        t_max,
+        t_avg,
+        ds.space_usage_byte(),
+        ds.space_usage_MiB()
+    );
+}
+
 fn main() {
-    for logn in 30..33 {
+    for logn in 15..34 {
         let n: usize = 1 << logn;
 
         let fill_factor = 2; // 1/2 full
@@ -119,6 +149,9 @@ fn main() {
 
         let queries = gen_queries(N_QUERIES, n);
         perf_rank1(&rs, &queries, n, logn, n);
+
+        let queries = gen_queries(N_QUERIES, n);
+        perf_get(&rs, &queries, n, logn, n);
 
         let queries = gen_queries(N_QUERIES, rs.n_ones() - 1);
         perf_select1(&rs, &queries, n, logn, n);

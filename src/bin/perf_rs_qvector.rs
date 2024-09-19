@@ -102,7 +102,7 @@ where
 }
 
 fn main() {
-    for logn in 30..33 {
+    for logn in 14..33 {
         let n = 1 << logn;
 
         let v: Vec<u8> = [0, 1, 2, 3].into_iter().cycle().take(n).collect();

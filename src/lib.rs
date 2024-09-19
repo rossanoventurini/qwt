@@ -264,15 +264,9 @@ pub trait WTSupport: AccessQuad + RankQuad + SelectQuad {
     fn prefetch_data(&self, pos: usize);
 }
 
-pub trait BinWTSupport: AccessBin + RankBin + SelectBin {
-    /// Prefetches counter of superblock and blocks containing the position `pos`.
-    fn prefetch_info(&self, pos: usize);
+pub trait BinWTSupport: AccessBin + RankBin + SelectBin {}
+impl<T> BinWTSupport for T where T: AccessBin + RankBin + SelectBin {}
 
-    /// Prefetches data containing the position `pos`.
-    fn prefetch_data(&self, pos: usize);
-}
-
-//should be WTIterator<T, Q: AsRef<S: AccessUnsigned<Item = T>>>, but throws compiler error
 #[derive(Debug, PartialEq)]
 pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
     i: usize,
@@ -284,7 +278,7 @@ pub struct WTIterator<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> {
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> Iterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
@@ -303,7 +297,7 @@ where
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> DoubleEndedIterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         // TODO: this may be faster without calling get.
@@ -321,7 +315,7 @@ where
 impl<T, S: AccessUnsigned<Item = T>, Q: AsRef<S>> ExactSizeIterator for WTIterator<T, S, Q>
 where
     T: WTIndexable,
-    u8: AsPrimitive<T>,
+    usize: AsPrimitive<T>,
 {
     fn len(&self) -> usize {
         self.end - self.i
