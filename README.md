@@ -43,9 +43,11 @@ The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.
 | HQwt512                                      |       345    |      347    |      911     |      2559  | Rust |
 | HQwt512Pfs                                   |      346     |     275     |     906      |      2562   | Rust |
 
-We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
+We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the uncompressed data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
 
-There are four instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `Pfs` in `Qwt256Pfs` and `Qwt512Pfs` indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
+There are eight instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The prefix `H` in all Rust implementations indicates that the wavelet trees are compressed using Huffman compression. The suffix `Pfs` in `Qwt256Pfs` and `Qwt512Pfs` indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. 
+Please refer to our full paper [[3](#bib)] for more details.
+`WT` and `HWT` are our own implementation of binary wavelet trees (respectively uncompressed and compressed).   
 
 To run the experiments, we need to compile the binary executables with
 
