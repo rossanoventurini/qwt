@@ -1,7 +1,7 @@
 //! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
 //! This implementation is inspired by [this paper by Florian Kurpicz] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
-use crate::{AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
+use crate::{utils::prefetch_read_NTA, AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +17,7 @@ pub struct RSWide {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[usize]>; 2],
+    n_zeros: usize,
 }
 
 impl RSWide {
@@ -105,6 +106,8 @@ impl RSWide {
         select_samples[0].push(superblock_metadata.len() - 1);
         select_samples[1].push(superblock_metadata.len() - 1);
 
+        let n_zeros = bv.len() - total_rank as usize;
+
         Self {
             bv,
             superblock_metadata: superblock_metadata.into_boxed_slice(),
@@ -114,19 +117,20 @@ impl RSWide {
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap(),
+            n_zeros,
         }
     }
 
     /// Returns the number of bits set to 1 in the bitvector.
     #[inline(always)]
     pub fn n_ones(&self) -> usize {
-        self.rank1(self.bv.len() - 1).unwrap() + self.bv.get(self.bv.len() - 1).unwrap() as usize
+        self.bv.len() - self.n_zeros()
     }
 
     /// Returns the number of bits set to 0 in the bitvector.
     #[inline(always)]
     pub fn n_zeros(&self) -> usize {
-        self.bv.len() - self.n_ones()
+        self.n_zeros
     }
 
     /// Returns the number of bits in the bitvector.
@@ -138,6 +142,18 @@ impl RSWide {
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
         (self.superblock_metadata[block] >> (128 - 44)) as usize
+    }
+
+    /// Prefetches the block containing position `pos`
+    #[inline]
+    pub fn prefetch_info(&self, pos: usize) {
+        prefetch_read_NTA(&self.superblock_metadata, pos / 512);
+    }
+
+    /// Prefetches the cacheline containing position `pos`
+    #[inline]
+    pub fn prefetch_data(&self, pos: usize) {
+        self.bv.prefetch_line(pos / 512);
     }
 
     ///returns the total rank1 up to `sub_block`
@@ -290,6 +306,10 @@ impl RankBin for RSWide {
 
         result
     }
+
+    fn n_zeros(&self) -> usize {
+        self.n_zeros()
+    }
 }
 
 impl SelectBin for RSWide {
@@ -388,7 +408,16 @@ impl SelectBin for RSWide {
 impl SpaceUsage for RSWide {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte() + self.superblock_metadata.space_usage_byte()
+        self.bv.space_usage_byte()
+            + self.superblock_metadata.space_usage_byte()
+            + self.select_samples[0].space_usage_byte()
+            + self.select_samples[1].space_usage_byte()
+    }
+}
+
+impl From<BitVector> for RSWide {
+    fn from(bv: BitVector) -> Self {
+        RSWide::new(bv)
     }
 }
 

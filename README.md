@@ -35,16 +35,24 @@ The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.
 | :-------------------------------------------- | ------------: | ----------: | ------------: | ----------: | :---------- |
 | [SDSL 2.1.1](https://github.com/simongog/sdsl-lite) |          1178 |         1223 |          2900 |        6089 | C++ |
 | [Pasta](https://github.com/pasta-toolbox)     |           1598 |         1729 |          2860 |       4112 | C++ |
-| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |           967 |         1015 |          2727 |        5376 | Rust |
-| [Simple-SDS 0.3.1](https://github.com/jltsiren/simple-sds) |            933 |          1005 |          2558 |        6383 | Rust |
-| QWT256                                         |          516 |         542 |          1226 |       4616 | C++/Rust |
-| QWT256Pfs                                      |          515 |         363 |          1226 |        4626 | Rust |
-| QWT512                                         |          525 |         569 |          1196 |       4360 | C++/Rust |
-| QWT512Pfs                                      |          526 |         398 |         1197 |        4369 | Rust |
+| [Sucds 0.8.1](https://github.com/kampersanda/sucds) |         1078   |      1136    |       3088    |        5376 | Rust |
+| [Simple-SDS 0.3.1](https://github.com/jltsiren/simple-sds) |       1000      |      1123     |       2879    |        6383 | Rust |
+| WT                                           |     1168      |    1172      |      2874     |     4256   | Rust |
+| HWT                                          |       608    |      598    |      1625     |    2457     | Rust |
+| Qwt256                                       |      584     |   613       |      1623     |       4616 | C++/Rust |
+| Qwt256Pfs                                    |       581    |      434    |     1625      |        4621 | Rust |
+| Qwt512                                       |       595    |       660   |       1563    |       4360 | C++/Rust |
+| Qwt512Pfs                                    |        596   |      479    |     1559      |        4365 | Rust |
+| HQwt256                                      |       335    |     312     |      952     |    2710    | Rust |
+| HQwt256Pfs                                   |        334   |      263    |       952    |    2713     | Rust |
+| HQwt512                                      |       345    |      347    |      911     |      2559  | Rust |
+| HQwt512Pfs                                   |      346     |     275     |     906      |      2562   | Rust |
 
-We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
+We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the uncompressed data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
 
-There are four instances of our proposed wavelet trees, [`QWT256`] and [`QWT512`], which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The suffix `Pfs` in [`QWT256Pfs`] and [`QWT512Pfs`] indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. Please refer to our full paper [[3](#bib)] for more details.
+There are eight instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The prefix `H` in all Rust implementations indicates that the wavelet trees are compressed using Huffman compression. The suffix `Pfs` in `Qwt256Pfs` and `Qwt512Pfs` indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. 
+Please refer to our full paper [[3](#bib)] for more details.
+`WT` and `HWT` are our own implementation of binary wavelet trees (respectively uncompressed and compressed).   
 
 To run the experiments, we need to compile the binary executables with
 
@@ -52,7 +60,7 @@ To run the experiments, we need to compile the binary executables with
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
-This produces the two executables `perf_rs_quat_vector` and `perf_wavelet_tree` in `\target\release\`.
+This produces the two executables `perf_rs_qvector` and `perf_wavelet_tree` in `\target\release\`.
 
 The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
 

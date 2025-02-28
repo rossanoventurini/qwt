@@ -185,6 +185,8 @@ pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
 
 use std::mem;
 
+use crate::quadwt::huffqwt::PrefixCode;
+
 #[repr(C, align(64))]
 struct AlignToSixtyFour([u8; 64]);
 
@@ -256,18 +258,88 @@ pub fn text_remap(input: &mut [u8]) -> usize {
 /// This is used by the construction of WaveletTree.
 pub fn stable_partition_of_4<T>(sequence: &mut [T], shift: usize)
 where
-    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<u8>,
-    u8: AsPrimitive<T>,
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
 {
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
 
     for &a in sequence.iter() {
-        let two_bits = (a >> shift).as_() & 3;
+        let two_bits: usize = (a.as_() >> shift) & 3;
         vecs[two_bits as usize].push(a);
     }
 
     let mut pos = 0;
     for i in 0..4 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
+pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)
+
+    for &a in sequence.iter() {
+        let code = &codes[a.as_() as usize];
+        if code.len <= shift as u32 {
+            //we dont care about this symbol (already taken care of)
+            vecs[4].push(a);
+        } else {
+            //we partition as normal
+            let two_bits = (code.content >> (code.len - shift as u32)) & 3;
+            vecs[two_bits as usize].push(a);
+        }
+    }
+
+    let mut pos = 0;
+    for i in 0..5 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
+pub fn stable_partition_of_2_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new(), Vec::new()];
+
+    for &a in sequence.iter() {
+        let code = &codes[a.as_() as usize];
+        if code.len <= shift as u32 {
+            //we dont care about this symbol (already taken care of)
+            vecs[2].push(a);
+        } else {
+            let bit = (code.content >> (code.len - shift as u32)) & 1;
+            vecs[bit as usize].push(a);
+        }
+    }
+
+    let mut pos = 0;
+    for i in 0..3 {
+        sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
+        pos += vecs[i].len()
+    }
+}
+
+pub fn stable_partition_of_2<T>(sequence: &mut [T], shift: usize)
+where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
+{
+    let mut vecs = [Vec::new(), Vec::new()];
+
+    for &a in sequence.iter() {
+        let bit = (a >> shift).as_() & 1;
+        vecs[bit as usize].push(a);
+    }
+
+    let mut pos = 0;
+    for i in 0..2 {
         sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
         pos += vecs[i].len()
     }

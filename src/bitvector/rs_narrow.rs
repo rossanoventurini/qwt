@@ -280,6 +280,10 @@ impl RankBin for RSNarrow {
 
         result
     }
+
+    fn n_zeros(&self) -> usize {
+        self.n_zeros()
+    }
 }
 
 impl SelectBin for RSNarrow {
@@ -317,7 +321,16 @@ impl SelectBin for RSNarrow {
 impl SpaceUsage for RSNarrow {
     /// Gives the space usage in bytes of the data structure.
     fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte() + self.block_rank_pairs.space_usage_byte()
+        self.bv.space_usage_byte()
+            + self.block_rank_pairs.space_usage_byte()
+            + self.select_samples[0].space_usage_byte()
+            + self.select_samples[1].space_usage_byte()
+    }
+}
+
+impl From<BitVector> for RSNarrow {
+    fn from(bv: BitVector) -> Self {
+        RSNarrow::new(bv)
     }
 }
 
