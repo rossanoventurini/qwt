@@ -225,6 +225,20 @@ assert_eq!(qwt.get(2), Some(1));
 
 ```
 
+All these operations are supported for Huffman-shaped wavelet trees, and it is possible to use them by simply appending an `H` to the uncompressed wavelet tree types:
+```rust
+use qwt::{HWT, QWT256, HQWT256Pfs, AccessUnsigned};
+
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+let qwt = QWT256::from(data.clone());
+let wt = HWT::from(data.clone());
+let hqwt = HQWT256Pfs::from(data);
+
+assert_eq!(qwt.iter().collect::<Vec<_>>(), hqwt.iter().collect::<Vec<_>>());
+assert_eq!(wt.iter().collect::<Vec<_>>(), hqwt.iter().collect::<Vec<_>>());
+
+```
+
 We can index any sequence over any [num::traits::Unsigned](https://docs.rs/num/latest/num/traits/trait.Unsigned.html) integers. 
 As the space usage depends on the largest value in the sequence, it could be worth remapping the values to remove "holes".
 
