@@ -21,12 +21,12 @@ pub struct PrefixCode {
 /// It doesn't achieve maximum compression, but the queries are faster
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
-    n: usize,                          // The length of the represented sequence
-    n_levels: usize,                   // The number of levels of the wavelet matrix
-    codes_encode: Vec<PrefixCode>,     // Lookup table for encoding
-    codes_decode: Vec<Vec<(u32, u8)>>, // Lookup table for decoding symbols
-    qvs: Vec<RS>,                      // A quad vector for each level
-    lens: Vec<usize>,                  // Length of each qv
+    n: usize,                         // The length of the represented sequence
+    n_levels: usize,                  // The number of levels of the wavelet matrix
+    codes_encode: Vec<PrefixCode>,    // Lookup table for encoding
+    codes_decode: Vec<Vec<(u32, T)>>, // Lookup table for decoding symbols
+    qvs: Vec<RS>,                     // A quad vector for each level
+    lens: Vec<usize>,                 // Length of each qv
     phantom_data: PhantomData<T>,
     prefetch_support: Option<Vec<PrefetchSupport>>,
 }
@@ -150,6 +150,8 @@ where
 
         let codes = craft_wm_codes(&mut lengths, sigma.as_());
 
+        // println!("{:?}", codes);
+
         let max_len = codes
             .iter()
             .map(|x| x.len)
@@ -160,7 +162,7 @@ where
         let mut codes_decode = vec![Vec::default(); max_len + 1];
         for (i, c) in codes.iter().enumerate() {
             if c.len != 0 {
-                codes_decode[c.len as usize].push((c.content, i as u8));
+                codes_decode[c.len as usize].push((c.content, i.as_()));
             }
         }
 

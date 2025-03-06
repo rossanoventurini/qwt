@@ -1,6 +1,8 @@
+use rand::Rng;
+
 use crate::{
-    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, RSQVector512,
-    RankUnsigned, SelectUnsigned, HQWT256,
+    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, QWaveletTree,
+    RSQVector512, RankUnsigned, SelectUnsigned, HQWT256,
 };
 
 #[test]
@@ -105,4 +107,18 @@ fn test_serialize() {
     let des_qwt = bincode::deserialize::<HuffQWaveletTree<u8, RSQVector512>>(&s).unwrap();
 
     assert_eq!(des_qwt, qwt);
+}
+
+#[test]
+fn test_big_sigma() {
+    let gen_seq = |n: usize, sigma: usize| -> Vec<u64> {
+        let mut rng = rand::thread_rng();
+        (0..n).map(|_| rng.gen_range(0..sigma) as u64).collect()
+    };
+
+    let seq = gen_seq(100_000, 10_000);
+
+    let qwt = HuffQWaveletTree::<u64, RSQVector512>::from(seq.clone());
+
+    assert_eq!(seq, qwt.iter().collect::<Vec<_>>());
 }
