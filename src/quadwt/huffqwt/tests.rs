@@ -1,8 +1,8 @@
 use rand::Rng;
 
 use crate::{
-    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, QWaveletTree,
-    RSQVector512, RankUnsigned, SelectUnsigned, HQWT256,
+    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, RSQVector512,
+    RankUnsigned, SelectUnsigned, HQWT256,
 };
 
 #[test]
