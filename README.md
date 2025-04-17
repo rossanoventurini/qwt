@@ -88,7 +88,7 @@ To repeat the comparison against other Rust libraries, please check out the bran
 Then, run the benchmark `perf_wt_bench` using the following command:
 
 ```bash
-/target/release/perf_wt_bench --input-file big_english.4GiB --rank --select --access
+./target/release/perf_wt_bench --input-file big_english.4GiB --rank --select --access
 ```
 
 ## Examples
