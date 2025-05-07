@@ -1,8 +1,9 @@
 use rand::Rng;
 
 use crate::{
-    perf_and_test_utils::gen_sequence, AccessUnsigned, HuffQWaveletTree, RSQVector512,
-    RankUnsigned, SelectUnsigned, HQWT256,
+    perf_and_test_utils::{gen_sequence, TimingQueries},
+    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, QWT256Pfs, RSQVector512, RankUnsigned,
+    SelectUnsigned, HQWT256, QWT256,
 };
 
 #[test]
@@ -109,16 +110,44 @@ fn test_serialize() {
     assert_eq!(des_qwt, qwt);
 }
 
+fn gen_seq(n: usize, sigma: usize) -> Vec<u64> {
+    let mut rng = rand::thread_rng();
+    (0..n).map(|_| rng.gen_range(0..sigma) as u64).collect()
+}
+
 #[test]
 fn test_big_sigma() {
-    let gen_seq = |n: usize, sigma: usize| -> Vec<u64> {
-        let mut rng = rand::thread_rng();
-        (0..n).map(|_| rng.gen_range(0..sigma) as u64).collect()
-    };
-
     let seq = gen_seq(100_000, 10_000);
 
     let qwt = HuffQWaveletTree::<u64, RSQVector512>::from(seq.clone());
 
     assert_eq!(seq, qwt.iter().collect::<Vec<_>>());
 }
+
+#[test]
+fn test_runtinme_get() {
+    let n = 100_000;
+    let sigma = 140;
+    let n_queries = 10_000;
+
+    let seq = gen_seq(n, sigma);
+    let queries = gen_seq(n_queries, n);
+
+    let qwt = HQWT256::from(seq.clone());
+
+    let mut check = 0;
+
+    let mut timer = TimingQueries::new(1, n_queries);
+
+    timer.start();
+    for q in queries {
+        check ^= qwt.get(q as usize).unwrap();
+    }
+    timer.stop();
+
+    println!("check {}", check);
+    println!("took {:?}", timer.get());
+}
+
+// QWT256 took (1099, 1099, 1099)
+// HQWT took (1616, 1616, 1616)
