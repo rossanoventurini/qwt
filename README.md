@@ -13,7 +13,7 @@ This repository provides a very fast implementation of wavelet trees in Rust. A 
 
 The Quad Wavelet Tree (**QWT**) improves query performance by using a 4-ary tree instead of a binary tree as the basis of the wavelet tree. The 4-ary tree layout of a wavelet tree helps to halve the number of cache misses during queries and thus reduces the query latency.
 
-An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank, and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[3](#bib)].
+An experimental evaluation shows that the quad wavelet tree improves the latency of access, rank, and select queries by a factor of $\approx$ 2 compared to other implementations of wavelet trees (e.g., the implementation in the widely used C++ Succinct Data Structure Library ([SDSL](https://github.com/simongog/sdsl-lite))). For more details, see [Benchmarks](#bench) and the paper [[4](#bib)].
 
 ## <a name="faste">Even faster rank query</a>
 
@@ -26,7 +26,7 @@ The **rank** queries can be further improved using a **small prediction model** 
 ## <a name="bench">Benchmarks</a>
 We report here a few experiments to compare our implementation with other state-of-the-art implementations.
 The experiments use a single thread on a server machine with 8 Intel i9-9900KF cores with base frequencies of 3.60 GHz running Ubuntu 23.04 LTS kernel version 6.2.0-36. The code is compiled with Rust 1.73.0. Each core has a dedicated L1 cache of size 32 KiB, a dedicated L2 cache of size 256 KiB, a shared L3 cache of size 16 MiB, and 64 GiB of RAM.
-A more detailed experimental evaluation (on different machines) can be found in [[3](#bib)].
+A more detailed experimental evaluation (on different machines) can be found in [[3, 4](#bib)].
 
 The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.gz), is the concatenation of all 35,750 English text files from the Gutenberg Project that are encoded in ASCII. Headers related to the project were removed, leaving only the actual text. The prefix of size 4 GiB was used. The text has an alphabet with 168 distinct symbols. Below we report details to download the dataset.
 
@@ -51,7 +51,7 @@ The dataset, named [`Big English`](http://pages.di.unipi.it/rossano/big_english.
 We note that the results for the rank query depend on how we generate the symbols to rank in the query set. Here for every rank query, we choose a symbol at random by following the distribution of symbols in the text, i.e., more frequent symbols are selected more frequently. All the uncompressed data structures have more or less the same performance in ranking rare symbols. The reason is that the portion of the last layers for those rare symbols will likely fit in the cache.
 
 There are eight instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, which are quad wavelet trees with block sizes of 256 and 512 symbols, respectively. The prefix `H` in all Rust implementations indicates that the wavelet trees are compressed using Huffman compression. The suffix `Pfs` in `Qwt256Pfs` and `Qwt512Pfs` indicates that they utilize additional space to store a predicting model, which can accelerate further 'rank' queries. 
-Please refer to our full paper [[3](#bib)] for more details.
+Please refer to our full paper [[4](#bib)] for more details.
 `WT` and `HWT` are our own implementation of binary wavelet trees (respectively uncompressed and compressed).   
 
 To run the experiments, we need to compile the binary executables with
@@ -246,18 +246,22 @@ As the space usage depends on the largest value in the sequence, it could be wor
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 2. Francisco Claude, Gonzalo Navarro, and Alberto Ordóñez Pereira. *The wavelet matrix: An efficient wavelet tree for large alphabets.* Information Systems, 47:15–32, 2015.
 3. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Data Compression Conference (DCC), 2024.
+4. Florian Kurpicz, Angelo Savino, and Rossano Venturini, “ Faster Wavelet Tree Queries,” Software: Practice and Experience (2025): 1–16, https://doi.org/10.1002/spe.70013.
 ----
 
-Please cite the following [paper](http://arxiv.org/abs/2302.09239) if you use this code.
+Please cite the following [paper](http://doi.org/10.1002/spe.70013) if you use this code.
 
 ```bibtex
-@inproceedings{QWT,
-  author = {Matteo Ceregini, Florian Kurpicz, Rossano Venturini},
-  title = {Faster Wavelet Trees with Quad Vectors},
-  booktitle = {Data Compression Conference ({DCC})}
-  publisher = {IEEE},
-  year = {2024},
-  doi = {10.48550/ARXIV.2302.09239},
-  url = {http://arxiv.org/abs/2302.09239}
+@article{QWT,
+author = {Kurpicz, Florian and Savino, Angelo and Venturini, Rossano},
+title = {Faster Wavelet Tree Queries},
+journal = {Software: Practice and Experience},
+volume = {n/a},
+number = {n/a},
+pages = {},
+keywords = {algorithm optimization, cache efficiency, compressed data structures, rank/select queries, succinct data structures, wavelet trees},
+doi = {https://doi.org/10.1002/spe.70013},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/spe.70013},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/spe.70013}
 }
 ```
