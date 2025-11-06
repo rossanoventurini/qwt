@@ -256,12 +256,11 @@ Please cite the following [paper](http://doi.org/10.1002/spe.70013) if you use t
 author = {Kurpicz, Florian and Savino, Angelo and Venturini, Rossano},
 title = {Faster Wavelet Tree Queries},
 journal = {Software: Practice and Experience},
-volume = {n/a},
-number = {n/a},
-pages = {},
-keywords = {algorithm optimization, cache efficiency, compressed data structures, rank/select queries, succinct data structures, wavelet trees},
+volume = {55},
+number = {12},
+pages = {1931-1946},
 doi = {https://doi.org/10.1002/spe.70013},
 url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/spe.70013},
-eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/spe.70013}
+year = {2025}
 }
 ```
