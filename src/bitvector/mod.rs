@@ -78,6 +78,9 @@ impl RankBin for DataLine {
     }
 
     #[inline(always)]
+    fn prefetch(&self, _pos: usize) {}
+
+    #[inline(always)]
     unsafe fn rank1_unchecked(&self, i: usize) -> usize {
         let mut left = i as i32;
         let mut rank = 0;
