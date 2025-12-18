@@ -83,7 +83,7 @@ impl RSNarrow {
         }
         block_rank_pairs.push(subranks);
 
-        if bv.data.len() % BLOCK_SIZE > 0 {
+        if !bv.data.len().is_multiple_of(BLOCK_SIZE) {
             block_rank_pairs.push(next_rank);
             block_rank_pairs.push(0);
         }

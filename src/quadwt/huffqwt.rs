@@ -72,7 +72,7 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
             reversed_code |= ((c[j] >> t) & 3) << (l - t - 2);
         }
 
-        assignments[f[j].0 as usize] = PrefixCode {
+        assignments[f[j].0] = PrefixCode {
             content: reversed_code,
             len: l,
         };
@@ -184,7 +184,7 @@ where
 
             for &s in sequence.iter() {
                 let cur_code = codes
-                    .get(s.as_() as usize)
+                    .get(s.as_())
                     .expect("some error occurred during code translation while building huffqwt");
 
                 if cur_code.len >= shift {
@@ -434,7 +434,7 @@ where
     pub fn rank_prefetch(&self, symbol: T, i: usize) -> Option<usize> {
         if i > self.n
             || symbol.as_() >= self.codes_encode.len()
-            || self.codes_encode[symbol.as_() as usize].len == 0
+            || self.codes_encode[symbol.as_()].len == 0
         {
             return None;
         }
@@ -470,7 +470,7 @@ where
     #[inline(always)]
     pub unsafe fn rank_prefetch_unchecked(&self, symbol: T, i: usize) -> usize {
         //we get the code on which we rank
-        let code = &self.codes_encode[symbol.as_() as usize];
+        let code = &self.codes_encode[symbol.as_()];
 
         if WITH_PREFETCH_SUPPORT {
             let _ = self.rank_prefetch_superblocks_unchecked(code.content, code.len, i);
@@ -587,7 +587,7 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -618,7 +618,7 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
@@ -691,7 +691,7 @@ where
     /// assert_eq!(qwt.rank(1, 0), Some(0));
     /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n
@@ -728,13 +728,13 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut cur_i = i;
         let mut cur_p = 0;
 
-        let code = &self.codes_encode[symbol.as_() as usize];
+        let code = &self.codes_encode[symbol.as_()];
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
         let mut level = 0;
@@ -781,11 +781,11 @@ where
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
-    #[must_use]
+    
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol.as_() >= self.codes_encode.len()
-            || self.codes_encode[symbol.as_() as usize].len == 0
+            || self.codes_encode[symbol.as_()].len == 0
         {
             return None;
         }
@@ -793,7 +793,7 @@ where
         let mut path_off = Vec::with_capacity(self.n_levels);
         let mut rank_path_off = Vec::with_capacity(self.n_levels);
 
-        let code = &self.codes_encode[symbol.as_() as usize];
+        let code = &self.codes_encode[symbol.as_()];
         let mut shift: i64 = code.len as i64 - 2;
         let repr = code.content;
 
@@ -837,7 +837,7 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()

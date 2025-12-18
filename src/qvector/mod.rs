@@ -315,7 +315,7 @@ impl QVectorBuilder {
     /// # Panics
     /// Panics if the new capacity exceeds `isize::MAX` bytes.
     pub fn with_capacity(n: usize) -> Self {
-        let capacity = (2 * n + Self::N_BITS_WORD - 1) / Self::N_BITS_WORD;
+        let capacity = (2 * n).div_ceil(Self::N_BITS_WORD);
         Self {
             data: Vec::with_capacity(capacity),
             position: 0,

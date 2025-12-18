@@ -271,7 +271,7 @@ impl BitVector {
     ///
     /// ```
     #[must_use]
-    pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
+    pub fn ones(&self) -> BitVectorBitPositionsIter<'_, true> {
         BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
@@ -289,7 +289,7 @@ impl BitVector {
     /// assert_eq!(v, vec![63, 128, 129, 254, 1026]);
     /// ```
     #[must_use]
-    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
+    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, true> {
         BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
@@ -308,13 +308,13 @@ impl BitVector {
     /// assert_eq!(v, negate_vector(&vv));
     /// ```
     #[must_use]
-    pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros(&self) -> BitVectorBitPositionsIter<'_, false> {
         BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
     #[must_use]
-    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, false> {
         BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
@@ -337,7 +337,7 @@ impl BitVector {
     /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
     /// assert_eq!(iter.next(), None); // End of the iterator
     /// ```
-    pub fn iter(&self) -> BitVectorIter {
+    pub fn iter(&self) -> BitVectorIter<'_> {
         BitVectorIter {
             data: cast_to_u64_slice(&self.data),
             n_bits: self.n_bits,
@@ -447,7 +447,7 @@ impl AccessBin for BitVector {
     /// assert_eq!(bv.get(1), Some(false));
     /// assert_eq!(bv.get(10), None);
     /// ```
-    #[must_use]
+
     #[inline(always)]
     fn get(&self, index: usize) -> Option<bool> {
         if index >= self.len() {
@@ -470,7 +470,7 @@ impl AccessBin for BitVector {
     ///
     /// assert_eq!(unsafe{bv.get_unchecked(5)}, true);
     /// ```
-    #[must_use]
+
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         BitVectorMut::get_bit_slice(cast_to_u64_slice(&self.data), index)
@@ -535,7 +535,6 @@ where
     V: MyPrimInt,
     <V as TryInto<usize>>::Error: std::fmt::Debug,
 {
-    #[must_use]
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = V>,
@@ -822,7 +821,7 @@ impl BitVectorMut {
     /// ```
     #[must_use]
     pub fn with_capacity(n_bits: usize) -> Self {
-        let capacity = (n_bits + 63) / 64;
+        let capacity = n_bits.div_ceil(64);
         Self {
             data: Vec::with_capacity(capacity),
             ..Self::default()
@@ -954,7 +953,7 @@ impl BitVectorMut {
     #[inline]
     pub fn extend_with_zeros(&mut self, n: usize) {
         self.n_bits += n;
-        let new_size = (self.n_bits + 511) / 512;
+        let new_size = self.n_bits.div_ceil(512);
         self.data.resize_with(new_size, Default::default);
     }
 
@@ -1179,7 +1178,7 @@ impl BitVectorMut {
     /// assert_eq!(v, vv);
     /// ```
     #[must_use]
-    pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
+    pub fn ones(&self) -> BitVectorBitPositionsIter<'_, true> {
         BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
@@ -1197,7 +1196,7 @@ impl BitVectorMut {
     /// assert_eq!(v, vec![63, 128, 129, 254, 1026]);
     /// ```
     #[must_use]
-    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
+    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, true> {
         BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
@@ -1216,13 +1215,13 @@ impl BitVectorMut {
     /// assert_eq!(v, negate_vector(&vv));
     /// ```
     #[must_use]
-    pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros(&self) -> BitVectorBitPositionsIter<'_, false> {
         BitVectorBitPositionsIter::new(cast_to_u64_slice(&self.data), self.n_bits)
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
     #[must_use]
-    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, false> {
         BitVectorBitPositionsIter::with_pos(cast_to_u64_slice(&self.data), self.n_bits, pos)
     }
 
@@ -1245,7 +1244,7 @@ impl BitVectorMut {
     /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
     /// assert_eq!(iter.next(), None); // End of the iterator
     /// ```
-    pub fn iter(&self) -> BitVectorIter {
+    pub fn iter(&self) -> BitVectorIter<'_> {
         BitVectorIter {
             data: cast_to_u64_slice(&self.data),
             n_bits: self.n_bits,
@@ -1357,7 +1356,7 @@ impl AccessBin for BitVectorMut {
     /// assert_eq!(bv.get(8), Some(false));
     /// assert_eq!(bv.get(10), None);
     /// ```
-    #[must_use]
+
     #[inline(always)]
     fn get(&self, index: usize) -> Option<bool> {
         if index >= self.len() {
@@ -1379,7 +1378,7 @@ impl AccessBin for BitVectorMut {
     /// bv.extend_with_zeros(10);
     /// assert_eq!(unsafe{bv.get_unchecked(8)}, false);
     /// ```
-    #[must_use]
+
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         Self::get_bit_slice(cast_to_u64_slice(&self.data), index)

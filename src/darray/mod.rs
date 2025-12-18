@@ -177,7 +177,7 @@ impl<const BIT: bool> Inventories<BIT> {
             let v: i64 = (-(overflow_positions.len() as i64)) - 1;
             block_inventory.push(v);
             overflow_positions.extend(curr_positions.iter());
-            subblock_inventory.extend(std::iter::repeat(u16::MAX).take(curr_positions.len()));
+            subblock_inventory.extend(std::iter::repeat_n(u16::MAX, curr_positions.len()));
         }
     }
 }
@@ -227,7 +227,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// assert_eq!(v, vv);
     /// ```
     #[must_use]
-    pub fn ones(&self) -> BitVectorBitPositionsIter<true> {
+    pub fn ones(&self) -> BitVectorBitPositionsIter<'_, true> {
         self.bv.ones()
     }
 
@@ -245,7 +245,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// assert_eq!(v, vec![63, 128, 129, 254, 1026]);
     /// ```
     #[must_use]
-    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<true> {
+    pub fn ones_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, true> {
         self.bv.ones_with_pos(pos)
     }
 
@@ -264,13 +264,13 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// assert_eq!(v, negate_vector(&vv));
     /// ```
     #[must_use]
-    pub fn zeros(&self) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros(&self) -> BitVectorBitPositionsIter<'_, false> {
         self.bv.zeros()
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 0 in the bit vector, starting at a specified bit position.
     #[must_use]
-    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<false> {
+    pub fn zeros_with_pos(&self, pos: usize) -> BitVectorBitPositionsIter<'_, false> {
         self.bv.zeros_with_pos(pos)
     }
 
@@ -293,7 +293,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// assert_eq!(iter.next(), Some(true)); // Sixth bit is true
     /// assert_eq!(iter.next(), None); // End of the iterator
     /// ```
-    pub fn iter(&self) -> BitVectorIter {
+    pub fn iter(&self) -> BitVectorIter<'_> {
         self.bv.iter()
     }
 
@@ -438,7 +438,7 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     /// assert_eq!(da.get(1), Some(false));
     /// assert_eq!(da.get(10), None);
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     fn get(&self, i: usize) -> Option<bool> {
         self.bv.get(i)
@@ -457,7 +457,7 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     /// let da: DArray = v.into_iter().collect();;
     /// assert_eq!(unsafe{da.get_unchecked(8)}, false);
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> bool {
         self.bv.get_unchecked(i)
@@ -482,7 +482,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-    #[must_use]
+    
     #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         self.select(i, &self.ones_inventories)
@@ -502,7 +502,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// assert_eq!(unsafe{da.select1_unchecked(1)}, 12);
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         self.select(i, &self.ones_inventories).unwrap()
@@ -526,7 +526,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-    #[must_use]
+    
     #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         assert!(SELECT0_SUPPORT);
@@ -601,7 +601,7 @@ where
     V: crate::bitvector::MyPrimInt + PartialOrd,
     <V as TryInto<usize>>::Error: std::fmt::Debug,
 {
-    #[must_use]
+    
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = V>,

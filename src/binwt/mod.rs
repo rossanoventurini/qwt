@@ -65,7 +65,7 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
             reversed_code |= ((c[j] >> t) & 1) << (l - t - 1);
         }
 
-        assignments[f[j].0 as usize] = PrefixCode {
+        assignments[f[j].0] = PrefixCode {
             content: reversed_code,
             len: l,
         };
@@ -176,7 +176,7 @@ where
 
             for &s in sequence.iter() {
                 if COMPRESSED {
-                    let cur_code = codes_encode.as_ref().unwrap().get(s.as_() as usize).expect(
+                    let cur_code = codes_encode.as_ref().unwrap().get(s.as_()).expect(
                         "some error occurred during code translation while building huffqwt",
                     );
 
@@ -312,7 +312,7 @@ where
 {
     type Item = T;
 
-    #[must_use]
+    
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -377,7 +377,7 @@ where
 
         if COMPRESSED
             && (symbol.as_() >= self.codes_encode.as_ref().unwrap().len()
-                || self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0)
+                || self.codes_encode.as_ref().unwrap()[symbol.as_()].len == 0)
         {
             return None;
         }
@@ -394,7 +394,7 @@ where
         let repr;
 
         if COMPRESSED {
-            let code = &self.codes_encode.as_ref().unwrap()[symbol.as_() as usize];
+            let code = &self.codes_encode.as_ref().unwrap()[symbol.as_()];
             symbol_len = code.len as usize;
             repr = code.content;
         } else {
@@ -427,7 +427,7 @@ where
 {
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if COMPRESSED && self.codes_encode.as_ref().unwrap()[symbol.as_() as usize].len == 0 {
+        if COMPRESSED && self.codes_encode.as_ref().unwrap()[symbol.as_()].len == 0 {
             return None;
         }
 
@@ -435,7 +435,7 @@ where
         let repr;
 
         if COMPRESSED {
-            let code = &self.codes_encode.as_ref().unwrap()[symbol.as_() as usize];
+            let code = &self.codes_encode.as_ref().unwrap()[symbol.as_()];
             symbol_len = code.len as usize;
             repr = code.content;
         } else {

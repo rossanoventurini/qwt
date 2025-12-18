@@ -136,7 +136,7 @@ where
         }
         let sigma = *sequence.iter().max().unwrap();
         let log_sigma = msb(sigma) + 1; // Note that sigma equals the largest symbol, so it's already "alphabet_size - 1"
-        let n_levels = ((log_sigma + 1) / 2) as usize; // TODO: if log_sigma is odd, the FIRST level should be a binary vector!
+        let n_levels = log_sigma.div_ceil(2) as usize; // TODO: if log_sigma is odd, the FIRST level should be a binary vector!
 
         let mut prefetch_support = Vec::with_capacity(n_levels); // used only if WITH_PREFETCH_SUPPORT
 
@@ -530,7 +530,7 @@ where
     /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
     /// assert_eq!(qwt.rank(6, 1), None);  // Too large symbol
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n || symbol > self.sigma {
@@ -564,7 +564,7 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
@@ -617,7 +617,7 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -648,7 +648,7 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut result = T::zero();
@@ -698,7 +698,7 @@ where
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
-    #[must_use]
+    
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol > self.sigma {
@@ -748,7 +748,7 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-    #[must_use]
+    
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()

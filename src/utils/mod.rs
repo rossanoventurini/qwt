@@ -199,10 +199,9 @@ struct AlignToSixtyFour([u8; 64]);
 /// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
 pub unsafe fn get_64byte_aligned_vector<T>(capacity: usize) -> Vec<T> {
     assert!(mem::size_of::<T>() <= mem::size_of::<AlignToSixtyFour>());
-    assert!(mem::size_of::<AlignToSixtyFour>() % mem::size_of::<T>() == 0); // must divide otherwise fro raw parts below doesnt work
+    assert!(mem::size_of::<AlignToSixtyFour>().is_multiple_of(mem::size_of::<T>())); // must divide otherwise fro raw parts below doesnt work
 
-    let n_units = (capacity * mem::size_of::<T>() + mem::size_of::<AlignToSixtyFour>() - 1)
-        / mem::size_of::<AlignToSixtyFour>();
+    let n_units = (capacity * mem::size_of::<T>()).div_ceil(mem::size_of::<AlignToSixtyFour>());
     let mut aligned: Vec<AlignToSixtyFour> = Vec::with_capacity(n_units);
 
     let ptr = aligned.as_mut_ptr();
@@ -265,7 +264,7 @@ where
 
     for &a in sequence.iter() {
         let two_bits: usize = (a.as_() >> shift) & 3;
-        vecs[two_bits as usize].push(a);
+        vecs[two_bits].push(a);
     }
 
     let mut pos = 0;
@@ -283,7 +282,7 @@ where
     let mut vecs = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()]; // the fifth one contains symbols we dont want to partition (leaf at un upper level)
 
     for &a in sequence.iter() {
-        let code = &codes[a.as_() as usize];
+        let code = &codes[a.as_()];
         if code.len <= shift as u32 {
             //we dont care about this symbol (already taken care of)
             vecs[4].push(a);
@@ -309,7 +308,7 @@ where
     let mut vecs = [Vec::new(), Vec::new(), Vec::new()];
 
     for &a in sequence.iter() {
-        let code = &codes[a.as_() as usize];
+        let code = &codes[a.as_()];
         if code.len <= shift as u32 {
             //we dont care about this symbol (already taken care of)
             vecs[2].push(a);
@@ -335,7 +334,7 @@ where
 
     for &a in sequence.iter() {
         let bit = (a >> shift).as_() & 1;
-        vecs[bit as usize].push(a);
+        vecs[bit].push(a);
     }
 
     let mut pos = 0;
