@@ -20,7 +20,7 @@
 //!
 //! ```
 //! use qwt::DArray;
-//! use qwt::{SpaceUsage, SelectBin, RankBin};
+//! use qwt::{SelectBin, RankBin};
 //!
 //! let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
 //! let da: DArray<false> = vv.into_iter().collect();
@@ -63,8 +63,9 @@
 use crate::bitvector::{BitVectorBitPositionsIter, BitVectorIter};
 use crate::utils::select_in_word;
 use crate::BitVector;
-use crate::{AccessBin, SelectBin, SpaceUsage};
+use crate::{AccessBin, SelectBin};
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::_popcnt64;
@@ -77,7 +78,7 @@ const MAX_IN_BLOCK_DISTACE: usize = 1 << 16;
 /// extra data structures to support fast `select0` queries,
 /// which otherwise are not supported.
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 pub struct DArray<const SELECT0_SUPPORT: bool = false> {
     bv: BitVector,
     ones_inventories: Inventories<true>,
@@ -87,7 +88,7 @@ pub struct DArray<const SELECT0_SUPPORT: bool = false> {
 // Helper struct for DArray that stores
 // statistics, counters and overflow positions for bits
 // set either to 0 or 1
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 struct Inventories<const BIT: bool> {
     n_sets: usize, // number of bits set to BIT
     block_inventory: Box<[i64]>,
@@ -614,27 +615,6 @@ where
         );
 
         DArray::<SELECT0_SUPPORT>::new(BitVector::from_iter(data))
-    }
-}
-
-impl<const SELECT0_SUPPORT: bool> SpaceUsage for DArray<SELECT0_SUPPORT> {
-    /// Returns the space usage of the data structure in bytes.
-    fn space_usage_byte(&self) -> usize {
-        let mut space = self.bv.space_usage_byte() + self.ones_inventories.space_usage_byte();
-
-        if let Some(p) = self.zeroes_inventories.as_ref() {
-            space += p.space_usage_byte();
-        }
-        space
-    }
-}
-
-impl<const BIT: bool> SpaceUsage for Inventories<BIT> {
-    fn space_usage_byte(&self) -> usize {
-        self.n_sets.space_usage_byte()
-            + self.block_inventory.space_usage_byte()
-            + self.subblock_inventory.space_usage_byte()
-            + self.overflow_positions.space_usage_byte()
     }
 }
 

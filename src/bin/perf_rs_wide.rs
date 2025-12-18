@@ -1,7 +1,8 @@
+use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
     bitvector::rs_wide::RSWide,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
-    AccessBin, RankBin, SelectBin, SpaceUsage,
+    AccessBin, RankBin, SelectBin,
 };
 
 const N_RUNS: usize = 5;
@@ -9,7 +10,7 @@ const N_QUERIES: usize = 10_000_000;
 
 fn perf_rank1<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: RankBin + SpaceUsage,
+    T: RankBin + MemSize,
 {
     let mut result = 0;
 
@@ -32,14 +33,14 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 
 fn perf_select1<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: SelectBin + SpaceUsage,
+    T: SelectBin + MemSize,
 {
     let mut result = 0;
 
@@ -64,14 +65,14 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 
 fn perf_select0<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: SelectBin + SpaceUsage,
+    T: SelectBin + MemSize,
 {
     let mut result = 0;
 
@@ -96,14 +97,14 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 
 fn perf_get<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: AccessBin + SpaceUsage,
+    T: AccessBin + MemSize,
 {
     let mut result = false;
 
@@ -126,8 +127,8 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 

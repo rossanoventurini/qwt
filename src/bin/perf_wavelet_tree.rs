@@ -1,6 +1,7 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
+use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
     perf_and_test_utils::{
         gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
@@ -8,7 +9,7 @@ use qwt::{
     quadwt::RSforWT,
     utils::{msb, text_remap},
     AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, QWT256Pfs, QWT512Pfs, QWaveletTree,
-    RankUnsigned, SelectUnsigned, SpaceUsage, HQWT256, HQWT512, HWT, QWT256, QWT512, WT,
+    RankUnsigned, SelectUnsigned, HQWT256, HQWT512, HWT, QWT256, QWT512, WT,
 };
 use serde::{Deserialize, Serialize};
 
@@ -98,7 +99,7 @@ where
 }
 
 fn test_correctness<
-    T: AccessUnsigned<Item = u8> + RankUnsigned<Item = u8> + SelectUnsigned<Item = u8> + SpaceUsage,
+    T: AccessUnsigned<Item = u8> + RankUnsigned<Item = u8> + SelectUnsigned<Item = u8> + MemSize,
 >(
     ds: &T,
     sequence: &[u8],
@@ -113,7 +114,7 @@ fn test_correctness<
     println!("Everything is ok!\n");
 }
 
-fn test_rank_latency<T: RankUnsigned<Item = u8> + SpaceUsage>(
+fn test_rank_latency<T: RankUnsigned<Item = u8> + MemSize>(
     ds: &T,
     n: usize,
     queries: &[(usize, u8)],
@@ -141,8 +142,8 @@ fn test_rank_latency<T: RankUnsigned<Item = u8> + SpaceUsage>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -156,8 +157,8 @@ fn test_rank_prefetch_latency<RS, const WITH_PREFETCH_SUPPORT: bool>(
     queries: &[(usize, u8)],
     file: String,
 ) where
-    RS: SpaceUsage,
-    RS: RSforWT,
+    RS: RSforWT + MemSize,
+    Vec<RS>: MemSize,
 {
     let mut result = 0;
     let mut t = TimingQueries::new(N_RUNS, queries.len());
@@ -181,8 +182,8 @@ fn test_rank_prefetch_latency<RS, const WITH_PREFETCH_SUPPORT: bool>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -196,8 +197,8 @@ fn test_rank_prefetch_latency_qwt<RS, const WITH_PREFETCH_SUPPORT: bool>(
     queries: &[(usize, u8)],
     file: String,
 ) where
-    RS: SpaceUsage,
-    RS: RSforWT,
+    RS: RSforWT + MemSize,
+    Vec<RS>: MemSize,
 {
     let mut result = 0;
     let mut t = TimingQueries::new(N_RUNS, queries.len());
@@ -221,8 +222,8 @@ fn test_rank_prefetch_latency_qwt<RS, const WITH_PREFETCH_SUPPORT: bool>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -230,7 +231,7 @@ fn test_rank_prefetch_latency_qwt<RS, const WITH_PREFETCH_SUPPORT: bool>(
     println!("Result: {}", result);
 }
 
-fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
+fn test_select_latency<T: SelectUnsigned<Item = u8> + MemSize>(
     ds: &T,
     n: usize,
     queries: &[(usize, u8)],
@@ -259,8 +260,8 @@ fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -268,7 +269,7 @@ fn test_select_latency<T: SelectUnsigned<Item = u8> + SpaceUsage>(
     println!("Result: {}", result);
 }
 
-fn test_access_latency<T: AccessUnsigned<Item = u8> + SpaceUsage>(
+fn test_access_latency<T: AccessUnsigned<Item = u8> + MemSize>(
     ds: &T,
     n: usize,
     queries: &[usize],
@@ -295,8 +296,8 @@ fn test_access_latency<T: AccessUnsigned<Item = u8> + SpaceUsage>(
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -304,7 +305,7 @@ fn test_access_latency<T: AccessUnsigned<Item = u8> + SpaceUsage>(
 }
 
 #[allow(dead_code)]
-fn test_access_throughput<T: AccessUnsigned<Item = u8> + SpaceUsage>(
+fn test_access_throughput<T: AccessUnsigned<Item = u8> + MemSize>(
     ds: &T,
     n: usize,
     queries: &[usize],
@@ -330,8 +331,8 @@ fn test_access_throughput<T: AccessUnsigned<Item = u8> + SpaceUsage>(
         (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
         (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
         (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );
@@ -339,7 +340,7 @@ fn test_access_throughput<T: AccessUnsigned<Item = u8> + SpaceUsage>(
 }
 
 #[allow(dead_code)]
-fn test_select_throughput<T: SelectUnsigned<Item = u8> + SpaceUsage>(
+fn test_select_throughput<T: SelectUnsigned<Item = u8> + MemSize>(
     ds: &T,
     n: usize,
     queries: &[(usize, u8)],
@@ -366,8 +367,8 @@ fn test_select_throughput<T: SelectUnsigned<Item = u8> + SpaceUsage>(
         (queries.len() as f64) / (((t_max * queries.len() as u128) as f64) / 1000.0 / 1000.0),
         (queries.len() as f64) / (((t_min * queries.len() as u128) as f64) / 1000.0 / 1000.0),
         (queries.len() as f64) / (((t_avg * queries.len() as u128) as f64) / 1000.0 / 1000.0),
-        ds.space_usage_byte(),
-        ds.space_usage_MiB(),
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
         queries.len(),
         N_RUNS
     );

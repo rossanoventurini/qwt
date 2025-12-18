@@ -32,9 +32,6 @@ pub use quadwt::WTIndexable;
 pub mod binwt;
 pub use binwt::WaveletTree;
 
-pub mod space_usage;
-pub use space_usage::SpaceUsage;
-
 pub mod darray;
 pub use darray::DArray;
 

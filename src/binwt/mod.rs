@@ -1,5 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData};
 
+use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
@@ -8,13 +9,13 @@ use crate::{
     quadwt::huffqwt::PrefixCode,
     utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
     AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, RankUnsigned, SelectUnsigned,
-    SpaceUsage, WTIndexable, WTIterator,
+    WTIndexable, WTIterator,
 };
 
-pub trait BinRSforWT: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
-impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + SpaceUsage + Default {}
+pub trait BinRSforWT: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
+impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
 
-#[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     n: usize,                                 // The length of the represented sequence
     n_levels: usize,                          // The number of levels of the wavelet matrix
@@ -548,28 +549,6 @@ where
         I: IntoIterator<Item = T>,
     {
         WaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
-    }
-}
-
-impl<T, BRS: SpaceUsage, const COMPRESSED: bool> SpaceUsage for WaveletTree<T, BRS, COMPRESSED> {
-    /// Gives the space usage in bytes of the struct.
-    fn space_usage_byte(&self) -> usize {
-        let coding_overhead = if COMPRESSED {
-            256 * 8 // 256 + 2 * sizeof(u32) codes_encode
-            + self.codes_decode //codes_decode
-                .iter()
-                .fold(0, |a, v| a + v.len() * (4+1))
-        } else {
-            0
-        };
-
-        8 + 8
-            + coding_overhead
-            + self.lens.len() * 8
-            + self
-                .bvs
-                .iter()
-                .fold(0, |acc, ds| acc + ds.space_usage_byte())
     }
 }
 

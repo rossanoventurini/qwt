@@ -1,7 +1,9 @@
 use qwt::perf_and_test_utils::{
     gen_queries, gen_strictly_increasing_sequence, type_of, TimingQueries,
 };
-use qwt::{DArray, SelectBin, SpaceUsage};
+
+use mem_dbg::{MemSize, SizeFlags};
+use qwt::{DArray, SelectBin};
 
 fn main() {
     let n_queries = 100000;
@@ -35,8 +37,8 @@ fn main() {
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
     );
 
         println!("Fake: {res}");

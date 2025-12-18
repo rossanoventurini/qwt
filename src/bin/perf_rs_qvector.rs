@@ -1,15 +1,16 @@
+use mem_dbg::{MemSize, SizeFlags};
 use qwt::perf_and_test_utils::{gen_queries, type_of, TimingQueries};
 use qwt::RSQVector256;
 
 // traits
-use qwt::{AccessQuad, RankQuad, SelectQuad, SpaceUsage};
+use qwt::{AccessQuad, RankQuad, SelectQuad};
 
 const N_RUNS: usize = 5;
 const N_QUERIES: usize = 10000000;
 
 fn perf_rank<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: RankQuad + SpaceUsage,
+    T: RankQuad + MemSize,
 {
     let mut result = 0;
 
@@ -32,14 +33,14 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 
 fn perf_get<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: AccessQuad + SpaceUsage,
+    T: AccessQuad + MemSize,
 {
     let mut result = 0;
 
@@ -63,14 +64,14 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 
 fn perf_select<T>(ds: &T, queries: &[usize], n: usize, logn: usize, u: usize)
 where
-    T: SelectQuad + SpaceUsage,
+    T: SelectQuad + MemSize,
 {
     let mut result = 0;
 
@@ -96,8 +97,8 @@ where
         t_min,
         t_max,
         t_avg,
-        ds.space_usage_byte(),
-        ds.space_usage_MiB()
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0)
     );
 }
 

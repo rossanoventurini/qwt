@@ -37,9 +37,10 @@
 //! ```
 
 use crate::utils::{msb, stable_partition_of_4};
-use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, SpaceUsage, WTIterator, WTSupport};
+use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, WTIterator, WTSupport};
 use crate::{QVector, QVectorBuilder}; // Traits
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
@@ -55,10 +56,10 @@ use crate::quadwt::prefetch_support::PrefetchSupport;
 /// Alias for the trait bounds to be satisfied by a data structure
 /// to support `rank` and `select` queries at each level of the wavelet tree.
 /// We need an alias to avoid repeating a lot of bounds here and there.
-pub trait RSforWT: From<QVector> + WTSupport + SpaceUsage + Default {}
+pub trait RSforWT: From<QVector> + WTSupport + MemSize + MemDbg + Default {}
 
 // Generic implementation for any T
-impl<T> RSforWT for T where T: From<QVector> + WTSupport + SpaceUsage + Default {}
+impl<T> RSforWT for T where T: From<QVector> + WTSupport + MemSize + MemDbg + Default {}
 
 /// Alias for the trait bounds of the type T to be indexable in the
 /// wavelet tree.
@@ -82,7 +83,7 @@ where
 /// is augmented with extra data to support a deeper level of prefetching.
 /// This extra informationa are needed only for sequences such that data
 /// about superblocks and blocks do not fit in L3 cache.
-#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, PartialEq, Debug, Serialize, MemSize, MemDbg, Deserialize)]
 pub struct QWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,        // The length of the represented sequence
     n_levels: usize, // The number of levels of the wavelet matrix
@@ -751,27 +752,6 @@ where
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
-    }
-}
-
-impl<T, RS: SpaceUsage, const WITH_PREFETCH_SUPPORT: bool> SpaceUsage
-    for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
-{
-    /// Gives the space usage in bytes of the struct.
-    fn space_usage_byte(&self) -> usize {
-        let space_prefetch_support: usize = self
-            .prefetch_support
-            .iter()
-            .flatten()
-            .map(|ps| ps.space_usage_byte())
-            .sum();
-
-        8 + 8
-            + self
-                .qvs
-                .iter()
-                .fold(0, |acc, ds| acc + ds.space_usage_byte())
-            + space_prefetch_support
     }
 }
 

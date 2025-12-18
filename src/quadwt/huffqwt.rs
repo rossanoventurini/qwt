@@ -1,17 +1,18 @@
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, vec};
 
+use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     utils::stable_partition_of_4_with_codes, AccessUnsigned, QVectorBuilder, RankUnsigned,
-    SelectUnsigned, SpaceUsage, WTIndexable, WTIterator,
+    SelectUnsigned, WTIndexable, WTIterator,
 };
 
 use super::{prefetch_support::PrefetchSupport, RSforWT};
 
-#[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemDbg, MemSize, Debug)]
 pub struct PrefixCode {
     pub content: u32,
     pub len: u32,
@@ -19,7 +20,7 @@ pub struct PrefixCode {
 
 /// Implements a compressed wavelet tree on quad vectors.
 /// It doesn't achieve maximum compression, but the queries are faster
-#[derive(Default, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,                         // The length of the represented sequence
     n_levels: usize,                  // The number of levels of the wavelet matrix
@@ -840,32 +841,6 @@ where
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
-    }
-}
-
-impl<T, RS: SpaceUsage, const WITH_PREFETCH_SUPPORT: bool> SpaceUsage
-    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
-{
-    /// Gives the space usage in bytes of the struct.
-    fn space_usage_byte(&self) -> usize {
-        let space_prefetch_support: usize = self
-            .prefetch_support
-            .iter()
-            .flatten()
-            .map(|ps| ps.space_usage_byte())
-            .sum();
-
-        8 + 8
-            + 256 * 8  // 256 + 2 * sizeof(u32) codes_encode
-            + self.codes_decode //codes_decode
-                .iter()
-                .fold(0, |a, v| a + v.len() * (4+1))
-            + self.lens.len() * 8
-            + self
-                .qvs
-                .iter()
-                .fold(0, |acc, ds| acc + ds.space_usage_byte())
-        + space_prefetch_support
     }
 }
 

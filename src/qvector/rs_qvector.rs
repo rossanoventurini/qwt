@@ -4,13 +4,14 @@ use super::{QVector, QVectorIterator};
 
 use crate::utils::{prefetch_read_NTA, select_in_word_u128};
 
+use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::{AsPrimitive, Unsigned};
 
 use serde::{Deserialize, Serialize};
 
 // Traits
-use crate::{AccessQuad, RankQuad, SelectQuad, SpaceUsage, WTSupport};
+use crate::{AccessQuad, RankQuad, SelectQuad, WTSupport};
 
 /// Alternative representations to support Rank/Select queries at the level of blocks
 mod rs_support_plain;
@@ -22,7 +23,7 @@ pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 
 /// The generic `S` is the data structure used to provide rank/select
 /// support at the level of blocks.
-#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, PartialEq, Debug, Serialize, MemSize, MemDbg, Deserialize)]
 pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
@@ -45,13 +46,6 @@ impl<S> RSQVector<S> {
     /// ```
     pub fn iter(&self) -> QVectorIterator<&QVector> {
         self.qv.iter()
-    }
-}
-
-impl<S: SpaceUsage> SpaceUsage for RSQVector<S> {
-    /// Gives the space usage in bytes of the data structure.
-    fn space_usage_byte(&self) -> usize {
-        self.qv.space_usage_byte() + self.rs_support.space_usage_byte() + 5 * 8
     }
 }
 

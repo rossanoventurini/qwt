@@ -1,8 +1,9 @@
 //! Implements data structure to support `rank` and `select` queries on a binary vector with 512-bit blocks.
 //!
 //! This implementation is inspired by [this paper by Florian Kurpicz] (https://link.springer.com/chapter/10.1007/978-3-031-20643-6_19)
-use crate::{utils::prefetch_read_NTA, AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
+use crate::{utils::prefetch_read_NTA, AccessBin, BitVector, RankBin, SelectBin};
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
 //superblock is 44 bits, blocks are (BLOCK_SIZE-1) * 12 bits each
@@ -12,7 +13,7 @@ const SUPERBLOCK_SIZE: usize = 8 * BLOCK_SIZE; // 8 blocks for each superblock (
 const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > superblock_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 pub struct RSWide {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
@@ -402,16 +403,6 @@ impl SelectBin for RSWide {
         let off = self.bv.data[block].select0_unchecked(i - rank);
 
         block * 512 + off
-    }
-}
-
-impl SpaceUsage for RSWide {
-    /// Gives the space usage in bytes of the data structure.
-    fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte()
-            + self.superblock_metadata.space_usage_byte()
-            + self.select_samples[0].space_usage_byte()
-            + self.select_samples[1].space_usage_byte()
     }
 }
 

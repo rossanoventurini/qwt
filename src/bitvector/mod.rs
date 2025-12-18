@@ -8,15 +8,16 @@
 
 use crate::{
     utils::{prefetch_read_NTA, select_in_word},
-    AccessBin, RankBin, SelectBin, SpaceUsage,
+    AccessBin, RankBin, SelectBin,
 };
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
 pub mod rs_narrow;
 pub mod rs_wide;
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 #[repr(C, align(64))]
 struct DataLine {
     words: [u64; 8],
@@ -102,12 +103,6 @@ impl RankBin for DataLine {
     }
 }
 
-impl SpaceUsage for DataLine {
-    fn space_usage_byte(&self) -> usize {
-        8 * 8
-    }
-}
-
 fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
     //WARNING: this works because DataLine is aligned
     unsafe {
@@ -174,7 +169,7 @@ impl SelectBin for DataLine {
 }
 
 /// Implementation of an immutable bit vector.
-#[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Default, Clone, Serialize, Deserialize, MemSize, MemDbg, Eq, PartialEq)]
 pub struct BitVector {
     data: Box<[DataLine]>,
     n_bits: usize,
@@ -479,14 +474,6 @@ impl AccessBin for BitVector {
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         BitVectorMut::get_bit_slice(cast_to_u64_slice(&self.data), index)
-    }
-}
-
-impl SpaceUsage for BitVector {
-    /// Returns the space usage in bytes.
-    #[must_use]
-    fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8 + 8
     }
 }
 
@@ -800,7 +787,7 @@ impl<'a> ExactSizeIterator for BitVectorIter<'a> {
 }
 
 /// Implementation of a mutable bit vector.
-#[derive(Default, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Default, Clone, Serialize, Deserialize, MemSize, MemDbg, Eq, PartialEq)]
 pub struct BitVectorMut {
     data: Vec<DataLine>,
     n_bits: usize,
@@ -1396,14 +1383,6 @@ impl AccessBin for BitVectorMut {
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         Self::get_bit_slice(cast_to_u64_slice(&self.data), index)
-    }
-}
-
-impl SpaceUsage for BitVectorMut {
-    /// Returns the space usage in bytes.
-    #[must_use]
-    fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8 + 8
     }
 }
 

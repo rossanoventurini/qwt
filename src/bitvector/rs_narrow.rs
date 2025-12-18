@@ -3,8 +3,9 @@
 //!
 //! This implementation is inspired by the C++ implementation by [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/rs_bit_vector.cpp).
 
-use crate::{utils::select_in_word, AccessBin, BitVector, RankBin, SelectBin, SpaceUsage};
+use crate::{utils::select_in_word, AccessBin, BitVector, RankBin, SelectBin};
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
 //block_rank_pairs layout
@@ -14,7 +15,7 @@ const BLOCK_SIZE: usize = 8; // in 64bit words
 const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq, MemSize, MemDbg)]
 pub struct RSNarrow {
     bv: BitVector,
     block_rank_pairs: Box<[u64]>,
@@ -315,16 +316,6 @@ impl SelectBin for RSNarrow {
         let word_to_sel = !self.bv.data[block >> 3].words[block % 8];
 
         block * 64 + select_in_word(word_to_sel, (i - rank) as u64) as usize
-    }
-}
-
-impl SpaceUsage for RSNarrow {
-    /// Gives the space usage in bytes of the data structure.
-    fn space_usage_byte(&self) -> usize {
-        self.bv.space_usage_byte()
-            + self.block_rank_pairs.space_usage_byte()
-            + self.select_samples[0].space_usage_byte()
-            + self.select_samples[1].space_usage_byte()
     }
 }
 

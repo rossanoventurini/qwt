@@ -117,13 +117,13 @@ We can print the space usage of the wavelet tree with
 
 ```rust
 use qwt::QWT256;
-use qwt::SpaceUsage;
+use mem_dbg::{MemSize, SizeFlags};
 
 let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
 
 let qwt = QWT256::from(data);
 
-println!("{}", qwt.space_usage_byte() );
+println!("{}", qwt.mem_size(SizeFlags::default()) );
 ```
 
 A wavelet tree implements `FromIterator` and, thus, we can use `.collect()`.

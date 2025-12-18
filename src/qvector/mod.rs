@@ -6,8 +6,9 @@
 //! The use of `DataLine` in our setting is particulary conveninet because a vector of `DataLine` is aligned.
 //! This way, we load just one cache line everytime we access a `DataLine`.
 
-use crate::{AccessQuad, RankQuad, SpaceUsage}; // Traits
+use crate::{AccessQuad, RankQuad}; // Traits
 
+use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::AsPrimitive;
 
@@ -18,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // This way, it is easier to force the alignment to 64 bytes.
 //
 // We support `access`, `rank`, and `select queries for each line.
-#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
 #[repr(C, align(64))]
 struct DataLine {
     words: [u128; 4],
@@ -128,13 +129,7 @@ impl RankQuad for DataLine {
 
 // The trait SelectQuad is not implemented because RSSupport needs to it by hand :-)
 
-impl SpaceUsage for DataLine {
-    fn space_usage_byte(&self) -> usize {
-        64
-    }
-}
-
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
 pub struct QVector {
     data: Box<[DataLine]>,
     position: usize,
@@ -234,12 +229,6 @@ impl AccessQuad for QVector {
     }
 }
 
-impl SpaceUsage for QVector {
-    fn space_usage_byte(&self) -> usize {
-        self.data.space_usage_byte() + 8
-    }
-}
-
 impl AsRef<QVector> for QVector {
     fn as_ref(&self) -> &QVector {
         self
@@ -299,7 +288,7 @@ where
 ///   could change it;
 /// - we want to save space when symbols are produced one after the other and store
 ///   them using 2 bits each.
-#[derive(Clone, Default, Eq, PartialEq)]
+#[derive(Clone, Default, Eq, MemSize, MemDbg, PartialEq)]
 pub struct QVectorBuilder {
     data: Vec<DataLine>,
     position: usize,

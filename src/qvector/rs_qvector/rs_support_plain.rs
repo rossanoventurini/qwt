@@ -4,30 +4,21 @@
 
 use crate::qvector::rs_qvector::RSSupport;
 use crate::utils::prefetch_read_NTA;
-use crate::QVector;
-use crate::{AccessQuad, SpaceUsage}; // Traits
+use crate::AccessQuad;
+use crate::QVector; // Traits
 
+use mem_dbg::MemDbg;
+use mem_dbg::MemSize;
 use serde::{Deserialize, Serialize};
 
 /// The generic const `B_SIZE` specifies the number of symbols in each block.
 /// The possible values are 256 (default) and 512.
 /// The space overhead for 256 is 12.5% while 512 halves this
 /// space overhead (6.25%) at the cost of (slightly) increasing the query time.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 pub struct RSSupportPlain<const B_SIZE: usize = 256> {
     superblocks: Box<[SuperblockPlain]>,
     select_samples: [Box<[u32]>; 4],
-}
-
-impl<const B_SIZE: usize> SpaceUsage for RSSupportPlain<B_SIZE> {
-    /// Gives the space usage in bytes of the struct.
-    fn space_usage_byte(&self) -> usize {
-        let mut select_space = 0;
-        for c in 0..4 {
-            select_space += self.select_samples[c].space_usage_byte();
-        }
-        self.superblocks.space_usage_byte() + select_space
-    }
 }
 
 impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
@@ -221,17 +212,10 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// A u128 is subdivided as follows:
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
-#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 #[repr(C, align(64))]
 struct SuperblockPlain {
     counters: [u128; 4],
-}
-
-impl SpaceUsage for SuperblockPlain {
-    /// Gives the space usage in bytes of the struct.
-    fn space_usage_byte(&self) -> usize {
-        4 * 128 / 8
-    }
 }
 
 impl SuperblockPlain {

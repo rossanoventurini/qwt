@@ -2,8 +2,7 @@ use rand::Rng;
 
 use crate::{
     perf_and_test_utils::{gen_sequence, TimingQueries},
-    AccessUnsigned, HQWT256Pfs, HuffQWaveletTree, QWT256Pfs, RSQVector512, RankUnsigned,
-    SelectUnsigned, HQWT256, QWT256,
+    AccessUnsigned, HuffQWaveletTree, RSQVector512, RankUnsigned, SelectUnsigned, HQWT256,
 };
 
 #[test]

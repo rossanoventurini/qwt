@@ -1,8 +1,9 @@
-use crate::{BitVectorMut, QVector, RSNarrow, RankBin, SpaceUsage};
+use crate::{BitVectorMut, QVector, RSNarrow, RankBin};
 
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 pub struct PrefetchSupport {
     samples: Vec<RSNarrow>,
     sample_rate_shift: usize, // it's the log_2 of sample_rate, which must be a power of 2
@@ -60,11 +61,5 @@ impl PrefetchSupport {
             .rank1(block_id + 1)
             .unwrap()
             * sample_rate
-    }
-}
-
-impl SpaceUsage for PrefetchSupport {
-    fn space_usage_byte(&self) -> usize {
-        self.samples.iter().map(|bv| bv.space_usage_byte()).sum()
     }
 }
