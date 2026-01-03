@@ -246,7 +246,7 @@ As the space usage depends on the largest value in the sequence, it could be wor
 1. Roberto Grossi, Ankur Gupta, and Jeffrey Scott Vitter. *High-order entropy-compressed text indexes.* In SODA, pages 841–850. ACM/SIAM, 2003.
 2. Francisco Claude, Gonzalo Navarro, and Alberto Ordóñez Pereira. *The wavelet matrix: An efficient wavelet tree for large alphabets.* Information Systems, 47:15–32, 2015.
 3. Matteo Ceregini, Florian Kurpicz, Rossano Venturini. *Faster Wavelet Trees with Quad Vectors*. Data Compression Conference (DCC), 2024.
-4. Florian Kurpicz, Angelo Savino, and Rossano Venturini, “ Faster Wavelet Tree Queries,” Software: Practice and Experience (2025): 1–16, https://doi.org/10.1002/spe.70013.
+4. Florian Kurpicz, Angelo Savino, and Rossano Venturini, *Faster Wavelet Tree Queries*. Software: Practice and Experience: 1–16, 2025. [link](https://doi.org/10.1002/spe.70013).
 ----
 
 Please cite the following [paper](http://doi.org/10.1002/spe.70013) if you use this code.
