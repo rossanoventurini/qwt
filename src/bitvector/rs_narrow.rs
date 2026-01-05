@@ -122,18 +122,18 @@ impl RSNarrow {
     }
 
     #[inline(always)]
-    fn sub_block_ranks(&self, block: usize) -> usize {
-        self.block_rank_pairs[block * 2 + 1] as usize
+    fn sub_block_ranks(&self, block: usize) -> u64 {
+        self.block_rank_pairs[block * 2 + 1]
     }
 
     #[inline(always)]
     fn sub_block_rank(&self, sub_block: usize) -> usize {
-        let mut result = 0;
+        let mut result = 0u64;
         let block = sub_block / BLOCK_SIZE;
-        result += self.block_rank(block);
+        result += self.block_rank(block) as u64;
         let left = sub_block % BLOCK_SIZE;
         result += self.sub_block_ranks(block) >> ((7 - left) * 9) & 0x1FF;
-        result
+        result as usize
     }
 
     #[inline(always)]

@@ -34,7 +34,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
     const BLOCK_SIZE: usize = B_SIZE;
 
     fn new(qv: &QVector) -> Self {
-        assert!(qv.len() < (1 << 43));
+        assert!(qv.len() < (1 << std::cmp::min(43, usize::BITS - 4))); // TODO: refine upper limit for 32 bit
 
         assert!(
             (Self::BLOCK_SIZE == 256) | (Self::BLOCK_SIZE == 512),
