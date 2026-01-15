@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, marker::PhantomData, vec};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    marker::PhantomData,
+    ops::{Bound, Range, RangeBounds},
+    vec,
+};
 
 use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
@@ -6,8 +12,8 @@ use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    utils::stable_partition_of_4_with_codes, AccessUnsigned, QVectorBuilder, RankUnsigned,
-    SelectUnsigned, WTIndexable, WTIterator,
+    utils::stable_partition_of_4_with_codes, AccessUnsigned, OccsRangeUnsigned, QVectorBuilder,
+    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
 };
 
 use super::{prefetch_support::PrefetchSupport, RSforWT};
@@ -587,7 +593,7 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-    
+
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -618,7 +624,7 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-    
+
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
@@ -664,6 +670,139 @@ where
     }
 }
 
+impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> OccsRangeUnsigned
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    usize: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    type Iter<'a>
+        = HuffOccsRangeIter<'a, T, RS, WITH_PREFETCH_SUPPORT>
+    where
+        Self: 'a;
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// Symbol iteration order is undefined.
+    ///
+    /// Returns `None` if the provided range is out-of-bounds.
+    fn occs_range<R: RangeBounds<usize>>(&self, range: R) -> Option<Self::Iter<'_>> {
+        let start = match range.start_bound() {
+            Bound::Included(start) => *start,
+            Bound::Excluded(start) => *start + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(end) => *end + 1,
+            Bound::Excluded(end) => *end,
+            Bound::Unbounded => self.n,
+        };
+
+        if end > self.n || start > end {
+            return None;
+        }
+
+        // SAFETY: checked above
+        Some(unsafe { self.occs_range_unchecked(start..end) })
+    }
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// Symbol iteration order is undefined.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds range is undefined behavior.
+    unsafe fn occs_range_unchecked(&self, range: Range<usize>) -> Self::Iter<'_> {
+        if range.start == range.end {
+            let stack = vec![];
+            return HuffOccsRangeIter { tree: self, stack };
+        }
+
+        let mut stack = Vec::with_capacity(self.n_levels * 3 + 1);
+
+        stack.push(HuffOccsRangeFrame {
+            range,
+            level: 0,
+            bit_path: 0,
+            bit_len: 0,
+        });
+
+        HuffOccsRangeIter { tree: self, stack }
+    }
+}
+
+pub struct HuffOccsRangeIter<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> {
+    tree: &'a HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+    stack: Vec<HuffOccsRangeFrame>,
+}
+
+struct HuffOccsRangeFrame {
+    range: Range<usize>,
+    level: usize,
+    bit_path: u32,
+    bit_len: u32,
+}
+
+impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> Iterator
+    for HuffOccsRangeIter<'a, T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    RS: RSforWT,
+{
+    type Item = (T, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(cur) = self.stack.pop() {
+            // check for leaves; have we reached the bottom of the tree?
+            if cur.bit_len < self.tree.codes_decode.len() as u32 {
+                let leaves = &self.tree.codes_decode[cur.bit_len as usize];
+
+                // codes_decode[i] are sorted; we can binsearch for bit_path
+                if let Ok(idx) = leaves.binary_search_by_key(&cur.bit_path, |(c, _)| *c) {
+                    // prefix free property means we don't descend further here
+                    return Some((leaves[idx].1, cur.range.end - cur.range.start));
+                }
+            }
+
+            // if we can't descend a level, bail out
+            if cur.level >= self.tree.qvs.len() {
+                continue;
+            }
+
+            let qv = &self.tree.qvs[cur.level];
+
+            for bit in 0..4u8 {
+                // SAFETY: prior levels' ranks + offset are derived from checked bounds at the top level
+                let lo = unsafe { qv.rank_unchecked(bit, cur.range.start) };
+                let hi = unsafe { qv.rank_unchecked(bit, cur.range.end) };
+
+                // skip if the symbol count is 0 (empty range)
+                if hi == lo {
+                    continue;
+                }
+
+                // SAFETY: bit comes from 0..4 above
+                let offset = unsafe { qv.occs_smaller_unchecked(bit) };
+
+                let frame = HuffOccsRangeFrame {
+                    range: offset + lo..offset + hi,
+                    level: cur.level + 1,
+                    bit_path: (cur.bit_path << 2) | bit as u32,
+                    bit_len: cur.bit_len + 2,
+                };
+
+                self.stack.push(frame);
+            }
+        }
+
+        None
+    }
+}
+
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> RankUnsigned
     for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
@@ -691,7 +830,7 @@ where
     /// assert_eq!(qwt.rank(1, 0), Some(0));
     /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
     /// ```
-    
+
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n
@@ -728,7 +867,7 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-    
+
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut cur_i = i;
@@ -781,12 +920,10 @@ where
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```    
-    
+
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if symbol.as_() >= self.codes_encode.len()
-            || self.codes_encode[symbol.as_()].len == 0
-        {
+        if symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_()].len == 0 {
             return None;
         }
 
@@ -837,7 +974,7 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-    
+
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()

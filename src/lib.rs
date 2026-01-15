@@ -6,7 +6,10 @@
 
 pub mod perf_and_test_utils;
 pub mod qvector;
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    ops::{Range, RangeBounds},
+};
 
 use num_traits::AsPrimitive;
 pub use qvector::QVector;
@@ -104,6 +107,26 @@ pub trait SelectUnsigned: AccessUnsigned {
     /// # Safety
     /// Calling this method if the `i`th occurrence of `symbol` does not exist is undefined behavior.
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize;
+}
+
+/// A trait for the support of `occs_range` query over an `Unsigned` alphabet.
+pub trait OccsRangeUnsigned: AccessUnsigned {
+    type Iter<'a>: Iterator<Item = (Self::Item, usize)>
+    where
+        Self: 'a;
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// Returns `None` if the provided range is out-of-bounds.
+    fn occs_range<R: RangeBounds<usize>>(&self, range: R) -> Option<Self::Iter<'_>>;
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds range is undefined behavior.
+    unsafe fn occs_range_unchecked(&self, range: Range<usize>) -> Self::Iter<'_>;
 }
 
 /// A trait for the support of `get` query over the binary alphabet.
@@ -211,7 +234,7 @@ pub trait RankQuad {
 /// A trait for the support of `select` query over the alphabet [0..3].
 pub trait SelectQuad {
     /// Returns the position in the indexed sequence of the `i+1`th occurrence of `symbol`
-    /// (0-indexed, mening the first occurrence is obtained using `i = 0`).
+    /// (0-indexed, meaning the first occurrence is obtained using `i = 0`).
     fn select(&self, symbol: u8, i: usize) -> Option<usize>;
 
     /// Returns the position in the indexed sequence of the `i+1`th occurrence of `symbol`.
