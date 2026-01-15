@@ -262,6 +262,12 @@ impl BitVector {
         self.data[i >> 3].words[i % 8]
     }
 
+    /// Gets the underlying 64-bit words.
+    #[inline]
+    pub fn words(&self) -> &[u64] {
+        cast_to_u64_slice(&self.data)
+    }
+
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
     ///
     /// # Examples
