@@ -772,7 +772,7 @@ where
             // SAFETY: well-formed trees guarantee that we find a leaf above before running out of levels
             let qv = unsafe { self.tree.qvs.get_unchecked(cur.level) };
 
-            for bit in 0..4u8 {
+            for bit in (0..4u8).rev() {
                 // SAFETY: prior levels' ranks + offset are derived from checked bounds at the top level
                 let lo = unsafe { qv.rank_unchecked(bit, cur.range.start) };
                 let hi = unsafe { qv.rank_unchecked(bit, cur.range.end) };
