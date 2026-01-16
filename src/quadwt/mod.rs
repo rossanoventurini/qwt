@@ -592,12 +592,13 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(cur) = self.stack.pop() {
-            // check for leaves; have we reached the bottom of the tree?
+            // have we reached the bottom of the tree?
             if cur.level == self.tree.n_levels {
                 return Some((cur.bit_path.as_(), cur.range.end - cur.range.start));
             }
 
-            let qv = &self.tree.qvs[cur.level];
+            // SAFETY: we necessarily find a leaf above before running out of levels
+            let qv = unsafe { self.tree.qvs.get_unchecked(cur.level) };
 
             // push in reverse so the outer iterator iterates over symbols in lexicographic order
             for bit in (0..4u8).rev() {

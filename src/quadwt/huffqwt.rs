@@ -757,23 +757,20 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(cur) = self.stack.pop() {
-            // check for leaves; have we reached the bottom of the tree?
-            if cur.bit_len < self.tree.codes_decode.len() as u32 {
-                let leaves = &self.tree.codes_decode[cur.bit_len as usize];
+            // SAFETY: assumes tree depth corresponds exactly to max code length in codes_decode
+            let leaves = unsafe { self.tree.codes_decode.get_unchecked(cur.bit_len as usize) };
 
-                // codes_decode[i] are sorted; we can binsearch for bit_path
-                if let Ok(idx) = leaves.binary_search_by_key(&cur.bit_path, |(c, _)| *c) {
-                    // prefix free property means we don't descend further here
-                    return Some((leaves[idx].1, cur.range.end - cur.range.start));
-                }
+            // have we reached the bottom of the tree?
+            if let Ok(idx) = leaves.binary_search_by_key(&cur.bit_path, |(c, _)| *c) {
+                // SAFETY: we binary searched; if Ok, it definitely exists
+                let leaf = unsafe { leaves.get_unchecked(idx) };
+
+                // prefix free property means we don't descend further here
+                return Some((leaf.1, cur.range.end - cur.range.start));
             }
 
-            // if we can't descend a level, bail out
-            if cur.level >= self.tree.qvs.len() {
-                continue;
-            }
-
-            let qv = &self.tree.qvs[cur.level];
+            // SAFETY: well-formed trees guarantee that we find a leaf above before running out of levels
+            let qv = unsafe { self.tree.qvs.get_unchecked(cur.level) };
 
             for bit in 0..4u8 {
                 // SAFETY: prior levels' ranks + offset are derived from checked bounds at the top level
