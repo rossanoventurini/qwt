@@ -136,6 +136,7 @@ pub trait RankBin {
     /// position `i` excluded.
     fn rank1(&self, i: usize) -> Option<usize>;
 
+    /// Prefetch the cache lines needed to answer `rank1(i)`.
     fn prefetch(&self, i: usize);
 
     /// Returns the number of ones in the indexed sequence up to

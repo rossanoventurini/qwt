@@ -310,6 +310,7 @@ impl RankBin for RSWide {
 
     #[inline(always)]
     fn prefetch(&self, pos: usize) {
+        let pos = pos.wrapping_sub(1);
         prefetch_read_NTA(&self.bv.data, pos >> 9);
 
         let sub_block = pos >> 9;
