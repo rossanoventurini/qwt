@@ -1,4 +1,8 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+    ops::{Bound, Range, RangeBounds},
+};
 
 use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
@@ -8,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     quadwt::huffqwt::PrefixCode,
     utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
-    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, RankUnsigned, SelectUnsigned,
-    WTIndexable, WTIterator,
+    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, OccsRangeUnsigned, RankUnsigned,
+    SelectUnsigned, WTIndexable, WTIterator,
 };
 
 pub trait BinRSforWT: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
@@ -312,7 +316,6 @@ where
 {
     type Item = T;
 
-    
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -356,6 +359,152 @@ where
         } else {
             T::from(result).unwrap()
         }
+    }
+}
+
+impl<T, BRS, const COMPRESSED: bool> OccsRangeUnsigned for WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    usize: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    type Iter<'a>
+        = OccsRangeIter<'a, T, BRS, COMPRESSED>
+    where
+        Self: 'a;
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// Guaranteed to iterate in lexicographic symbol order if the tree is not compressed. If compressed, it
+    /// will iterate in an undefined order.
+    ///
+    /// Returns `None` if the provided range is out-of-bounds.
+    fn occs_range<R: RangeBounds<usize>>(&self, range: R) -> Option<Self::Iter<'_>> {
+        let start = match range.start_bound() {
+            Bound::Included(start) => *start,
+            Bound::Excluded(start) => *start + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(end) => *end + 1,
+            Bound::Excluded(end) => *end,
+            Bound::Unbounded => self.n,
+        };
+
+        if end > self.n || start > end {
+            return None;
+        }
+
+        Some(unsafe { self.occs_range_unchecked(start..end) })
+    }
+
+    /// Returns an iterator over the number of occurrences of symbols in the provided range having at least
+    /// one occurrence. Symbols that do not appear in the range are not yielded.
+    ///
+    /// Guaranteed to iterate in lexicographic symbol order if the tree is not compressed. If compressed, it
+    /// will iterate in an undefined order.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds range is undefined behavior.
+    unsafe fn occs_range_unchecked(&self, range: Range<usize>) -> Self::Iter<'_> {
+        if range.start == range.end {
+            let stack = vec![];
+            return OccsRangeIter { tree: self, stack };
+        }
+
+        let mut stack = Vec::with_capacity(self.n_levels * 3 + 1);
+
+        stack.push(OccsRangeFrame {
+            range,
+            level: 0,
+            bit_path: 0,
+        });
+
+        OccsRangeIter { tree: self, stack }
+    }
+}
+
+pub struct OccsRangeIter<'a, T, BRS, const COMPRESSED: bool> {
+    tree: &'a WaveletTree<T, BRS, COMPRESSED>,
+    stack: Vec<OccsRangeFrame>,
+}
+
+struct OccsRangeFrame {
+    range: Range<usize>,
+    level: usize,
+    bit_path: usize,
+}
+
+impl<'a, T, BRS, const COMPRESSED: bool> Iterator for OccsRangeIter<'a, T, BRS, COMPRESSED>
+where
+    T: WTIndexable,
+    usize: AsPrimitive<T>,
+    BRS: BinRSforWT,
+{
+    type Item = (T, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(cur) = self.stack.pop() {
+            // have we reached the bottom of the tree? huffman tree needs slightly different logic to check
+            if COMPRESSED {
+                // SAFETY: surely it's compressed
+                let codes = unsafe { self.tree.codes_decode.as_ref().unwrap_unchecked() };
+
+                // SAFETY: assumes tree depth corresponds exactly to max code length in codes_decode
+                let leaves = unsafe { codes.get_unchecked(cur.level) };
+
+                if let Ok(idx) = leaves.binary_search_by_key(&(cur.bit_path as u32), |(c, _)| *c) {
+                    // SAFETY: we binary searched; if Ok, it definitely exists
+                    let leaf = unsafe { leaves.get_unchecked(idx) };
+
+                    // prefix free property means we don't descend further here
+                    return Some((leaf.1, cur.range.end - cur.range.start));
+                }
+            } else if cur.level == self.tree.n_levels {
+                return Some((cur.bit_path.as_(), cur.range.end - cur.range.start));
+            }
+
+            // SAFETY: if compressed, a well-formed tree guarantees that we find a leaf above before running
+            // out of levels. if not compressed, we necessarily iterate up to 0..levels.
+            let bv = unsafe { self.tree.bvs.get_unchecked(cur.level) };
+
+            // right child (pushing it first makes non-huffman iterate in lexicographic symbol order)
+
+            // SAFETY: derives from top level bounds check -> valid ranges
+            let r_lo = unsafe { bv.rank1_unchecked(cur.range.start) };
+            let r_hi = unsafe { bv.rank1_unchecked(cur.range.end) };
+
+            if r_hi > r_lo {
+                let offset = bv.n_zeros();
+
+                let frame = OccsRangeFrame {
+                    range: offset + r_lo..offset + r_hi,
+                    level: cur.level + 1,
+                    bit_path: (cur.bit_path << 1) | 1,
+                };
+
+                self.stack.push(frame);
+            }
+
+            // left child (we can derive the range from ^ rank calls)
+
+            let l_lo = cur.range.start - r_lo;
+            let l_hi = cur.range.end - r_hi;
+
+            if l_hi > l_lo {
+                let frame = OccsRangeFrame {
+                    range: l_lo..l_hi,
+                    level: cur.level + 1,
+                    bit_path: (cur.bit_path << 1), // | 0
+                };
+
+                self.stack.push(frame);
+            }
+        }
+
+        None
     }
 }
 
