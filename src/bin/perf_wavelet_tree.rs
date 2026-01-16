@@ -4,12 +4,14 @@ use clap::Parser;
 use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
     perf_and_test_utils::{
-        gen_queries, gen_rank_queries, gen_select_queries, type_of, TimingQueries,
+        gen_queries, gen_range_queries, gen_rank_queries, gen_select_queries, type_of,
+        TimingQueries,
     },
     quadwt::RSforWT,
     utils::{msb, text_remap},
-    AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, QWT256Pfs, QWT512Pfs, QWaveletTree,
-    RankUnsigned, SelectUnsigned, HQWT256, HQWT512, HWT, QWT256, QWT512, WT,
+    AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, OccsRangeUnsigned, QWT256Pfs,
+    QWT512Pfs, QWaveletTree, RankUnsigned, SelectUnsigned, HQWT256, HQWT512, HWT, QWT256, QWT512,
+    WT,
 };
 use serde::{Deserialize, Serialize};
 
@@ -25,17 +27,20 @@ struct Args {
     #[clap(short, long, value_parser)]
     #[arg(default_value_t = 10000000)]
     n_queries: usize,
-    #[arg(short, long)]
     /// Check the correctness by running a slow test
+    #[arg(short, long)]
     test_correctness: bool,
+    /// Run occs_range queries
     #[arg(short, long)]
+    occs_range: bool,
     /// Run rank queries
+    #[arg(short, long)]
     rank: bool,
-    #[arg(short, long)]
     /// Run get queries
-    access: bool,
     #[arg(short, long)]
+    access: bool,
     /// Run select queries
+    #[arg(short, long)]
     select: bool,
     #[arg(long)]
     wt: bool,
@@ -112,6 +117,83 @@ fn test_correctness<
         assert_eq!(s, i);
     }
     println!("Everything is ok!\n");
+}
+
+fn test_occs_range_naive_latency<T: RankUnsigned<Item = u8> + MemSize>(
+    ds: &T,
+    n: usize,
+    queries: &[(usize, usize)],
+    file: String,
+    sigma: u8,
+) {
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(sp, ep) in queries.iter() {
+            let it = (0..sigma).map(|s| {
+                let lo = unsafe { ds.rank_unchecked(s, sp) };
+                let hi = unsafe { ds.rank_unchecked(s, ep) };
+                (s, hi - lo)
+            });
+
+            for out in it {
+                std::hint::black_box(out);
+            }
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=occs_range_naive_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        t_min,
+        t_max,
+        t_avg,
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
+        queries.len(),
+        N_RUNS
+    );
+}
+
+fn test_occs_range_latency<T: OccsRangeUnsigned<Item = u8> + MemSize>(
+    ds: &T,
+    n: usize,
+    queries: &[(usize, usize)],
+    file: String,
+) {
+    let mut t = TimingQueries::new(N_RUNS, queries.len());
+
+    for _ in 0..N_RUNS {
+        t.start();
+        for &(sp, ep) in queries.iter() {
+            for out in unsafe { ds.occs_range_unchecked(sp..ep) } {
+                std::hint::black_box(out);
+            }
+        }
+        t.stop()
+    }
+
+    let (t_min, t_max, t_avg) = t.get();
+    println!(
+    "RESULT algo={} exp=occs_range_latency input={} n={} logn={:?} min_time_ns={} max_time_ns={} avg_time_ns={} space_in_bytes={} space_in_mib={:.2} n_queries={} n_runs={}",
+        type_of(&ds).chars().filter(|c| !c.is_whitespace()).collect::<String>(),
+    file,
+        n,
+        msb(n),
+        t_min,
+        t_max,
+        t_avg,
+        ds.mem_size(SizeFlags::default()),
+        ds.mem_size(SizeFlags::default()) as f64 / (1024.0 * 1024.0),
+        queries.len(),
+        N_RUNS
+    );
 }
 
 fn test_rank_latency<T: RankUnsigned<Item = u8> + MemSize>(
@@ -387,6 +469,7 @@ fn main() {
     println!("Text length: {:?}", n);
 
     // Generate queries
+    let range_queries = gen_range_queries(args.n_queries, n);
     let rank_queries = gen_rank_queries(args.n_queries, &text);
     let access_queries = gen_queries(args.n_queries, n);
     let select_queries = gen_select_queries(args.n_queries, &text);
@@ -400,6 +483,11 @@ fn main() {
 
                     if args.test_correctness {
                         test_correctness(&ds, &text);
+                    }
+
+                    if args.occs_range {
+                        test_occs_range_latency(&ds, n, &range_queries, input_filename.clone());
+                        test_occs_range_naive_latency(&ds, n, &range_queries, input_filename.clone(), sigma as u8);
                     }
 
                     if args.rank {

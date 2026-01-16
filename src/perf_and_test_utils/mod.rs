@@ -33,6 +33,24 @@ pub fn gen_queries(n_queries: usize, range_size: usize) -> Vec<usize> {
         .collect()
 }
 
+/// Generates a random vector of `n_queries` pairs in ([0, `range_size`], [0, `range_size`]) where a<=b.
+/// This can be used to generate random queries over ranges.
+pub fn gen_range_queries(n_queries: usize, range_size: usize) -> Vec<(usize, usize)> {
+    let mut rng = rand::thread_rng();
+    (0..n_queries)
+        .map(|_| {
+            let a = rng.gen_range(0..range_size);
+            let b = rng.gen_range(0..range_size);
+
+            if a <= b {
+                (a, b)
+            } else {
+                (b, a)
+            }
+        })
+        .collect()
+}
+
 /// Generates a random vector of `n_queries` for `rank` queries on a given sequence `s`.
 /// Each query is a pair: a random position in [0, `s.len()`) and the symbol `s[pos]`, where `pos` is another random position in [0, `s.len()`).
 pub fn gen_rank_queries<T: Clone>(n_queries: usize, s: &[T]) -> Vec<(usize, T)> {
