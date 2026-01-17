@@ -414,7 +414,7 @@ where
             return OccsRangeIter { tree: self, stack };
         }
 
-        let mut stack = Vec::with_capacity(self.n_levels * 3 + 1);
+        let mut stack = Vec::with_capacity(self.n_levels + 1);
 
         stack.push(OccsRangeFrame {
             range,
