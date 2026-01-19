@@ -262,10 +262,24 @@ impl BitVector {
         self.data[i >> 3].words[i % 8]
     }
 
-    /// Gets the underlying 64-bit words.
+    /// Gets all words from the underlying vector of u64.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::BitVector;
+    ///
+    /// let v = vec![0,2,3,4,5,64,129];
+    /// let bv: BitVector = v.into_iter().collect();
+    ///
+    /// // Get the 64-bit word at index 0
+    /// let words = bv.words();
+    /// assert_eq!(words, [0b111101,0b1,0b10]);
+    /// ```
+    #[must_use]
     #[inline]
     pub fn words(&self) -> &[u64] {
-        cast_to_u64_slice(&self.data)
+        &cast_to_u64_slice(&self.data)[..(self.n_bits + 63) / 64]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
