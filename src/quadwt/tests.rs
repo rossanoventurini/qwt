@@ -33,6 +33,49 @@ fn test_small() {
 }
 
 #[test]
+fn test_occs_range() {
+    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let qwt = QWaveletTree::<_, RSQVector512>::new(&mut data.clone());
+
+    // out-of-bounds ranges
+    assert!(qwt.occs_range(..data.len() + 1).is_none());
+    assert!(qwt.occs_range(data.len() - 1..data.len() + 1).is_none());
+
+    // nonsense ranges
+    assert!(qwt.occs_range(5..4).is_none());
+    assert!(qwt.occs_range(2..0).is_none());
+
+    // empty ranges
+    assert_eq!(0, qwt.occs_range(data.len()..).unwrap().count());
+    assert_eq!(0, qwt.occs_range(..0).unwrap().count());
+
+    // unbounded
+    let occs: Vec<_> = qwt.occs_range(..).unwrap().collect();
+    assert!(occs.is_sorted_by_key(|(s, _)| s));
+    assert_eq!(occs, [(0, 2), (1, 2), (3, 2), (4, 1), (5, 1), (7, 1)]);
+
+    // start bound
+    let occs: Vec<_> = qwt.occs_range(3..).unwrap().collect();
+    assert!(occs.is_sorted_by_key(|(s, _)| s));
+    assert_eq!(occs, [(0, 1), (3, 2), (4, 1), (5, 1), (7, 1)]);
+
+    // end bound
+    let occs: Vec<_> = qwt.occs_range(..5).unwrap().collect();
+    assert!(occs.is_sorted_by_key(|(s, _)| s));
+    assert_eq!(occs, [(0, 2), (1, 2), (3, 1)]);
+
+    // fully bounded
+    let occs: Vec<_> = qwt.occs_range(4..7).unwrap().collect();
+    assert!(occs.is_sorted_by_key(|(s, _)| s));
+    assert_eq!(occs, [(3, 1), (4, 1), (5, 1)]);
+
+    // empty data
+    let data: [u8; 0] = [];
+    let qwt = QWaveletTree::<_, RSQVector512>::new(&mut data.clone());
+    assert_eq!(0, qwt.occs_range(..).unwrap().count());
+}
+
+#[test]
 fn test_from_iterator() {
     let qwt: QWT256<_> = (0..10u32).cycle().take(100).collect();
 
