@@ -590,6 +590,7 @@ where
 {
     type Item = (T, usize);
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(cur) = self.stack.pop() {
             // have we reached the bottom of the tree?

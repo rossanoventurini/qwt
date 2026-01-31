@@ -755,6 +755,7 @@ where
 {
     type Item = (T, usize);
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(cur) = self.stack.pop() {
             // SAFETY: assumes tree depth corresponds exactly to max code length in codes_decode

@@ -165,6 +165,29 @@ assert_eq!(qwt.select(4, 0), Some(5));
 assert_eq!(qwt.select(1, 3), None);
 ```
 
+The data structure also supports an efficient `occs_range` operation:
+- `occs_range(range)` returns an iterator over pairs `(symbol, count)` for all symbols occurring in the given range of positions.
+
+This operation efficiently computes the distribution of symbol occurrences within a range by traversing only the tree nodes corresponding to symbols actually present, achieving O(k log σ) time complexity where k is the number of distinct symbols in the range. This feature was contributed by Eric Izoita ([@nytopop](https://github.com/nytopop)).
+
+```rust
+use qwt::{QWT256, OccsRangeUnsigned};
+
+let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+let qwt = QWT256::from(data);
+
+// Count occurrences of each symbol in the range [2..6)
+let occs: Vec<_> = qwt.occs_range(2..6).unwrap().collect();
+// Returns: [(0, 1), (1, 1), (2, 1), (4, 1)] - symbols 0,1,2,4 each appear once
+
+// Full sequence distribution
+let occs: Vec<_> = qwt.occs_range(..).unwrap().collect();
+// Returns: [(0, 2), (1, 2), (2, 1), (3, 1), (4, 1), (5, 1)]
+
+// Out-of-bounds ranges return None
+assert!(qwt.occs_range(0..100).is_none());
+```
+
 In the following example, we use [`QWT256`] to index a sequence over a larger alphabet.
 
 ```rust
