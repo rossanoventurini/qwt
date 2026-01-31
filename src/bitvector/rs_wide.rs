@@ -140,6 +140,12 @@ impl RSWide {
         self.bv.len()
     }
 
+    /// Returns a reference to the underlying bitvector.
+    #[inline]
+    pub fn bit_vector(&self) -> &BitVector {
+        &self.bv
+    }
+
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
         (self.superblock_metadata[block] >> (128 - 44)) as usize
@@ -306,6 +312,16 @@ impl RankBin for RSWide {
         };
 
         result
+    }
+
+    #[inline(always)]
+    fn prefetch(&self, pos: usize) {
+        let pos = pos.wrapping_sub(1);
+        prefetch_read_NTA(&self.bv.data, pos >> 9);
+
+        let sub_block = pos >> 9;
+        let superblock = sub_block / (SUPERBLOCK_SIZE / BLOCK_SIZE);
+        prefetch_read_NTA(&self.superblock_metadata, superblock);
     }
 
     fn n_zeros(&self) -> usize {

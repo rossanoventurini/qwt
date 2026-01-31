@@ -3,7 +3,10 @@
 //!
 //! This implementation is inspired by the C++ implementation by [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/rs_bit_vector.cpp).
 
-use crate::{utils::select_in_word, AccessBin, BitVector, RankBin, SelectBin};
+use crate::{
+    utils::{prefetch_read_NTA, select_in_word},
+    AccessBin, BitVector, RankBin, SelectBin,
+};
 
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
@@ -103,6 +106,12 @@ impl RSNarrow {
                 .try_into()
                 .unwrap(),
         }
+    }
+
+    /// Returns a reference to the underlying bitvector.
+    #[inline]
+    pub fn bit_vector(&self) -> &BitVector {
+        &self.bv
     }
 
     /// Returns the number of bits set to 1 in the bitvector.
@@ -280,6 +289,13 @@ impl RankBin for RSNarrow {
         };
 
         result
+    }
+
+    #[inline(always)]
+    fn prefetch(&self, pos: usize) {
+        let pos = pos.wrapping_sub(1);
+        prefetch_read_NTA(&self.bv.data, pos >> 9);
+        prefetch_read_NTA(&self.block_rank_pairs, pos >> 8);
     }
 
     fn n_zeros(&self) -> usize {

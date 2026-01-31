@@ -20,7 +20,7 @@ serde = { version = "1.0.148", features = ["derive"] }
 serde-big-array = "0.5.1"
 bincode = "1.3.3"
 minimum_redundancy = "0.3.1"
-mem_dbg = { git = "https://github.com/zommiommy/mem_dbg-rs.git", branch = "main" }
+mem_dbg = "0.3.4"
 
 [features]
 default = ["prefetch"]

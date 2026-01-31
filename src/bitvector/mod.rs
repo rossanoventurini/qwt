@@ -78,6 +78,9 @@ impl RankBin for DataLine {
     }
 
     #[inline(always)]
+    fn prefetch(&self, _pos: usize) {}
+
+    #[inline(always)]
     unsafe fn rank1_unchecked(&self, i: usize) -> usize {
         let mut left = i as i32;
         let mut rank = 0;
@@ -257,6 +260,26 @@ impl BitVector {
     #[inline(always)]
     pub fn get_word(&self, i: usize) -> u64 {
         self.data[i >> 3].words[i % 8]
+    }
+
+    /// Gets all words from the underlying vector of u64.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::BitVector;
+    ///
+    /// let v = vec![0,2,3,4,5,64,129];
+    /// let bv: BitVector = v.into_iter().collect();
+    ///
+    /// // Get all 64-bit words
+    /// let words = bv.words();
+    /// assert_eq!(words, [0b111101,0b1,0b10]);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn words(&self) -> &[u64] {
+        &cast_to_u64_slice(&self.data)[..self.n_bits.div_ceil(64)]
     }
 
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
