@@ -140,6 +140,12 @@ impl RSWide {
         self.bv.len()
     }
 
+    /// Returns a reference to the underlying bitvector.
+    #[inline]
+    pub fn bit_vector(&self) -> &BitVector {
+        &self.bv
+    }
+
     #[inline(always)]
     fn superblock_rank(&self, block: usize) -> usize {
         (self.superblock_metadata[block] >> (128 - 44)) as usize
