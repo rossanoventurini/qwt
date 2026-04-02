@@ -4,6 +4,8 @@
     feature(stdarch_aarch64_prefetch)
 )]
 
+pub use mem_dbg;
+
 pub mod perf_and_test_utils;
 pub mod qvector;
 use std::{
