@@ -282,6 +282,30 @@ impl BitVector {
         &cast_to_u64_slice(&self.data)[..self.n_bits.div_ceil(64)]
     }
 
+    /// Construct a BitVector directly from already-packed data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::BitVector;
+    ///
+    /// let v = [0b1110];
+    /// let bv = BitVector::new(&v,4);
+    /// assert_eq!(bv.words()[0], 0b1110);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn new(data: &[u64], n_bits: usize) -> Self {
+        let mut v = BitVectorMut::new();
+        if let [rest @ .., last] = data {
+            for d in rest {
+                v.append_bits(*d, 64);
+            }
+            v.append_bits(*last, n_bits % 64);
+        }
+        v.into()
+    }
+
     /// Returns a non-consuming iterator over positions of bits set to 1 in the bit vector.
     ///
     /// # Examples
