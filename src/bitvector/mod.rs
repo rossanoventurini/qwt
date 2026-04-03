@@ -884,7 +884,7 @@ impl BitVectorMut {
     #[must_use]
     #[inline]
     pub fn from_packed_data(data: &[u64], n_bits: usize) -> Self {
-        let mut v = BitVectorMut::new();
+        let mut v = BitVectorMut::with_capacity(n_bits);
         if let [rest @ .., last] = data {
             for d in rest {
                 v.append_bits(*d, 64);
