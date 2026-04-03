@@ -870,6 +870,36 @@ impl BitVectorMut {
         bv
     }
 
+    /// Construct a BitVector directly from the first n_bits of already-packed data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if n_bits is larger than data.len() * 64.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qwt::{BitVectorMut, BitVector};
+    ///
+    /// let v = [0b1110];
+    /// let bv: BitVector = BitVectorMut::from_packed_data(&v,4).into();
+    /// assert_eq!(bv.words()[0], 0b1110);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn from_packed_data(data: &[u64], n_bits: usize) -> Self {
+        assert!(n_bits <= data.len() * 64);
+        let data = &data[..n_bits.div_ceil(64)];
+        let mut v = BitVectorMut::with_capacity(n_bits);
+        if let [rest @ .., last] = data {
+            for d in rest {
+                v.append_bits(*d, 64);
+            }
+            v.append_bits(*last, ((n_bits - 1) % 64) + 1);
+        }
+        v
+    }
+
     /// Pushes a `bit` at the end of the bit vector.
     ///
     /// # Panics

@@ -18,6 +18,18 @@ fn build_alternate(n: usize) -> BitVectorMut {
 }
 
 #[test]
+fn test_from_packed_data() {
+    let n = 1024;
+    let v1: BitVector = build_alternate(n).into();
+    let v2 = BitVectorMut::from_packed_data(v1.words(), v1.len());
+    assert_eq!(v1, v2.into());
+    let partial = BitVectorMut::from_packed_data(v1.words(), 64);
+    assert_eq!(partial, build_alternate(64));
+    let empty = BitVectorMut::from_packed_data(&[], 0);
+    assert_eq!(empty, BitVectorMut::new());
+}
+
+#[test]
 fn test_get() {
     let n = 1024 + 13;
     let bv = build_alternate(n);
