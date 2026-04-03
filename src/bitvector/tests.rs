@@ -18,10 +18,10 @@ fn build_alternate(n: usize) -> BitVectorMut {
 }
 
 #[test]
-fn test_new() {
+fn test_from_packed_data() {
     let n = 1024 + 13;
     let v1: BitVector = build_alternate(n).into();
-    let v2 = BitVector::new(v1.words(), v1.len());
+    let v2 = BitVector::from_packed_data(v1.words(), v1.len());
     assert_eq!(v1, v2);
 }
 

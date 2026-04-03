@@ -290,12 +290,12 @@ impl BitVector {
     /// use qwt::BitVector;
     ///
     /// let v = [0b1110];
-    /// let bv = BitVector::new(&v,4);
+    /// let bv = BitVector::from_packed_data(&v,4);
     /// assert_eq!(bv.words()[0], 0b1110);
     /// ```
     #[must_use]
     #[inline]
-    pub fn new(data: &[u64], n_bits: usize) -> Self {
+    pub fn from_packed_data(data: &[u64], n_bits: usize) -> Self {
         let mut v = BitVectorMut::new();
         if let [rest @ .., last] = data {
             for d in rest {
