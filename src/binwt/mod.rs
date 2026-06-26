@@ -608,7 +608,12 @@ where
                 self.bvs[level].rank0(b)
             }?;
 
-            b = rank_b + if bit { self.bvs[level].count_zeros() } else { 0 };
+            b = rank_b
+                + if bit {
+                    self.bvs[level].count_zeros()
+                } else {
+                    0
+                };
 
             rank_path_off.push(rank_b);
         }
