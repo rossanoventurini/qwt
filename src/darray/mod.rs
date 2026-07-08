@@ -438,7 +438,7 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     /// assert_eq!(da.get(1), Some(false));
     /// assert_eq!(da.get(10), None);
     /// ```
-    
+
     #[inline(always)]
     fn get(&self, i: usize) -> Option<bool> {
         self.bv.get(i)
@@ -457,7 +457,7 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     /// let da: DArray = v.into_iter().collect();;
     /// assert_eq!(unsafe{da.get_unchecked(8)}, false);
     /// ```
-    
+
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> bool {
         self.bv.get_unchecked(i)
@@ -482,7 +482,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-    
+
     #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         self.select(i, &self.ones_inventories)
@@ -502,7 +502,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// assert_eq!(unsafe{da.select1_unchecked(1)}, 12);
     /// ```
-    
+
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         self.select(i, &self.ones_inventories).unwrap()
@@ -526,7 +526,7 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-    
+
     #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         assert!(SELECT0_SUPPORT);
@@ -601,7 +601,6 @@ where
     V: crate::bitvector::MyPrimInt + PartialOrd,
     <V as TryInto<usize>>::Error: std::fmt::Debug,
 {
-    
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = V>,

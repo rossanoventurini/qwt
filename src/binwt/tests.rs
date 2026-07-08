@@ -1,6 +1,6 @@
 use crate::perf_and_test_utils::gen_sequence;
 use crate::{AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, HWT, WT};
-use rand::Rng;
+use rand::RngExt;
 
 #[test]
 fn build_test() {
@@ -130,7 +130,7 @@ fn test_occs_range_compressed() {
 /// 2. each symbol's count == rank(symbol, end) - rank(symbol, start)
 #[test]
 fn test_occs_range_properties() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [4, 16, 64, 256] {
         let sequence = gen_sequence(1000, sigma);
@@ -139,8 +139,8 @@ fn test_occs_range_properties() {
 
         // Test multiple random ranges
         for _ in 0..100 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = wt.occs_range(start..end).unwrap().collect();
@@ -195,7 +195,7 @@ fn test_occs_range_properties() {
 /// Property-based test for occs_range on Huffman-compressed binary WaveletTree
 #[test]
 fn test_occs_range_compressed_properties() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [4, 16, 64, 256] {
         let sequence = gen_sequence(1000, sigma);
@@ -204,8 +204,8 @@ fn test_occs_range_compressed_properties() {
 
         // Test multiple random ranges
         for _ in 0..100 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = wt.occs_range(start..end).unwrap().collect();
@@ -261,18 +261,18 @@ fn test_occs_range_compressed_properties() {
 /// Uses u16 symbols to support larger alphabet sizes
 #[test]
 fn test_occs_range_large_alphabet() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [512_u16, 1000, 4000, 16000] {
         // Generate random sequence with u16 symbols
-        let sequence: Vec<u16> = (0..2000).map(|_| rng.gen_range(0..sigma)).collect();
+        let sequence: Vec<u16> = (0..2000).map(|_| rng.random_range(0..sigma)).collect();
         let wt = WT::new(&mut sequence.clone());
         let n = sequence.len();
 
         // Test multiple random ranges
         for _ in 0..50 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = wt.occs_range(start..end).unwrap().collect();
@@ -316,18 +316,18 @@ fn test_occs_range_large_alphabet() {
 /// Test occs_range with large alphabets (σ > 256) on Huffman-compressed WaveletTree
 #[test]
 fn test_occs_range_compressed_large_alphabet() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [512_u16, 1000, 4000, 16000] {
         // Generate random sequence with u16 symbols
-        let sequence: Vec<u16> = (0..2000).map(|_| rng.gen_range(0..sigma)).collect();
+        let sequence: Vec<u16> = (0..2000).map(|_| rng.random_range(0..sigma)).collect();
         let wt = HWT::new(&mut sequence.clone());
         let n = sequence.len();
 
         // Test multiple random ranges
         for _ in 0..50 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = wt.occs_range(start..end).unwrap().collect();
