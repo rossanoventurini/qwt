@@ -19,6 +19,11 @@ pub use bitvector::wide;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
 
+#[deprecated(since = "0.5.0", note = "renamed to `qwt::narrow::RS`")]
+pub use bitvector::narrow::RS as RSNarrow;
+#[deprecated(since = "0.5.0", note = "renamed to `qwt::wide::RS`")]
+pub use bitvector::wide::RS as RSWide;
+
 pub mod utils;
 
 pub use qvector::rs_qvector::RSQVector;
