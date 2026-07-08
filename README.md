@@ -72,10 +72,12 @@ gunzip big_english.gz
 head -c 4294967296 big_english > big_english.4GiB
 ```
 
+Note that `perf_wavelet_tree` requires selecting both the queries to run (`--access`, `--rank`, and/or `--select`) and the data structures to benchmark. Each structure has its own flag (`--qwt256`, `--qwt512`, `--qwt256pfs`, `--qwt512pfs`, `--hqwt256`, `--hqwt512`, `--hqwt256pfs`, `--hqwt512pfs`, `--wt`, and `--hwt`); use `--all-structs` to benchmark all of them. If no structure is selected, the tool exits without running any query.
+
 The following command builds the wavelet trees (QWT 256 and 512 with or without prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
-RUSTFLAGS="-C target-cpu=native" cargo run --release --example perf_wavelet_tree -- --input-file big_english.4GiB --access --rank --select
+RUSTFLAGS="-C target-cpu=native" cargo run --release --example perf_wavelet_tree -- --input-file big_english.4GiB --access --rank --select --qwt256 --qwt512 --qwt256pfs --qwt512pfs
 ```
 
 We can use the flag `--test-correctness` to perform extra tests to check the index's correctness. We can also specify the number of queries with `n_queries` (default is 10,000,000 queries).
