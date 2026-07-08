@@ -54,17 +54,15 @@ There are eight instances of our proposed wavelet trees, `Qwt256` and `Qwt512`, 
 Please refer to our full paper [[4](#bib)] for more details.
 `WT` and `HWT` are our own implementation of binary wavelet trees (respectively uncompressed and compressed).   
 
-To run the experiments, we need to compile the binary executables with
+To run the experiments, we need to compile and run the examples with
 
 ```bash
-RUSTFLAGS="-C target-cpu=native" cargo build --release
+RUSTFLAGS="-C target-cpu=native" cargo run --release --example <example_name>
 ```
 
-This produces the two executables `perf_rs_qvector` and `perf_wavelet_tree` in `\target\release\`.
+`perf_rs_qvector` is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
 
-The former is used to measure the performance of QuadVectors, which are the building block of our implementation of Wavelet Trees. You can safely ignore it.
-
-The latter measures the performance of a Quad Wavelet Tree built on a given input text.
+`perf_wavelet_tree` measures the performance of a Quad Wavelet Tree built on a given input text.
 
 We can now download and uncompress the [Big English](http://pages.di.unipi.it/rossano/big_english.gz) in the current directory. Then, we take its prefix of length 4 GiB.
 
@@ -77,7 +75,7 @@ head -c 4294967296 big_english > big_english.4GiB
 The following command builds the wavelet trees (QWT 256 and 512 with or without prefetching support) on this input text and runs 10 million random *access*, *rank*, and *select* queries.
 
 ```bash
-./target/release/perf_wavelet_tree --input-file big_english.4GiB --access --rank --select
+RUSTFLAGS="-C target-cpu=native" cargo run --release --example perf_wavelet_tree -- --input-file big_english.4GiB --access --rank --select
 ```
 
 We can use the flag `--test-correctness` to perform extra tests to check the index's correctness. We can also specify the number of queries with `n_queries` (default is 10,000,000 queries).
@@ -88,7 +86,7 @@ To repeat the comparison against other Rust libraries, please check out the bran
 Then, run the benchmark `perf_wt_bench` using the following command:
 
 ```bash
-./target/release/perf_wt_bench --input-file big_english.4GiB --rank --select --access
+RUSTFLAGS="-C target-cpu=native" cargo run --release --example  perf_wt_bench -- --input-file big_english.4GiB --rank --select --access
 ```
 
 ## Examples
