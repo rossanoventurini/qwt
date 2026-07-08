@@ -4,7 +4,7 @@ use clap::Parser;
 use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
     perf_and_test_utils::{
-        gen_queries, gen_range_queries, gen_rank_queries, gen_select_queries, type_of,
+        gen_queries, gen_rank_queries, gen_select_queries, random_range_queries, type_of,
         TimingQueries,
     },
     quadwt::RSforWT,
@@ -469,7 +469,7 @@ fn main() {
     println!("Text length: {:?}", n);
 
     // Generate queries
-    let range_queries = gen_range_queries(args.n_queries, n);
+    let range_queries = random_range_queries(args.n_queries, n);
     let rank_queries = gen_rank_queries(args.n_queries, &text);
     let access_queries = gen_queries(args.n_queries, n);
     let select_queries = gen_select_queries(args.n_queries, &text);

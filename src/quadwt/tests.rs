@@ -3,7 +3,7 @@ use crate::perf_and_test_utils::gen_sequence;
 use crate::RSQVector512;
 use crate::QWT256;
 use crate::{OccsRangeUnsigned, RankUnsigned};
-use rand::Rng;
+use rand::RngExt;
 
 #[test]
 fn test_small() {
@@ -82,7 +82,7 @@ fn test_occs_range() {
 /// 2. each symbol's count == rank(symbol, end) - rank(symbol, start)
 #[test]
 fn test_occs_range_properties() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [4, 16, 64, 256] {
         let sequence = gen_sequence(1000, sigma);
@@ -91,8 +91,8 @@ fn test_occs_range_properties() {
 
         // Test multiple random ranges
         for _ in 0..100 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = qwt.occs_range(start..end).unwrap().collect();
@@ -148,18 +148,18 @@ fn test_occs_range_properties() {
 /// Uses u16 symbols to support larger alphabet sizes
 #[test]
 fn test_occs_range_large_alphabet() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for sigma in [512_u16, 1000, 4000, 16000] {
         // Generate random sequence with u16 symbols
-        let sequence: Vec<u16> = (0..2000).map(|_| rng.gen_range(0..sigma)).collect();
+        let sequence: Vec<u16> = (0..2000).map(|_| rng.random_range(0..sigma)).collect();
         let qwt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
         let n = sequence.len();
 
         // Test multiple random ranges
         for _ in 0..50 {
-            let a = rng.gen_range(0..=n);
-            let b = rng.gen_range(0..=n);
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
             let (start, end) = if a <= b { (a, b) } else { (b, a) };
 
             let occs: Vec<_> = qwt.occs_range(start..end).unwrap().collect();

@@ -6,7 +6,7 @@
 
 use crate::AccessUnsigned;
 use num_traits::Unsigned;
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
@@ -18,27 +18,27 @@ pub fn type_of<T>(_: &T) -> &'static str {
 /// Generates a random sequence of length `n` over the alphabet [0, `sigma`].
 pub fn gen_sequence(n: usize, sigma: usize) -> Vec<u8> {
     assert!(sigma <= 256);
-    let mut rng = rand::thread_rng();
-    (0..n).map(|_| rng.gen_range(0..sigma) as u8).collect()
+    let mut rng = rand::rng();
+    (0..n).map(|_| rng.random_range(0..sigma) as u8).collect()
 }
 
 /// Generates a random vector of `n_queries` values in [0, `range_size`].
 /// This can be used to generate random queries.
 pub fn gen_queries(n_queries: usize, range_size: usize) -> Vec<usize> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..n_queries)
-        .map(|_| rng.gen_range(0..range_size))
+        .map(|_| rng.random_range(0..range_size))
         .collect()
 }
 
 /// Generates a random vector of `n_queries` pairs in ([0, `range_size`], [0, `range_size`]) where a<=b.
 /// This can be used to generate random queries over ranges.
-pub fn gen_range_queries(n_queries: usize, range_size: usize) -> Vec<(usize, usize)> {
-    let mut rng = rand::thread_rng();
+pub fn random_range_queries(n_queries: usize, range_size: usize) -> Vec<(usize, usize)> {
+    let mut rng = rand::rng();
     (0..n_queries)
         .map(|_| {
-            let a = rng.gen_range(0..range_size);
-            let b = rng.gen_range(0..range_size);
+            let a = rng.random_range(0..range_size);
+            let b = rng.random_range(0..range_size);
 
             if a <= b {
                 (a, b)
@@ -52,12 +52,12 @@ pub fn gen_range_queries(n_queries: usize, range_size: usize) -> Vec<(usize, usi
 /// Generates a random vector of `n_queries` for `rank` queries on a given sequence `s`.
 /// Each query is a pair: a random position in [0, `s.len()`) and the symbol `s[pos]`, where `pos` is another random position in [0, `s.len()`).
 pub fn gen_rank_queries<T: Clone>(n_queries: usize, s: &[T]) -> Vec<(usize, T)> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..n_queries)
         .map(|_| {
             (
-                rng.gen_range(0..s.len()),
-                s[rng.gen_range(0..s.len())].clone(),
+                rng.random_range(0..s.len()),
+                s[rng.random_range(0..s.len())].clone(),
             )
         })
         .collect()
@@ -70,7 +70,7 @@ pub fn gen_select_queries<T: Unsigned + Into<usize> + Copy>(
     n_queries: usize,
     s: &[T],
 ) -> Vec<(usize, T)> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut occs = [0_usize; 256];
     for &c in s.iter() {
@@ -79,9 +79,9 @@ pub fn gen_select_queries<T: Unsigned + Into<usize> + Copy>(
 
     (0..n_queries)
         .map(|_| {
-            let c = s[rng.gen_range(0..s.len())];
+            let c = s[rng.random_range(0..s.len())];
             let occ = occs[c.into()];
-            let p = rng.gen_range(1..=occ);
+            let p = rng.random_range(1..=occ);
             (p, c)
         })
         .collect()
@@ -92,16 +92,16 @@ pub fn gen_select_queries<T: Unsigned + Into<usize> + Copy>(
 /// This can be used to generate random queries for rank over a general
 /// alphabet of size `sigma`.
 pub fn gen_queries_pairs(n_queries: usize, range_size: usize, sigma: usize) -> Vec<(usize, usize)> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..n_queries)
-        .map(|_| (rng.gen_range(0..range_size), rng.gen_range(0..sigma)))
+        .map(|_| (rng.random_range(0..range_size), rng.random_range(0..sigma)))
         .collect()
 }
 
 /// Generates a random strictly increasing sequence of `n` values up to `u`.
 pub fn gen_strictly_increasing_sequence(n: usize, u: usize) -> Vec<usize> {
-    let mut rng = rand::thread_rng();
-    let mut v: Vec<usize> = (0..n).map(|_x| rng.gen_range(0..(u - n))).collect();
+    let mut rng = rand::rng();
+    let mut v: Vec<usize> = (0..n).map(|_x| rng.random_range(0..(u - n))).collect();
     v.sort_unstable();
     for (i, value) in v.iter_mut().enumerate() {
         // remove duplicates to make a strictly increasing sequence
