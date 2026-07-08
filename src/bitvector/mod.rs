@@ -14,8 +14,8 @@ use crate::{
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
-pub mod rs_narrow;
-pub mod rs_wide;
+pub mod narrow;
+pub mod wide;
 
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 #[repr(C, align(64))]
@@ -1558,5 +1558,7 @@ impl std::fmt::Debug for BitVectorMut {
     }
 }
 
+#[cfg(test)]
+mod rs_tests;
 #[cfg(test)]
 mod tests;

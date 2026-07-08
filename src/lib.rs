@@ -14,8 +14,8 @@ pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
 pub mod bitvector;
-pub use bitvector::rs_narrow::RSNarrow;
-pub use bitvector::rs_wide::RSWide;
+pub use bitvector::narrow;
+pub use bitvector::wide;
 pub use bitvector::BitVector;
 pub use bitvector::BitVectorMut;
 
@@ -52,12 +52,12 @@ pub type HQWT256Pfs<T> = HuffQWaveletTree<T, RSQVector256, true>;
 pub type HQWT512Pfs<T> = HuffQWaveletTree<T, RSQVector512, true>;
 
 /// This type represents a binary wavelet tree,
-/// Each level of this tree is handled by a RSWide bitvector
-pub type WT<T> = WaveletTree<T, RSWide>;
+/// Each level of this tree is handled by a wide::RS bitvector
+pub type WT<T> = WaveletTree<T, wide::RS>;
 
 /// This type represents a binary wavelet tree compressed using huffman coding.
-/// Each level of this tree is handled by a RSWide bitvector
-pub type HWT<T> = WaveletTree<T, RSWide, true>;
+/// Each level of this tree is handled by a wide::RS bitvector
+pub type HWT<T> = WaveletTree<T, wide::RS, true>;
 
 use num_traits::Unsigned;
 

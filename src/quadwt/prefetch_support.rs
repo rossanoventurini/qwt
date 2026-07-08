@@ -1,11 +1,11 @@
-use crate::{BitVectorMut, QVector, RSNarrow, RankBin};
+use crate::{narrow::RS, BitVectorMut, QVector, RankBin};
 
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
 pub struct PrefetchSupport {
-    samples: Vec<RSNarrow>,
+    samples: Vec<RS>,
     sample_rate_shift: usize, // it's the log_2 of sample_rate, which must be a power of 2
 }
 
@@ -43,10 +43,7 @@ impl PrefetchSupport {
         }
 
         Self {
-            samples: bvs
-                .into_iter()
-                .map(|bvm| RSNarrow::new(bvm.into()))
-                .collect(),
+            samples: bvs.into_iter().map(|bvm| RS::new(bvm.into())).collect(),
             sample_rate_shift,
         }
     }

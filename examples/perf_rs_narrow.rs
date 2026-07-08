@@ -1,7 +1,8 @@
 use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
+    narrow::RS,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
-    RSNarrow, RankBin, SelectBin,
+    RankBin, SelectBin,
 };
 
 const N_RUNS: usize = 5;
@@ -108,7 +109,7 @@ fn main() {
         let fill_factor = 2; // 1/2 full
 
         let bv = (0..n).filter(|x| x % fill_factor == 0).collect();
-        let rs = RSNarrow::new(bv);
+        let rs = RS::new(bv);
 
         println!(
             "created new rs_narrow | count_ones: {} | count_zeros: {}",

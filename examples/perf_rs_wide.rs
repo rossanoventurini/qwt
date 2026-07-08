@@ -1,6 +1,6 @@
 use mem_dbg::{MemSize, SizeFlags};
 use qwt::{
-    bitvector::rs_wide::RSWide,
+    bitvector::wide::RS,
     perf_and_test_utils::{gen_queries, type_of, TimingQueries},
     AccessBin, RankBin, SelectBin,
 };
@@ -139,7 +139,7 @@ fn main() {
         let fill_factor = 2; // 1/2 full
 
         let bv = (0..n).filter(|x| x % fill_factor == 0).collect();
-        let rs = RSWide::new(bv);
+        let rs = RS::new(bv);
 
         println!(
             "created new bitvector | count_ones: {} | count_zeros: {} | len: {}",

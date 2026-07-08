@@ -19,13 +19,13 @@ const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq, MemSize, MemDbg)]
-pub struct RSNarrow {
+pub struct RS {
     bv: BitVector,
     block_rank_pairs: Box<[u64]>,
     select_samples: [Box<[usize]>; 2],
 }
 
-impl RSNarrow {
+impl RS {
     pub fn new(bv: BitVector) -> Self {
         let mut block_rank_pairs = Vec::new();
         let mut next_rank: u64 = 0;
@@ -239,7 +239,7 @@ impl RSNarrow {
     }
 }
 
-impl AccessBin for RSNarrow {
+impl AccessBin for RS {
     /// Returns the bit at the given position `i`,
     /// or [`None`] if `i` is out of bounds.
     #[inline(always)]
@@ -262,7 +262,7 @@ impl AccessBin for RSNarrow {
     }
 }
 
-impl RankBin for RSNarrow {
+impl RankBin for RS {
     #[inline(always)]
     fn rank1(&self, i: usize) -> Option<usize> {
         if self.bv.is_empty() || i > self.bv.len() {
@@ -309,7 +309,7 @@ impl RankBin for RSNarrow {
     }
 }
 
-impl SelectBin for RSNarrow {
+impl SelectBin for RS {
     fn select1(&self, i: usize) -> Option<usize> {
         if i >= self.count_ones() {
             return None;
@@ -341,11 +341,8 @@ impl SelectBin for RSNarrow {
     }
 }
 
-impl From<BitVector> for RSNarrow {
+impl From<BitVector> for RS {
     fn from(bv: BitVector) -> Self {
-        RSNarrow::new(bv)
+        RS::new(bv)
     }
 }
-
-#[cfg(test)]
-mod tests;
