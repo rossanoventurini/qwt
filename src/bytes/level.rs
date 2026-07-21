@@ -136,7 +136,11 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
         let data_bytes = n_data
             .checked_mul(size_of::<DataLine>())
             .ok_or(LayoutError::Truncated)?;
-        if data_off.checked_add(data_bytes).ok_or(LayoutError::Truncated)? > bytes.len() {
+        if data_off
+            .checked_add(data_bytes)
+            .ok_or(LayoutError::Truncated)?
+            > bytes.len()
+        {
             return Err(LayoutError::Truncated);
         }
         let data = cast_slice::<DataLine>(&bytes[data_off..data_off + data_bytes])?;
@@ -227,7 +231,6 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
     pub fn n_occs_smaller(&self) -> [usize; 5] {
         self.n_occs_smaller
     }
-
 
     /// Occurrences of all symbols strictly smaller than `symbol` (0..3).
     #[inline(always)]
@@ -436,11 +439,8 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
         let n_lines = if B_SIZE == 256 { 1 } else { 2 };
         let mut result = 0usize;
         for j in 0..n_lines {
-            let (word_0, word_1) = unsafe {
-                self.data
-                    .get_unchecked(line_id + j)
-                    .normalize(symbol)
-            };
+            let (word_0, word_1) =
+                unsafe { self.data.get_unchecked(line_id + j).normalize(symbol) };
             let cnt_0 = word_0.count_ones() as usize;
             if cnt_0 > rem {
                 return result + select_in_word_u128(word_0, rem as u64) as usize;

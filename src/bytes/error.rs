@@ -27,11 +27,16 @@ pub enum LayoutError {
 impl fmt::Display for LayoutError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotLittleEndian => write!(f, "host is not little-endian (QWTB/HQWB v1 requires LE)"),
+            Self::NotLittleEndian => {
+                write!(f, "host is not little-endian (QWTB/HQWB v1 requires LE)")
+            }
             Self::BadMagic => write!(f, "bad magic (expected QWTB or HQWB)"),
             Self::BadVersion => write!(f, "unsupported format version"),
             Self::Truncated => write!(f, "truncated byte blob"),
-            Self::Misaligned => write!(f, "misaligned offset (need 64-byte alignment for POD arrays)"),
+            Self::Misaligned => write!(
+                f,
+                "misaligned offset (need 64-byte alignment for POD arrays)"
+            ),
             Self::PrefetchNotSupported => {
                 write!(f, "prefetch-augmented trees are not supported in v1")
             }

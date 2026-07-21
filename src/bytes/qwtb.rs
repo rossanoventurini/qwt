@@ -1,6 +1,6 @@
 //! `QWTB` container: owned serialize / deserialize for plain [`QWaveletTree`].
 //!
-//! Layout (little-endian, see `research/PR2_MMAP_API.md`):
+//! Layout (little-endian):
 //!
 //! ```text
 //! [0..4)   magic b"QWTB"
@@ -15,16 +15,14 @@
 //!          then 64-aligned POD payloads per level
 //! ```
 
-
 use super::{
-    align_up, copy_pod_slice, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH, FORMAT_VERSION,
-    HEADER_SIZE, LEVEL_DIR_SIZE, QWTB_MAGIC,
+    align_up, checked_region, copy_pod_slice, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH,
+    FORMAT_VERSION, HEADER_SIZE, LEVEL_DIR_SIZE, QWTB_MAGIC,
 };
 
-
+use crate::quadwt::{QWaveletTree, RSforWT, WTIndexable};
 use crate::qvector::rs_qvector::{RSQVector, RSSupportPlain, SuperblockPlain};
 use crate::qvector::{DataLine, QVector};
-use crate::quadwt::{QWaveletTree, RSforWT, WTIndexable};
 use num_traits::AsPrimitive;
 use std::mem::size_of;
 
@@ -137,7 +135,9 @@ fn get_u64(buf: &[u8], o: &mut usize) -> u64 {
 }
 
 /// Serialize a plain QWT256 into a `QWTB` blob.
-pub fn qwt256_to_bytes<T>(tree: &QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>) -> Result<Vec<u8>, LayoutError>
+pub fn qwt256_to_bytes<T>(
+    tree: &QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>,
+) -> Result<Vec<u8>, LayoutError>
 where
     T: WTIndexable,
     usize: AsPrimitive<T>,
@@ -146,7 +146,9 @@ where
 }
 
 /// Serialize a plain QWT512 into a `QWTB` blob.
-pub fn qwt512_to_bytes<T>(tree: &QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>) -> Result<Vec<u8>, LayoutError>
+pub fn qwt512_to_bytes<T>(
+    tree: &QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>,
+) -> Result<Vec<u8>, LayoutError>
 where
     T: WTIndexable,
     usize: AsPrimitive<T>,
@@ -211,7 +213,6 @@ where
         });
     }
 
-
     let mut out = vec![0u8; cursor];
 
     // Header
@@ -246,16 +247,14 @@ where
         let off = dir.off_data as usize;
         let nbytes = dir.n_datalines as usize * size_of::<DataLine>();
         // SAFETY / layout: DataLine is repr(C, align(64)); we write raw bytes.
-        let src = unsafe {
-            std::slice::from_raw_parts(qv.data_lines().as_ptr() as *const u8, nbytes)
-        };
+        let src =
+            unsafe { std::slice::from_raw_parts(qv.data_lines().as_ptr() as *const u8, nbytes) };
         out[off..off + nbytes].copy_from_slice(src);
 
         let off = dir.off_superblocks as usize;
         let nbytes = dir.n_superblocks as usize * size_of::<SuperblockPlain>();
-        let src = unsafe {
-            std::slice::from_raw_parts(rs.superblocks().as_ptr() as *const u8, nbytes)
-        };
+        let src =
+            unsafe { std::slice::from_raw_parts(rs.superblocks().as_ptr() as *const u8, nbytes) };
         out[off..off + nbytes].copy_from_slice(src);
 
         for s in 0..4 {
@@ -272,9 +271,10 @@ where
     Ok(out)
 }
 
-
 /// Deserialize a `QWTB` blob into an owned QWT256.
-pub fn qwt256_from_bytes<T>(bytes: &[u8]) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>, LayoutError>
+pub fn qwt256_from_bytes<T>(
+    bytes: &[u8],
+) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>, LayoutError>
 where
     T: WTIndexable,
     usize: AsPrimitive<T>,
@@ -284,7 +284,9 @@ where
 }
 
 /// Deserialize a `QWTB` blob into an owned QWT512.
-pub fn qwt512_from_bytes<T>(bytes: &[u8]) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>, LayoutError>
+pub fn qwt512_from_bytes<T>(
+    bytes: &[u8],
+) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>, LayoutError>
 where
     T: WTIndexable,
     usize: AsPrimitive<T>,
@@ -353,11 +355,9 @@ where
             return Err(LayoutError::Misaligned);
         }
         let data_off = dir.off_data as usize;
-        let data_bytes = dir.n_datalines as usize * size_of::<DataLine>();
-        if data_off + data_bytes > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
-        let lines = copy_pod_slice::<DataLine>(&bytes[data_off..], dir.n_datalines as usize)?;
+        let n_datalines = dir.n_datalines as usize;
+        let _ = checked_region(data_off, n_datalines, size_of::<DataLine>(), bytes.len())?;
+        let lines = copy_pod_slice::<DataLine>(&bytes[data_off..], n_datalines)?;
         let qv = QVector::from_raw_parts(lines, dir.position_bits as usize);
 
         // Superblocks
@@ -365,23 +365,21 @@ where
             return Err(LayoutError::Misaligned);
         }
         let sb_off = dir.off_superblocks as usize;
-        let sb_bytes = dir.n_superblocks as usize * size_of::<SuperblockPlain>();
-        if sb_off + sb_bytes > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
-        let superblocks =
-            copy_pod_slice::<SuperblockPlain>(&bytes[sb_off..], dir.n_superblocks as usize)?;
-
+        let n_superblocks = dir.n_superblocks as usize;
+        let _ = checked_region(
+            sb_off,
+            n_superblocks,
+            size_of::<SuperblockPlain>(),
+            bytes.len(),
+        )?;
+        let superblocks = copy_pod_slice::<SuperblockPlain>(&bytes[sb_off..], n_superblocks)?;
 
         // Select samples
         let mut select_samples: [Box<[u32]>; 4] = Default::default();
         for s in 0..4 {
             let n_sel = dir.n_sel[s] as usize;
             let off = dir.off_sel[s] as usize;
-            let end = off + n_sel * 4;
-            if end > bytes.len() {
-                return Err(LayoutError::Truncated);
-            }
+            let _ = checked_region(off, n_sel, size_of::<u32>(), bytes.len())?;
             let mut v = Vec::with_capacity(n_sel);
             for i in 0..n_sel {
                 let b = off + i * 4;
@@ -404,7 +402,6 @@ where
     QWaveletTree::from_parts(n, n_levels, sigma, qvs)
 }
 
-
 // Silence "RSforWT unused" when only used via bound on QWaveletTree methods.
 const _: fn() = || {
     fn assert_rsforwt<T: RSforWT>() {}
@@ -414,7 +411,7 @@ const _: fn() = || {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AccessUnsigned, QWT256, RankUnsigned, SelectUnsigned};
+    use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, QWT256};
 
     #[test]
     fn qwtb_roundtrip_get_rank_select() {
@@ -433,7 +430,11 @@ mod tests {
         }
         for &sym in &[0u32, 1, 5, 64, 127] {
             for i in (0..=data.len()).step_by(31) {
-                assert_eq!(original.rank(sym, i), rebuilt.rank(sym, i), "rank({sym},{i})");
+                assert_eq!(
+                    original.rank(sym, i),
+                    rebuilt.rank(sym, i),
+                    "rank({sym},{i})"
+                );
             }
             if let Some(cnt) = original.rank(sym, data.len()) {
                 for k in 0..cnt.min(3) {
@@ -459,7 +460,6 @@ mod tests {
         assert_eq!(rebuilt.n_levels(), 0);
     }
 
-
     #[test]
     fn qwtb_bad_magic() {
         let mut bytes = qwt256_to_bytes(&QWT256::from(vec![1u32, 2, 3])).unwrap();
@@ -471,6 +471,9 @@ mod tests {
     #[test]
     fn qwtb_truncated() {
         let err = qwt256_from_bytes::<u32>(&[0u8; 8]).unwrap_err();
-        assert!(matches!(err, LayoutError::BadMagic | LayoutError::Truncated));
+        assert!(matches!(
+            err,
+            LayoutError::BadMagic | LayoutError::Truncated
+        ));
     }
 }

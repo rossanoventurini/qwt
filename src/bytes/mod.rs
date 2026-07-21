@@ -14,10 +14,10 @@
 //! ([`LayoutError::PrefetchNotSupported`]).
 
 mod error;
-mod util;
-mod qwtb;
 mod hqwb;
 mod level;
+mod qwtb;
+mod util;
 mod view;
 
 pub use error::LayoutError;
@@ -28,14 +28,8 @@ pub use view::{AlignedBytes, HqwtView, QwtView};
 
 #[allow(unused_imports)] // cast_slice_mut / write_slice kept for future writers
 pub(crate) use util::{
-    align_up, cast_slice, cast_slice_mut, copy_pod_slice, ensure_le, write_slice,
+    align_up, cast_slice, cast_slice_mut, checked_region, copy_pod_slice, ensure_le, write_slice,
 };
-
-
-
-
-
-
 
 /// Magic for a plain quad wavelet tree byte blob.
 pub const QWTB_MAGIC: &[u8; 4] = b"QWTB";
@@ -56,7 +50,6 @@ pub const LEVEL_DIR_SIZE: usize = 128;
 /// Bytes per HQWT level directory entry (`LEVEL_DIR_SIZE` + `level_len` u64).
 pub const HQWT_LEVEL_DIR_SIZE: usize = LEVEL_DIR_SIZE + 8;
 
-
 /// Flag bit0: block size is 512 (else 256).
 pub const FLAG_B512: u8 = 0b0000_0001;
 /// Flag bit1: prefetch support present (rejected in v1).
@@ -64,4 +57,3 @@ pub const FLAG_PREFETCH: u8 = 0b0000_0010;
 
 #[cfg(test)]
 mod from_parts_tests;
-

@@ -18,13 +18,13 @@
 //! ```
 
 use super::{
-    align_up, copy_pod_slice, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH, FORMAT_VERSION,
-    HEADER_SIZE, HQWB_MAGIC, HQWT_LEVEL_DIR_SIZE, LEVEL_DIR_SIZE,
+    align_up, checked_region, copy_pod_slice, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH,
+    FORMAT_VERSION, HEADER_SIZE, HQWB_MAGIC, HQWT_LEVEL_DIR_SIZE, LEVEL_DIR_SIZE,
 };
-use crate::qvector::rs_qvector::{RSQVector, RSSupportPlain, SuperblockPlain};
-use crate::qvector::{DataLine, QVector};
 use crate::quadwt::huffqwt::{HuffQWaveletTree, PrefixCode};
 use crate::quadwt::{RSforWT, WTIndexable};
+use crate::qvector::rs_qvector::{RSQVector, RSSupportPlain, SuperblockPlain};
+use crate::qvector::{DataLine, QVector};
 use num_traits::AsPrimitive;
 use std::mem::size_of;
 
@@ -192,7 +192,6 @@ where
     // On-disk PrefixCode is always content:u32 + len:u32 = 8 B (not memcpy of struct).
     cursor += encode_len * 8;
 
-
     // Decode flatten size
     let mut decode_bytes = 0usize;
     for bucket in decode {
@@ -303,16 +302,14 @@ where
 
         let off = dir.off_data as usize;
         let nbytes = dir.n_datalines as usize * size_of::<DataLine>();
-        let src = unsafe {
-            std::slice::from_raw_parts(qv.data_lines().as_ptr() as *const u8, nbytes)
-        };
+        let src =
+            unsafe { std::slice::from_raw_parts(qv.data_lines().as_ptr() as *const u8, nbytes) };
         out[off..off + nbytes].copy_from_slice(src);
 
         let off = dir.off_superblocks as usize;
         let nbytes = dir.n_superblocks as usize * size_of::<SuperblockPlain>();
-        let src = unsafe {
-            std::slice::from_raw_parts(rs.superblocks().as_ptr() as *const u8, nbytes)
-        };
+        let src =
+            unsafe { std::slice::from_raw_parts(rs.superblocks().as_ptr() as *const u8, nbytes) };
         out[off..off + nbytes].copy_from_slice(src);
 
         for s in 0..4 {
@@ -405,11 +402,8 @@ where
     // Code tables start at 8-aligned offset after directory.
     let mut p = align_up(dir_end, 8);
 
-    // Encode LUT
-    let encode_bytes = encode_len * 8;
-    if p + encode_bytes > bytes.len() {
-        return Err(LayoutError::Truncated);
-    }
+    // Encode LUT (content:u32 + len:u32 = 8 B per entry)
+    let encode_bytes = checked_region(p, encode_len, 8, bytes.len())?;
     let mut codes_encode = Vec::with_capacity(encode_len);
     for i in 0..encode_len {
         let base = p + i * 8;
@@ -422,15 +416,11 @@ where
     // Decode LUT
     let mut codes_decode: Vec<Vec<(u32, T)>> = Vec::with_capacity(decode_n_buckets);
     for _ in 0..decode_n_buckets {
-        if p + 4 > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
+        let _ = checked_region(p, 1, 4, bytes.len())?;
         let n_entries = u32::from_le_bytes(bytes[p..p + 4].try_into().unwrap()) as usize;
         p += 4;
-        let need = n_entries * 12;
-        if p + need > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
+        // content:u32 + symbol:u64 = 12 B per entry
+        let need = checked_region(p, n_entries, 12, bytes.len())?;
         let mut bucket = Vec::with_capacity(n_entries);
         for _ in 0..n_entries {
             let content = u32::from_le_bytes(bytes[p..p + 4].try_into().unwrap());
@@ -440,6 +430,7 @@ where
             let sym: T = sym_u.as_();
             bucket.push((content, sym));
         }
+        debug_assert_eq!(need, n_entries * 12);
         codes_decode.push(bucket);
     }
 
@@ -454,32 +445,29 @@ where
             return Err(LayoutError::Misaligned);
         }
         let data_off = dir.off_data as usize;
-        let data_bytes = dir.n_datalines as usize * size_of::<DataLine>();
-        if data_off + data_bytes > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
-        let lines = copy_pod_slice::<DataLine>(&bytes[data_off..], dir.n_datalines as usize)?;
+        let n_datalines = dir.n_datalines as usize;
+        let _ = checked_region(data_off, n_datalines, size_of::<DataLine>(), bytes.len())?;
+        let lines = copy_pod_slice::<DataLine>(&bytes[data_off..], n_datalines)?;
         let qv = QVector::from_raw_parts(lines, dir.position_bits as usize);
 
         if dir.off_superblocks as usize % 64 != 0 {
             return Err(LayoutError::Misaligned);
         }
         let sb_off = dir.off_superblocks as usize;
-        let sb_bytes = dir.n_superblocks as usize * size_of::<SuperblockPlain>();
-        if sb_off + sb_bytes > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
-        let superblocks =
-            copy_pod_slice::<SuperblockPlain>(&bytes[sb_off..], dir.n_superblocks as usize)?;
+        let n_superblocks = dir.n_superblocks as usize;
+        let _ = checked_region(
+            sb_off,
+            n_superblocks,
+            size_of::<SuperblockPlain>(),
+            bytes.len(),
+        )?;
+        let superblocks = copy_pod_slice::<SuperblockPlain>(&bytes[sb_off..], n_superblocks)?;
 
         let mut select_samples: [Box<[u32]>; 4] = Default::default();
         for s in 0..4 {
             let n_sel = dir.n_sel[s] as usize;
             let off = dir.off_sel[s] as usize;
-            let end = off + n_sel * 4;
-            if end > bytes.len() {
-                return Err(LayoutError::Truncated);
-            }
+            let _ = checked_region(off, n_sel, size_of::<u32>(), bytes.len())?;
             let mut v = Vec::with_capacity(n_sel);
             for i in 0..n_sel {
                 let b = off + i * 4;
@@ -505,18 +493,12 @@ const _: fn() = || {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AccessUnsigned, HQWT256, RankUnsigned, SelectUnsigned};
+    use crate::{AccessUnsigned, RankUnsigned, SelectUnsigned, HQWT256};
 
     #[test]
     fn hqwb_roundtrip_get_rank_select() {
         let data: Vec<u32> = (0..800)
-            .map(|x| {
-                if x % 10 == 0 {
-                    0
-                } else {
-                    (x % 40) + 1
-                }
-            })
+            .map(|x| if x % 10 == 0 { 0 } else { (x % 40) + 1 })
             .collect();
         let original = HQWT256::from(data.clone());
         let bytes = hqwt256_to_bytes(&original).unwrap();
@@ -574,13 +556,7 @@ mod tests {
     fn hqwb_large_sigma_uneven() {
         // σ ≈ a few thousand with skewed freqs.
         let data: Vec<u32> = (0..5000)
-            .map(|x| {
-                if x % 50 == 0 {
-                    0
-                } else {
-                    (x % 2000) + 1
-                }
-            })
+            .map(|x| if x % 50 == 0 { 0 } else { (x % 2000) + 1 })
             .collect();
         let original = HQWT256::from(data.clone());
         let bytes = hqwt256_to_bytes(&original).unwrap();

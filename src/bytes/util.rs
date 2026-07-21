@@ -14,10 +14,37 @@ pub fn ensure_le() -> Result<(), LayoutError> {
 }
 
 /// Round `n` up to a multiple of `align` (power of two).
+///
+/// Returns `n` unchanged if the addition would overflow (callers treating the
+/// result as a byte offset will then fail a subsequent bounds check).
 #[inline]
 pub fn align_up(n: usize, align: usize) -> usize {
     debug_assert!(align.is_power_of_two());
-    (n + align - 1) & !(align - 1)
+    match n.checked_add(align - 1) {
+        Some(sum) => sum & !(align - 1),
+        None => n,
+    }
+}
+
+/// Compute `count * elem_size` and verify `off + that <= buf_len`.
+///
+/// Used by decode paths where `off`/`count` come from untrusted headers.
+/// Returns the byte length of the region on success.
+#[inline]
+pub fn checked_region(
+    off: usize,
+    count: usize,
+    elem_size: usize,
+    buf_len: usize,
+) -> Result<usize, LayoutError> {
+    let nbytes = count
+        .checked_mul(elem_size)
+        .ok_or(LayoutError::Truncated)?;
+    let end = off.checked_add(nbytes).ok_or(LayoutError::Truncated)?;
+    if end > buf_len {
+        return Err(LayoutError::Truncated);
+    }
+    Ok(nbytes)
 }
 
 /// Reinterpret an aligned byte slice as a slice of `T`.
@@ -52,7 +79,6 @@ pub fn cast_slice<T>(bytes: &[u8]) -> Result<&[T], LayoutError> {
 #[inline]
 #[allow(dead_code)] // reserved for in-place writers
 pub fn cast_slice_mut<T>(bytes: &mut [u8]) -> Result<&mut [T], LayoutError> {
-
     if bytes.is_empty() {
         return Ok(&mut []);
     }
@@ -80,7 +106,9 @@ pub fn cast_slice_mut<T>(bytes: &mut [u8]) -> Result<&mut [T], LayoutError> {
 /// - [`LayoutError::Truncated`] if `bytes.len() < n * size_of::<T>()`
 #[inline]
 pub fn copy_pod_slice<T: Copy + Default>(bytes: &[u8], n: usize) -> Result<Box<[T]>, LayoutError> {
-    let need = n.checked_mul(size_of::<T>()).ok_or(LayoutError::Truncated)?;
+    let need = n
+        .checked_mul(size_of::<T>())
+        .ok_or(LayoutError::Truncated)?;
     if bytes.len() < need {
         return Err(LayoutError::Truncated);
     }
@@ -103,8 +131,6 @@ pub fn copy_pod_slice<T: Copy + Default>(bytes: &[u8], n: usize) -> Result<Box<[
 #[inline]
 #[allow(dead_code)] // reserved for bulk POD writers
 pub fn write_slice<T>(out: &mut Vec<u8>, data: &[T]) {
-
-
     if data.is_empty() {
         return;
     }
@@ -149,7 +175,7 @@ mod tests {
     #[test]
     fn cast_rejects_short() {
         let buf = [0u8; 32]; // half a DataLine
-        // May also fail alignment; either error is fine.
+                             // May also fail alignment; either error is fine.
         assert!(cast_slice::<DataLine>(&buf).is_err());
     }
 }

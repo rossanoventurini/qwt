@@ -2,13 +2,12 @@
 //!
 //! The caller owns the underlying bytes (mmap, `AlignedBuf`, …). These views
 //! cast POD slices in place and never allocate for level payloads. Huffman
-//! code tables are small and are decoded into owned side allocations
-//! (design §3.3 / §4.2).
+//! code tables are small and are decoded into owned side allocations.
 
 use super::level::{HqwtLevelDir, LevelDir, RSQVectorView};
 use super::{
-    align_up, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH, FORMAT_VERSION, HEADER_SIZE,
-    HQWB_MAGIC, HQWT_LEVEL_DIR_SIZE, LEVEL_DIR_SIZE, QWTB_MAGIC,
+    align_up, checked_region, ensure_le, LayoutError, FLAG_B512, FLAG_PREFETCH, FORMAT_VERSION,
+    HEADER_SIZE, HQWB_MAGIC, HQWT_LEVEL_DIR_SIZE, LEVEL_DIR_SIZE, QWTB_MAGIC,
 };
 use crate::quadwt::huffqwt::PrefixCode;
 use crate::quadwt::WTIndexable;
@@ -319,10 +318,7 @@ where
 
         // Code tables (owned) — after directory, 8-aligned.
         let mut p = align_up(dir_end, 8);
-        let encode_bytes = encode_len * 8;
-        if p + encode_bytes > bytes.len() {
-            return Err(LayoutError::Truncated);
-        }
+        let encode_bytes = checked_region(p, encode_len, 8, bytes.len())?;
         let mut codes_encode = Vec::with_capacity(encode_len);
         for i in 0..encode_len {
             let base = p + i * 8;
@@ -334,15 +330,10 @@ where
 
         let mut codes_decode: Vec<Vec<(u32, T)>> = Vec::with_capacity(decode_n_buckets);
         for _ in 0..decode_n_buckets {
-            if p + 4 > bytes.len() {
-                return Err(LayoutError::Truncated);
-            }
+            let _ = checked_region(p, 1, 4, bytes.len())?;
             let n_entries = u32::from_le_bytes(bytes[p..p + 4].try_into().unwrap()) as usize;
             p += 4;
-            let need = n_entries * 12;
-            if p + need > bytes.len() {
-                return Err(LayoutError::Truncated);
-            }
+            let _ = checked_region(p, n_entries, 12, bytes.len())?;
             let mut bucket = Vec::with_capacity(n_entries);
             for _ in 0..n_entries {
                 let content = u32::from_le_bytes(bytes[p..p + 4].try_into().unwrap());
@@ -606,7 +597,6 @@ impl std::ops::Deref for AlignedBytes {
     }
 }
 
-
 // ── tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -730,4 +720,3 @@ mod tests {
         assert_eq!(err, LayoutError::BadMagic);
     }
 }
-

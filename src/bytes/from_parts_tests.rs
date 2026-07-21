@@ -3,9 +3,8 @@
 use crate::qvector::rs_qvector::{RSQVector256, RSSupportPlain};
 use crate::qvector::{DataLine, QVector};
 use crate::{
-    AccessQuad, AccessUnsigned, HQWT256, QWT256, RankUnsigned, SelectUnsigned, SuperblockPlain,
+    AccessQuad, AccessUnsigned, RankUnsigned, SelectUnsigned, SuperblockPlain, HQWT256, QWT256,
 };
-
 
 #[test]
 fn qvector_from_raw_parts_eq() {
@@ -29,9 +28,8 @@ fn rsqvector_from_parts_eq() {
     );
     let rs = original.rs_support();
     let superblocks: Box<[SuperblockPlain]> = rs.superblocks().to_vec().into_boxed_slice();
-    let select_samples: [Box<[u32]>; 4] = std::array::from_fn(|s| {
-        rs.select_samples(s).to_vec().into_boxed_slice()
-    });
+    let select_samples: [Box<[u32]>; 4] =
+        std::array::from_fn(|s| rs.select_samples(s).to_vec().into_boxed_slice());
     let rs_rebuilt = RSSupportPlain::<256>::from_parts(superblocks, select_samples);
     let rebuilt = RSQVector256::from_parts(qv, rs_rebuilt, original.n_occs_smaller());
     assert_eq!(original, rebuilt);
@@ -52,9 +50,8 @@ fn qwt_from_parts_eq_queries() {
             );
             let support = rs.rs_support();
             let superblocks = support.superblocks().to_vec().into_boxed_slice();
-            let select_samples = std::array::from_fn(|s| {
-                support.select_samples(s).to_vec().into_boxed_slice()
-            });
+            let select_samples =
+                std::array::from_fn(|s| support.select_samples(s).to_vec().into_boxed_slice());
             let rs_support = RSSupportPlain::<256>::from_parts(superblocks, select_samples);
             RSQVector256::from_parts(qv, rs_support, rs.n_occs_smaller())
         })
@@ -117,9 +114,8 @@ fn hqwt_from_parts_eq_queries() {
             );
             let support = rs.rs_support();
             let superblocks = support.superblocks().to_vec().into_boxed_slice();
-            let select_samples = std::array::from_fn(|s| {
-                support.select_samples(s).to_vec().into_boxed_slice()
-            });
+            let select_samples =
+                std::array::from_fn(|s| support.select_samples(s).to_vec().into_boxed_slice());
             let rs_support = RSSupportPlain::<256>::from_parts(superblocks, select_samples);
             RSQVector256::from_parts(qv, rs_support, rs.n_occs_smaller())
         })
