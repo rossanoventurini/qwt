@@ -1,8 +1,6 @@
 use super::*;
 use crate::perf_and_test_utils::gen_sequence;
-use crate::RSQVector512;
-use crate::QWT256;
-use crate::{OccsRangeUnsigned, RankUnsigned};
+use crate::{OccsRangeUnsigned, RSQVector512, RankUnsigned, QWT256};
 use rand::RngExt;
 
 #[test]
@@ -281,4 +279,205 @@ fn test_serialize() {
     let des_qwt = bincode::deserialize::<QWaveletTree<u8, RSQVector512>>(&s).unwrap();
 
     assert_eq!(des_qwt, qwt);
+}
+
+// ── range_next_value ─────────────────────────────────────────────────────
+
+fn rnv_scan_oracle(seq: &[u8], range: std::ops::Range<usize>, target: u8) -> Option<u8> {
+    let mut best = None;
+    for &v in &seq[range] {
+        if v >= target {
+            best = Some(match best {
+                Some(b) if b <= v => b,
+                _ => v,
+            });
+            if best == Some(target) {
+                return Some(target);
+            }
+        }
+    }
+    best
+}
+
+#[test]
+fn test_range_next_value_edge_cases() {
+    let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    let qwt = QWT256::from(data.clone());
+    // empty
+    assert_eq!(qwt.range_next_value(0..0, 0), None);
+    // singleton
+    assert_eq!(qwt.range_next_value(0..1, 0), Some(1));
+    assert_eq!(qwt.range_next_value(0..1, 1), Some(1));
+    assert_eq!(qwt.range_next_value(0..1, 2), None);
+    // full / below min / exact / gap / max / above
+    assert_eq!(qwt.range_next_value(0..8, 0), Some(0));
+    assert_eq!(qwt.range_next_value(0..8, 3), Some(3));
+    assert_eq!(qwt.range_next_value(0..8, 5), Some(5));
+    assert_eq!(qwt.range_next_value(0..8, 6), None);
+    // subrange without 0
+    assert_eq!(qwt.range_next_value(4..8, 0), Some(2));
+    assert_eq!(qwt.range_next_value(4..8, 3), Some(3));
+    assert_eq!(qwt.range_next_value(4..8, 4), Some(4));
+    // vs scan oracle
+    for lo in 0..=8 {
+        for hi in lo..=8 {
+            for t in 0..=8 {
+                let n = qwt.range_next_value(lo..hi, t);
+                let s = qwt.range_next_value_scan(lo..hi, t);
+                let o = rnv_scan_oracle(&data, lo..hi, t);
+                assert_eq!(n, s, "native vs scan {lo}..{hi} t={t}");
+                assert_eq!(n, o, "native vs oracle {lo}..{hi} t={t}");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_range_next_value_duplicates_and_backtrack() {
+    // Many duplicates; force backtracking when target branch exists but no ≥ suffix.
+    let data: Vec<u8> = vec![7, 7, 7, 1, 1, 3, 3, 5, 5, 0, 2, 4, 6, 6];
+    let qwt = QWT256::from(data.clone());
+    for lo in 0..=data.len() {
+        for hi in lo..=data.len() {
+            for t in 0..=10 {
+                assert_eq!(
+                    qwt.range_next_value(lo..hi, t),
+                    rnv_scan_oracle(&data, lo..hi, t),
+                    "lo={lo} hi={hi} t={t}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_range_next_value_random_vs_scan() {
+    use rand::rngs::StdRng;
+    use rand::{RngExt, SeedableRng};
+    let mut rng = StdRng::seed_from_u64(0xE57B_0001);
+    for trial in 0..40 {
+        let n = rng.random_range(1..400);
+        let sigma = rng.random_range(2..200u32);
+        let seq: Vec<u8> = (0..n).map(|_| rng.random_range(0..sigma) as u8).collect();
+        let qwt = QWT256::from(seq.clone());
+        for _ in 0..80 {
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
+            let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+            let t = rng.random_range(0..=(sigma + 5)) as u8;
+            let native = qwt.range_next_value(lo..hi, t);
+            let scan = qwt.range_next_value_scan(lo..hi, t);
+            let oracle = rnv_scan_oracle(&seq, lo..hi, t);
+            assert_eq!(native, scan, "trial {trial} {lo}..{hi} t={t}");
+            assert_eq!(native, oracle, "trial {trial} oracle");
+        }
+    }
+}
+
+#[test]
+fn test_range_next_value_large_alphabet_u32() {
+    use rand::rngs::StdRng;
+    use rand::{RngExt, SeedableRng};
+    let mut rng = StdRng::seed_from_u64(0xE57B_0032);
+    let n = 2000;
+    let sigma = 50_000u32;
+    let seq: Vec<u32> = (0..n).map(|_| rng.random_range(0..sigma)).collect();
+    let qwt = QWT256::from(seq.clone());
+    for _ in 0..200 {
+        let a = rng.random_range(0..=n);
+        let b = rng.random_range(0..=n);
+        let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+        let t = rng.random_range(0..=sigma + 10);
+        let native = qwt.range_next_value(lo..hi, t);
+        // local scan oracle for u32
+        let mut best = None;
+        for &v in &seq[lo..hi] {
+            if v >= t {
+                best = Some(match best {
+                    Some(b) if b <= v => b,
+                    _ => v,
+                });
+                if best == Some(t) {
+                    break;
+                }
+            }
+        }
+        assert_eq!(native, best, "{lo}..{hi} t={t}");
+    }
+}
+
+// ── range_distinct_iter ──────────────────────────────────────────────────
+
+#[test]
+fn test_range_distinct_iter_matches_occs_and_rnv() {
+    use crate::{OccsRangeUnsigned, QWT256};
+    let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
+    let qwt = QWT256::from(data.clone());
+
+    // full range vs occs_range
+    let rdi: Vec<_> = qwt.range_distinct_iter(0..8).collect();
+    let mut occs: Vec<_> = qwt.occs_range(0..8).unwrap().collect();
+    occs.sort_by_key(|(s, _)| *s);
+    assert_eq!(rdi, occs);
+
+    // vs repeated RNV
+    let mut via_rnv = Vec::new();
+    let mut t = 0u8;
+    while let Some(v) = qwt.range_next_value(0..8, t) {
+        let c = data.iter().filter(|&&x| x == v).count();
+        via_rnv.push((v, c));
+        t = v.saturating_add(1);
+        if t == 0 {
+            break;
+        }
+    }
+    assert_eq!(rdi, via_rnv);
+
+    // empty / singleton / subrange
+    assert_eq!(qwt.range_distinct_iter(0..0).count(), 0);
+    assert_eq!(
+        qwt.range_distinct_iter(0..1).collect::<Vec<_>>(),
+        vec![(1, 1)]
+    );
+    let sub: Vec<_> = qwt.range_distinct_iter(4..8).collect();
+    assert_eq!(sub, vec![(2, 1), (3, 1), (4, 1), (5, 1)]);
+}
+
+#[test]
+fn test_range_distinct_iter_random_vs_occs() {
+    use crate::{OccsRangeUnsigned, QWT256};
+    use rand::{RngExt, SeedableRng};
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0xE57C);
+    for _ in 0..40 {
+        let n = rng.random_range(1..120usize);
+        let sigma = rng.random_range(1..40u8);
+        let data: Vec<u8> = (0..n).map(|_| rng.random_range(0..sigma)).collect();
+        let qwt = QWT256::from(data.clone());
+        for _ in 0..20 {
+            let lo = rng.random_range(0..=n);
+            let hi = rng.random_range(lo..=n);
+            let rdi: Vec<_> = qwt.range_distinct_iter(lo..hi).collect();
+            let mut occs: Vec<_> = qwt.occs_range(lo..hi).unwrap().collect();
+            occs.sort_by_key(|(s, _)| *s);
+            assert_eq!(rdi, occs, "n={n} {lo}..{hi}");
+            // sum of counts == range length
+            assert_eq!(rdi.iter().map(|(_, c)| *c).sum::<usize>(), hi - lo);
+        }
+    }
+}
+
+#[test]
+fn test_range_distinct_iter_large_sigma_u32() {
+    use crate::{OccsRangeUnsigned, QWT256};
+    use rand::{RngExt, SeedableRng};
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0xC0FFEE);
+    let n = 200usize;
+    let sigma = 5000u32;
+    let data: Vec<u32> = (0..n).map(|_| rng.random_range(0..sigma)).collect();
+    let qwt = QWT256::from(data);
+    let rdi: Vec<_> = qwt.range_distinct_iter(0..n).collect();
+    let mut occs: Vec<_> = qwt.occs_range(0..n).unwrap().collect();
+    occs.sort_by_key(|(s, _)| *s);
+    assert_eq!(rdi, occs);
+    assert_eq!(rdi.iter().map(|(_, c)| *c).sum::<usize>(), n);
 }

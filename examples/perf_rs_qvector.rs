@@ -1,7 +1,6 @@
 use mem_dbg::{MemSize, SizeFlags};
 use qwt::perf_and_test_utils::{gen_queries, type_of, TimingQueries};
 use qwt::RSQVector256;
-
 // traits
 use qwt::{AccessQuad, RankQuad, SelectQuad};
 
