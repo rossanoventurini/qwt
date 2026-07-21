@@ -6,9 +6,7 @@ use crate::qvector::rs_qvector::RSSupport;
 use crate::utils::prefetch_read_NTA;
 use crate::AccessQuad;
 use crate::QVector; // Traits
-
-use mem_dbg::MemDbg;
-use mem_dbg::MemSize;
+use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
 /// The generic const `B_SIZE` specifies the number of symbols in each block.
@@ -119,7 +117,7 @@ impl<const B_SIZE: usize> RSSupport for RSSupportPlain<B_SIZE> {
                 .map(|sample| sample.into_boxed_slice())
                 .collect::<Vec<_>>()
                 .try_into()
-                .unwrap(), // all this just to convert Vecs into boxed slices (and because we cannot collect into an array directly)
+                .unwrap(), /* all this just to convert Vecs into boxed slices (and because we cannot collect into an array directly) */
         }
     }
 
@@ -205,6 +203,19 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
     fn block_index(i: usize) -> usize {
         i / Self::BLOCK_SIZE
     }
+
+    /// Superblock counter lines. Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub fn superblocks(&self) -> &[SuperblockPlain] {
+        &self.superblocks
+    }
+
+    /// Select samples for symbol `s ∈ 0..4`.
+    /// Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub fn select_samples(&self, s: usize) -> &[u32] {
+        &self.select_samples[s]
+    }
 }
 
 /// Stores counters for a superblock and its blocks.
@@ -212,10 +223,12 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// A u128 is subdivided as follows:
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
+///
+/// Public for zero-copy / mmap flatten (byte-identical on-disk layout).
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 #[repr(C, align(64))]
-struct SuperblockPlain {
-    counters: [u128; 4],
+pub struct SuperblockPlain {
+    pub counters: [u128; 4],
 }
 
 impl SuperblockPlain {
@@ -233,7 +246,7 @@ impl SuperblockPlain {
     }
 
     #[inline(always)]
-    fn get_rank(&self, symbol: u8, block_id: usize) -> usize {
+    pub fn get_rank(&self, symbol: u8, block_id: usize) -> usize {
         let data = unsafe { *self.counters.get_unchecked(symbol as usize) };
         let sb = (data >> 84) as usize;
 
@@ -244,14 +257,34 @@ impl SuperblockPlain {
         sb + b
     }
 
-    fn get_superblock_counter(&self, symbol: u8) -> usize {
+    /// Block ranks for all four symbols at the same `block_id` (shared superblock load pattern).
+    ///
+    /// Fused 4-symbol block ranks (loads one superblock once).
+    #[inline(always)]
+    pub fn get_rank_all(&self, block_id: usize) -> [usize; 4] {
+        let not_first = (block_id > 0) as usize;
+        let shift = (block_id - not_first) * 12;
+        let mut out = [0usize; 4];
+        for symbol in 0..4 {
+            let data = unsafe { *self.counters.get_unchecked(symbol) };
+            let sb = (data >> 84) as usize;
+            let b = ((data >> shift) as usize & 0b111111111111) * not_first;
+            out[symbol] = sb + b;
+        }
+        out
+    }
+
+    /// Superblock-prefix counter for `symbol`.
+    /// Exposed for zero-copy / mmap flatten.
+    #[inline(always)]
+    pub fn get_superblock_counter(&self, symbol: u8) -> usize {
         (unsafe { *self.counters.get_unchecked(symbol as usize) } >> 84) as usize
     }
 
     fn set_block_counters(&mut self, block_id: usize, counters: &[usize; 4]) {
         assert!(block_id < 8);
         for &counter in counters.iter() {
-            //assert!(counters[i] < SUPERBLOCK_SIZE);
+            // assert!(counters[i] < SUPERBLOCK_SIZE);
             assert!(counter < (1 << 12));
         }
         if block_id == 0 {

@@ -1,5 +1,5 @@
-use crate::{narrow::RS, BitVectorMut, QVector, RankBin};
-
+use crate::narrow::RS;
+use crate::{BitVectorMut, QVector, RankBin};
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 

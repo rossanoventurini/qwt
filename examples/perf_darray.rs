@@ -1,8 +1,7 @@
+use mem_dbg::{MemSize, SizeFlags};
 use qwt::perf_and_test_utils::{
     gen_queries, gen_strictly_increasing_sequence, type_of, TimingQueries,
 };
-
-use mem_dbg::{MemSize, SizeFlags};
 use qwt::{DArray, SelectBin};
 
 fn main() {

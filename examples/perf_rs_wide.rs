@@ -1,9 +1,7 @@
 use mem_dbg::{MemSize, SizeFlags};
-use qwt::{
-    bitvector::wide::RS,
-    perf_and_test_utils::{gen_queries, type_of, TimingQueries},
-    AccessBin, RankBin, SelectBin,
-};
+use qwt::bitvector::wide::RS;
+use qwt::perf_and_test_utils::{gen_queries, type_of, TimingQueries};
+use qwt::{AccessBin, RankBin, SelectBin};
 
 const N_RUNS: usize = 5;
 const N_QUERIES: usize = 10_000_000;
