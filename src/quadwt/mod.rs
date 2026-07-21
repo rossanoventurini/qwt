@@ -35,19 +35,16 @@
 //! assert_eq!(qwt.rank(3, 7), Some(1));  // Counts the occurrences of symbol 3 up to position 7, should return 1
 //! assert_eq!(qwt.select(3, 0), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
 //! ```
-
 use crate::utils::{msb, stable_partition_of_4};
 use crate::{
     AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, WTIterator, WTSupport,
 };
 use crate::{QVector, QVectorBuilder}; // Traits
-
 use mem_dbg::{MemDbg, MemSize};
-use serde::{Deserialize, Serialize};
-use std::marker::PhantomData;
-
 // Traits bound
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds, Shl, Shr};
 
 pub mod huffqwt;
@@ -260,6 +257,257 @@ where
         self.n_levels
     }
 
+    /// Per-level RS quad vectors (read-only).
+    ///
+    /// Exposed for zero-copy / mmap flatten of the tree layout.
+    #[inline]
+    pub fn levels(&self) -> &[RS] {
+        &self.qvs
+    }
+
+    /// Largest symbol (qwt convention: not +1).
+    #[inline]
+    pub fn sigma_raw(&self) -> T {
+        self.sigma
+    }
+
+    /// Assemble a tree from prebuilt levels.
+    ///
+    /// Inverse of [`levels`](Self::levels) + [`len`](Self::len) +
+    /// [`sigma_raw`](Self::sigma_raw). Used by zero-copy I/O.
+    ///
+    /// Prefetch-augmented trees (`WITH_PREFETCH_SUPPORT = true`) are rejected
+    /// in v1 of the byte format.
+    pub fn from_parts(
+        n: usize,
+        n_levels: usize,
+        sigma: T,
+        qvs: Vec<RS>,
+    ) -> Result<Self, crate::bytes::LayoutError> {
+        if WITH_PREFETCH_SUPPORT {
+            return Err(crate::bytes::LayoutError::PrefetchNotSupported);
+        }
+        // Empty-tree convention from `new([])`: n_levels == 0 with a single default qv.
+        if n == 0 {
+            if n_levels != 0 {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree must have n_levels == 0",
+                });
+            }
+        } else if qvs.len() != n_levels {
+            return Err(crate::bytes::LayoutError::Inconsistent {
+                detail: "n_levels disagrees with qvs length",
+            });
+        }
+        Ok(Self {
+            n,
+            n_levels,
+            sigma,
+            qvs,
+            prefetch_support: None,
+        })
+    }
+
+    /// Smallest symbol in `range` that is `>= target`, or `None` if no such
+    /// symbol occurs. Half-open row range `[start, end)`.
+    ///
+    /// # Complexity
+    /// Guided top-down walk over the wavelet matrix using only per-level
+    /// 4-ary ranks. Worst case `O(n_levels)` with a constant number of
+    /// branch ranks per level — **not** `O(|range|)` and **not**
+    /// enumeration of all distinct symbols less than `target`.
+    ///
+    /// # Space
+    /// Zero additional persistent data; uses a fixed stack of size
+    /// `n_levels` (≤ 32 on this type's addressable alphabets).
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::QWT256;
+    ///
+    /// let qwt = QWT256::from(vec![1u8, 0, 1, 0, 2, 4, 5, 3]);
+    /// assert_eq!(qwt.range_next_value(0..8, 0u8), Some(0));
+    /// assert_eq!(qwt.range_next_value(0..8, 3u8), Some(3));
+    /// assert_eq!(qwt.range_next_value(0..8, 6u8), None);
+    /// assert_eq!(qwt.range_next_value(0..0, 0u8), None);
+    /// ```
+    #[must_use]
+    pub fn range_next_value(&self, range: Range<usize>, target: T) -> Option<T> {
+        if range.start > range.end || range.end > self.n || range.start == range.end {
+            return None;
+        }
+        if self.n_levels == 0 {
+            return None;
+        }
+        // SAFETY: bounds checked above
+        unsafe { self.range_next_value_unchecked(range, target) }
+    }
+
+    /// Unchecked variant of [`Self::range_next_value`].
+    ///
+    /// # Safety
+    /// `range` must be a valid half-open subrange of `[0, len()]`.
+    #[must_use]
+    pub unsafe fn range_next_value_unchecked(&self, range: Range<usize>, target: T) -> Option<T> {
+        // Guided successor on the wavelet matrix.
+        //
+        // At level `ℓ` the current symbol interval [sym_lo, sym_hi) is split into
+        // 4 equal-width child intervals (2 bits). We only enter a child if the
+        // projected row interval is nonempty AND the child symbol interval
+        // intersects [target, +∞). Among viable children we try left-to-right
+        // (smallest first), with a fixed stack for backtracking.
+        //
+        // This matches the encoding used by `get`/`rank` (MSB-first 2-bit digits
+        // over `n_levels` levels), so leaf `sym_lo` is the decoded symbol.
+        #[derive(Clone, Copy)]
+        struct Frame {
+            start: usize,
+            end: usize,
+            level: usize,
+            sym_lo: usize,
+            // width of this node's alphabet interval = 4^(n_levels - level)
+            // stored as log2_width = 2 * (n_levels - level)
+            log2_width: u32,
+        }
+
+        let n_levels = self.n_levels;
+        let target_us: usize = target.as_();
+
+        // Full universe width is 4^n_levels = 2^(2*n_levels).
+        let full_log2: u32 = 2 * n_levels as u32;
+
+        let mut stack = [Frame {
+            start: 0,
+            end: 0,
+            level: 0,
+            sym_lo: 0,
+            log2_width: 0,
+        }; 128];
+        let mut sp: usize = 1;
+        stack[0] = Frame {
+            start: range.start,
+            end: range.end,
+            level: 0,
+            sym_lo: 0,
+            log2_width: full_log2,
+        };
+
+        while sp > 0 {
+            sp -= 1;
+            let cur = stack[sp];
+
+            if cur.start >= cur.end {
+                continue;
+            }
+
+            // Leaf: single symbol interval of width 1.
+            if cur.log2_width == 0 {
+                if cur.sym_lo >= target_us {
+                    return Some(cur.sym_lo.as_());
+                }
+                continue;
+            }
+
+            // SAFETY: level < n_levels when log2_width > 0
+            let qv = unsafe { self.qvs.get_unchecked(cur.level) };
+            let child_log = cur.log2_width - 2;
+            let child_width = 1usize << child_log;
+
+            // Collect viable children b=0..3 left-to-right, then push reverse.
+            let mut cand_b = [0u8; 4];
+            let mut cand_s = [0usize; 4];
+            let mut cand_e = [0usize; 4];
+            let mut cand_lo = [0usize; 4];
+            let mut nc = 0usize;
+
+            for b in 0..4u8 {
+                let child_sym_lo = cur.sym_lo + (b as usize) * child_width;
+                let child_sym_hi = child_sym_lo + child_width;
+                // Child entirely < target → skip.
+                if child_sym_hi <= target_us {
+                    continue;
+                }
+                let lo = unsafe { qv.rank_unchecked(b, cur.start) };
+                let hi = unsafe { qv.rank_unchecked(b, cur.end) };
+                if hi > lo {
+                    let offset = unsafe { qv.occs_smaller_unchecked(b) };
+                    cand_b[nc] = b;
+                    cand_s[nc] = offset + lo;
+                    cand_e[nc] = offset + hi;
+                    cand_lo[nc] = child_sym_lo;
+                    nc += 1;
+                }
+            }
+
+            for i in (0..nc).rev() {
+                debug_assert!(sp < 128);
+                stack[sp] = Frame {
+                    start: cand_s[i],
+                    end: cand_e[i],
+                    level: cur.level + 1,
+                    sym_lo: cand_lo[i],
+                    log2_width: child_log,
+                };
+                sp += 1;
+            }
+        }
+
+        None
+    }
+
+    /// Linear-scan oracle for [`Self::range_next_value`] (diagnostic / test only).
+    ///
+    /// Complexity `O(|range| · log σ)` via repeated `get`. Not for hot paths.
+    #[cfg(test)]
+    #[must_use]
+    pub fn range_next_value_scan(&self, range: Range<usize>, target: T) -> Option<T> {
+        if range.start > range.end || range.end > self.n || range.start == range.end {
+            return None;
+        }
+        let mut best: Option<T> = None;
+        for i in range.start..range.end {
+            // SAFETY: i < range.end ≤ n
+            let v = unsafe { self.get_unchecked(i) };
+            if v >= target {
+                best = Some(match best {
+                    Some(b) if b <= v => b,
+                    _ => v,
+                });
+                if best == Some(target) {
+                    return Some(target);
+                }
+            }
+        }
+        best
+    }
+
+    /// Stateful distinct-symbol enumerator over a row range.
+    ///
+    /// Yields `(symbol, count)` in lexicographic order for every symbol that
+    /// occurs at least once in `range`. Uses a **fixed** O(log σ) stack —
+    /// no `Vec`, no eager collection, no work proportional to full row-range
+    /// length beyond ranks on the projected wavelet path.
+    ///
+    /// This is the wavelet analogue of opening a LOUDS sibling range once and
+    /// advancing through it: successive `next` calls amortize the tree walk
+    /// instead of restarting a full root-to-leaf search per successor
+    /// (`range_next_value(prev+1)`).
+    ///
+    /// # Examples
+    /// ```
+    /// use qwt::QWT256;
+    /// let qwt = QWT256::from(vec![1u8, 0, 1, 0, 2, 4, 5, 3]);
+    /// let got: Vec<_> = qwt.range_distinct_iter(0..8).collect();
+    /// assert_eq!(got, vec![(0, 2), (1, 2), (2, 1), (3, 1), (4, 1), (5, 1)]);
+    /// ```
+    #[must_use]
+    pub fn range_distinct_iter(
+        &self,
+        range: Range<usize>,
+    ) -> RangeDistinctIter<'_, T, RS, WITH_PREFETCH_SUPPORT> {
+        RangeDistinctIter::new(self, range)
+    }
+
     /// Returns an iterator over the values in the wavelet tree.
     ///
     /// # Examples
@@ -273,7 +521,10 @@ where
     ///
     /// assert_eq!(qwt.iter().collect::<Vec<_>>(), data);
     ///
-    /// assert_eq!(qwt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
+    /// assert_eq!(
+    ///     qwt.iter().rev().collect::<Vec<_>>(),
+    ///     data.into_iter().rev().collect::<Vec<_>>()
+    /// );
     /// ```
     pub fn iter(
         &self,
@@ -383,7 +634,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{QWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -392,8 +643,8 @@ where
     /// assert_eq!(qwt.rank_prefetch(1, 2), Some(1));
     /// assert_eq!(qwt.rank_prefetch(3, 8), Some(1));
     /// assert_eq!(qwt.rank_prefetch(1, 0), Some(0));
-    /// assert_eq!(qwt.rank_prefetch(1, 9), None);  // Too large position
-    /// assert_eq!(qwt.rank_prefetch(6, 1), None);  // Too large symbol
+    /// assert_eq!(qwt.rank_prefetch(1, 9), None); // Too large position
+    /// assert_eq!(qwt.rank_prefetch(6, 1), None); // Too large symbol
     /// ```
     #[inline(always)]
     #[must_use]
@@ -419,7 +670,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -629,6 +880,185 @@ where
     }
 }
 
+// ── RangeDistinctIter (fixed-stack stateful distinct enumeration) ──
+
+/// Fixed-stack distinct-symbol iterator over a wavelet row range.
+///
+/// Same DFS order as [`OccsRangeIter`], but stack is a fixed array of size 128
+/// (≤ 4·n_levels frames in practice). Zero persistent bytes on the tree.
+pub struct RangeDistinctIter<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> {
+    tree: &'a QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>,
+    /// DFS stack; only `sp` slots are live.
+    stack: [RangeDistinctFrame; 128],
+    sp: usize,
+    /// Optional profiling counters (rank probes, frames, children).
+    pub rank_probes: u64,
+    pub frames_popped: u64,
+    pub children_pushed: u64,
+    /// Number of 4-ary child slots tested that were empty (hi==lo).
+    pub empty_branches: u64,
+    /// Nonempty children pushed (alias of children_pushed for clarity).
+    pub branch_transitions: u64,
+    /// Leaf yields (symbols returned).
+    pub symbols_yielded: u64,
+}
+
+#[derive(Clone, Copy, Default)]
+struct RangeDistinctFrame {
+    start: usize,
+    end: usize,
+    level: usize,
+    bit_path: usize,
+}
+
+impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool>
+    RangeDistinctIter<'a, T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    usize: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    fn new(tree: &'a QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>, range: Range<usize>) -> Self {
+        let mut stack = [RangeDistinctFrame::default(); 128];
+        let mut sp = 0usize;
+        if range.start < range.end && range.end <= tree.n && tree.n_levels > 0 {
+            stack[0] = RangeDistinctFrame {
+                start: range.start,
+                end: range.end,
+                level: 0,
+                bit_path: 0,
+            };
+            sp = 1;
+        }
+        Self {
+            tree,
+            stack,
+            sp,
+            rank_probes: 0,
+            frames_popped: 0,
+            children_pushed: 0,
+            empty_branches: 0,
+            branch_transitions: 0,
+            symbols_yielded: 0,
+        }
+    }
+
+    /// Returns the next distinct symbol and its occurrence count in the range.
+    ///
+    /// Optimizations:
+    /// - **Rank-all-4** at start/end (shared data-line loads).
+    /// - **Unary path collapse**: when exactly one child is nonempty, descend
+    ///   in-place without stack push/pop until a branch or leaf.
+    #[inline]
+    pub fn next_symbol(&mut self) -> Option<(T, usize)> {
+        while self.sp > 0 {
+            self.sp -= 1;
+            let mut cur = self.stack[self.sp];
+            self.frames_popped += 1;
+
+            if cur.start >= cur.end {
+                continue;
+            }
+
+            // Leaf: full bit_path is the symbol; range length is the count.
+            if cur.level == self.tree.n_levels {
+                self.symbols_yielded += 1;
+                return Some((cur.bit_path.as_(), cur.end - cur.start));
+            }
+
+            // Expand current frame; collapse unary chains without re-stacking.
+            loop {
+                // SAFETY: level < n_levels
+                let qv = unsafe { self.tree.qvs.get_unchecked(cur.level) };
+
+                // Prefetch superblock + data lines for both endpoints before bulk rank.
+                qv.prefetch_info(cur.start);
+                qv.prefetch_info(cur.end);
+                qv.prefetch_data(cur.start);
+                qv.prefetch_data(cur.end);
+
+                // Shared rank-all at both endpoints (2 bulk probes vs 8 singles).
+                let ranks_s = unsafe { qv.rank_all_unchecked(cur.start) };
+                let ranks_e = unsafe { qv.rank_all_unchecked(cur.end) };
+                self.rank_probes += 2;
+
+                let mut cand_s = [0usize; 4];
+                let mut cand_e = [0usize; 4];
+                let mut cand_path = [0usize; 4];
+                let mut cand_b = [0u8; 4];
+                let mut nc = 0usize;
+
+                for b in 0..4u8 {
+                    let lo = ranks_s[b as usize];
+                    let hi = ranks_e[b as usize];
+                    if hi > lo {
+                        let offset = unsafe { qv.occs_smaller_unchecked(b) };
+                        cand_s[nc] = offset + lo;
+                        cand_e[nc] = offset + hi;
+                        cand_path[nc] = (cur.bit_path << 2) | (b as usize);
+                        cand_b[nc] = b;
+                        nc += 1;
+                    } else {
+                        self.empty_branches += 1;
+                    }
+                }
+
+                if nc == 0 {
+                    break; // no children — dead frame
+                }
+
+                // Unary path collapse: one live child → descend in-place,
+                // skip stack traffic until a branch or leaf.
+                if nc == 1 {
+                    cur.start = cand_s[0];
+                    cur.end = cand_e[0];
+                    cur.bit_path = cand_path[0];
+                    cur.level += 1;
+                    self.children_pushed += 1;
+                    self.branch_transitions += 1;
+                    if cur.level == self.tree.n_levels {
+                        self.symbols_yielded += 1;
+                        return Some((cur.bit_path.as_(), cur.end - cur.start));
+                    }
+                    continue;
+                }
+
+                // Branch: push children reverse for lex order.
+                for i in (0..nc).rev() {
+                    debug_assert!(self.sp < 128);
+                    self.stack[self.sp] = RangeDistinctFrame {
+                        start: cand_s[i],
+                        end: cand_e[i],
+                        level: cur.level + 1,
+                        bit_path: cand_path[i],
+                    };
+                    self.sp += 1;
+                    self.children_pushed += 1;
+                    self.branch_transitions += 1;
+                }
+                let _ = cand_b;
+                break;
+            }
+        }
+        None
+    }
+}
+
+impl<'a, T, RS, const WITH_PREFETCH_SUPPORT: bool> Iterator
+    for RangeDistinctIter<'a, T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable,
+    usize: AsPrimitive<T>,
+    RS: RSforWT,
+{
+    type Item = (T, usize);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_symbol()
+    }
+}
+
 impl<T, RS, const WITH_PREFETCH_SUPPORT: bool> RankUnsigned
     for QWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
 where
@@ -644,7 +1074,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{QWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -653,10 +1083,9 @@ where
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
     /// assert_eq!(qwt.rank(1, 0), Some(0));
-    /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
-    /// assert_eq!(qwt.rank(6, 1), None);  // Too large symbol
+    /// assert_eq!(qwt.rank(1, 9), None); // Too large position
+    /// assert_eq!(qwt.rank(6, 1), None); // Too large symbol
     /// ```
-
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n || symbol > self.sigma {
@@ -680,7 +1109,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{QWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -690,7 +1119,6 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
@@ -733,7 +1161,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{QWT256, AccessUnsigned};
+    /// use qwt::{AccessUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -743,7 +1171,6 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -763,7 +1190,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWT256, AccessUnsigned};
+    /// use qwt::{AccessUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -774,7 +1201,6 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut result = T::zero();
@@ -811,7 +1237,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QWT256, SelectUnsigned};
+    /// use qwt::{SelectUnsigned, QWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -823,8 +1249,7 @@ where
     /// assert_eq!(qwt.select(1, 0), Some(0));
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
-    /// ```    
-
+    /// ```
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol > self.sigma {
@@ -874,7 +1299,6 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
