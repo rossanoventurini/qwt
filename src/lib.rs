@@ -19,7 +19,11 @@ pub use bitvector::{narrow, wide, BitVector, BitVectorMut};
 
 pub mod utils;
 
+pub mod bytes;
+pub use bytes::LayoutError;
+
 pub use qvector::rs_qvector::{RSQVector, RSQVector256, RSQVector512};
+
 
 pub mod quadwt;
 pub use quadwt::huffqwt::{HuffQWaveletTree, PrefixCode};

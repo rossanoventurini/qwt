@@ -244,7 +244,27 @@ impl QVector {
     pub fn data_lines(&self) -> &[DataLine] {
         &self.data
     }
+
+    /// Build a `QVector` from raw data lines and a bit cursor.
+    ///
+    /// `position` is the bit cursor (`2 * len()`). This is the inverse of
+    /// [`data_lines`](Self::data_lines) + [`position_bits`](Self::position_bits)
+    /// and is the assembly path used by zero-copy I/O.
+    ///
+    /// # Panics
+    /// - if `position` is odd (must be a multiple of 2 bits per symbol)
+    /// - if `position > data.len() * 512`
+    #[must_use]
+    pub fn from_raw_parts(data: Box<[DataLine]>, position: usize) -> Self {
+        assert!(position % 2 == 0, "position must be a multiple of 2");
+        assert!(
+            position <= data.len() * 512,
+            "position exceeds data capacity"
+        );
+        Self { data, position }
+    }
 }
+
 
 impl AccessQuad for QVector {
     /// Access the `i`th value in the quaternary vector.

@@ -314,6 +314,39 @@ where
         &self.codes_decode
     }
 
+    /// Assemble a Huffman QWT from prebuilt levels and code tables.
+    ///
+    /// Inverse of the inspector accessors. Used by zero-copy I/O.
+    /// Prefetch-augmented trees are rejected in v1.
+    pub fn from_parts(
+        n: usize,
+        n_levels: usize,
+        codes_encode: Vec<PrefixCode>,
+        codes_decode: Vec<Vec<(u32, T)>>,
+        qvs: Vec<RS>,
+        lens: Vec<usize>,
+    ) -> Result<Self, crate::bytes::LayoutError> {
+        if WITH_PREFETCH_SUPPORT {
+            return Err(crate::bytes::LayoutError::PrefetchNotSupported);
+        }
+        if qvs.len() != n_levels || lens.len() != n_levels {
+            return Err(crate::bytes::LayoutError::Inconsistent {
+                detail: "n_levels disagrees with qvs/lens lengths",
+            });
+        }
+        Ok(Self {
+            n,
+            n_levels,
+            codes_encode,
+            codes_decode,
+            qvs,
+            lens,
+            prefetch_support: None,
+            phantom_data: PhantomData,
+        })
+    }
+
+
     /// Returns an iterator over the values in the wavelet tree.
     ///
     /// # Examples

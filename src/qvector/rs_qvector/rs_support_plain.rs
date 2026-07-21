@@ -216,7 +216,23 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
     pub fn select_samples(&self, s: usize) -> &[u32] {
         &self.select_samples[s]
     }
+
+    /// Build from precomputed superblocks and select samples.
+    ///
+    /// Inverse of [`superblocks`](Self::superblocks) +
+    /// [`select_samples`](Self::select_samples). Used by zero-copy I/O.
+    #[must_use]
+    pub fn from_parts(
+        superblocks: Box<[SuperblockPlain]>,
+        select_samples: [Box<[u32]>; 4],
+    ) -> Self {
+        Self {
+            superblocks,
+            select_samples,
+        }
+    }
 }
+
 
 /// Stores counters for a superblock and its blocks.
 /// We use a u128 for each of the 4 symbols.
@@ -234,6 +250,16 @@ pub struct SuperblockPlain {
 impl SuperblockPlain {
     const BLOCKS_IN_SUPERBLOCK: usize = 8; // Number of blocks in each superblock
 
+    /// Build from the four packed counter words.
+    ///
+    /// This is the inverse of reading [`counters`](Self::counters) and is the
+    /// assembly path used by zero-copy I/O.
+    #[inline]
+    #[must_use]
+    pub fn from_counters(counters: [u128; 4]) -> Self {
+        Self { counters }
+    }
+
     /// Creates a new superblock initialized with the number of occurrences
     /// of the four symbols from the beginning of the text.
     fn new(sbc: &[usize; 4]) -> Self {
@@ -243,6 +269,7 @@ impl SuperblockPlain {
         }
 
         Self { counters }
+
     }
 
     #[inline(always)]
