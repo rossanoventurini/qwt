@@ -329,11 +329,30 @@ where
         if WITH_PREFETCH_SUPPORT {
             return Err(crate::bytes::LayoutError::PrefetchNotSupported);
         }
-        if qvs.len() != n_levels || lens.len() != n_levels {
+        // Empty-tree convention from `new([])`: n_levels == 0 with a single
+        // default qv and lens=[0]. Callers may pass empty vecs; we normalize.
+        let (qvs, lens) = if n == 0 {
+            if n_levels != 0 {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree must have n_levels == 0",
+                });
+            }
+            if qvs.is_empty() && lens.is_empty() {
+                (vec![RS::default()], vec![0])
+            } else if qvs.len() == 1 && lens == [0] {
+                (qvs, lens)
+            } else {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree expects empty or default sentinel levels",
+                });
+            }
+        } else if qvs.len() != n_levels || lens.len() != n_levels {
             return Err(crate::bytes::LayoutError::Inconsistent {
                 detail: "n_levels disagrees with qvs/lens lengths",
             });
-        }
+        } else {
+            (qvs, lens)
+        };
         Ok(Self {
             n,
             n_levels,
@@ -344,6 +363,7 @@ where
             prefetch_support: None,
             phantom_data: PhantomData,
         })
+
     }
 
 

@@ -16,9 +16,12 @@
 mod error;
 mod util;
 mod qwtb;
+mod hqwb;
 
 pub use error::LayoutError;
+pub use hqwb::{hqwt256_from_bytes, hqwt256_to_bytes, hqwt512_from_bytes, hqwt512_to_bytes};
 pub use qwtb::{qwt256_from_bytes, qwt256_to_bytes, qwt512_from_bytes, qwt512_to_bytes};
+
 #[allow(unused_imports)] // cast_slice_mut / write_slice used by HQWB
 pub(crate) use util::{
     align_up, cast_slice, cast_slice_mut, copy_pod_slice, ensure_le, write_slice,
