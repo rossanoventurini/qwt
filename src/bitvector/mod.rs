@@ -5,7 +5,6 @@
 //! The immutable bit vector allows access to bits and can be extended to support [`RankBin`] and [`SelectBin`] queries.
 //!
 //! For both data structures, it is possible to iterate over bits or positions of bits set either to zero or one.
-
 use crate::utils::{prefetch_read_NTA, select_in_word};
 use crate::{AccessBin, RankBin, SelectBin};
 use mem_dbg::{MemDbg, MemSize};
@@ -466,7 +465,6 @@ impl AccessBin for BitVector {
     /// assert_eq!(bv.get(1), Some(false));
     /// assert_eq!(bv.get(10), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, index: usize) -> Option<bool> {
         if index >= self.len() {
@@ -489,7 +487,6 @@ impl AccessBin for BitVector {
     ///
     /// assert_eq!(unsafe { bv.get_unchecked(5) }, true);
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         BitVectorMut::get_bit_slice(cast_to_u64_slice(&self.data), index)
@@ -1115,7 +1112,7 @@ impl BitVectorMut {
         let shift = index & 63;
 
         let mask = if len == 64 {
-            std::u64::MAX
+            u64::MAX
         } else {
             (1_u64 << len) - 1
         };
@@ -1171,7 +1168,7 @@ impl BitVectorMut {
         self.count_ones += bits.count_ones() as usize;
 
         // let mask = if len == 64 {
-        //     std::u64::MAX
+        //     u64::MAX
         // } else {
         //     (1_u64 << len) - 1
         // };
@@ -1404,7 +1401,6 @@ impl AccessBin for BitVectorMut {
     /// assert_eq!(bv.get(8), Some(false));
     /// assert_eq!(bv.get(10), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, index: usize) -> Option<bool> {
         if index >= self.len() {
@@ -1426,7 +1422,6 @@ impl AccessBin for BitVectorMut {
     /// bv.extend_with_zeros(10);
     /// assert_eq!(unsafe { bv.get_unchecked(8) }, false);
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, index: usize) -> bool {
         Self::get_bit_slice(cast_to_u64_slice(&self.data), index)

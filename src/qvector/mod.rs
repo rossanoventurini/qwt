@@ -256,7 +256,10 @@ impl QVector {
     /// - if `position > data.len() * 512`
     #[must_use]
     pub fn from_raw_parts(data: Box<[DataLine]>, position: usize) -> Self {
-        assert!(position % 2 == 0, "position must be a multiple of 2");
+        assert!(
+            position.is_multiple_of(2),
+            "position must be a multiple of 2"
+        );
         assert!(
             position <= data.len() * 512,
             "position exceeds data capacity"

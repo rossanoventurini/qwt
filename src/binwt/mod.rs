@@ -169,9 +169,7 @@ where
         let mut bvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
 
-        let mut shift = 1;
-
-        for _level in 0..n_levels {
+        for shift in 1..=n_levels {
             let mut cur_bv = BitVectorMut::new();
 
             for &s in sequence.iter() {
@@ -180,12 +178,12 @@ where
                         "some error occurred during code translation while building huffqwt",
                     );
 
-                    if cur_code.len >= shift {
-                        let symbol = ((cur_code.content >> (cur_code.len - shift)) & 1) == 1;
+                    if cur_code.len >= shift as u32 {
+                        let symbol = ((cur_code.content >> (cur_code.len - shift as u32)) & 1) == 1;
                         cur_bv.push(symbol);
                     }
                 } else {
-                    let symbol = ((s >> (n_levels - shift as usize)).as_() & 1) == 1;
+                    let symbol = ((s >> (n_levels - shift)).as_() & 1) == 1;
                     cur_bv.push(symbol);
                 }
             }
@@ -196,16 +194,10 @@ where
             bvs.push(BRS::from(bv));
 
             if COMPRESSED {
-                stable_partition_of_2_with_codes(
-                    sequence,
-                    shift as usize,
-                    codes_encode.as_ref().unwrap(),
-                );
+                stable_partition_of_2_with_codes(sequence, shift, codes_encode.as_ref().unwrap());
             } else {
-                stable_partition_of_2(sequence, n_levels - shift as usize);
+                stable_partition_of_2(sequence, n_levels - shift);
             }
-
-            shift += 1;
         }
 
         bvs.shrink_to_fit();

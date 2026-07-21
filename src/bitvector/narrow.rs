@@ -111,6 +111,12 @@ impl RS {
         self.bv.len()
     }
 
+    /// Returns true if the bitvector is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.bv.len() == 0
+    }
+
     /// Returns a reference to the underlying bitvector.
     #[inline]
     pub fn bit_vector(&self) -> &BitVector {

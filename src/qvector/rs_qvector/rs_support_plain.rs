@@ -290,11 +290,11 @@ impl SuperblockPlain {
         let not_first = (block_id > 0) as usize;
         let shift = (block_id - not_first) * 12;
         let mut out = [0usize; 4];
-        for symbol in 0..4 {
+        for (symbol, slot) in out.iter_mut().enumerate() {
             let data = unsafe { *self.counters.get_unchecked(symbol) };
             let sb = (data >> 84) as usize;
             let b = ((data >> shift) as usize & 0b111111111111) * not_first;
-            out[symbol] = sb + b;
+            *slot = sb + b;
         }
         out
     }

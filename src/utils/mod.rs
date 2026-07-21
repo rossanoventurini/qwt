@@ -131,7 +131,6 @@ const K_SELECT_IN_BYTE: [u8; 2048] = [
 /// - \[2\] Simon Gog, Matthias Petri. Optimized succinct data structures for massive data. Softw. Pract. Exper., 2014
 /// - \[3\] Sebastiano Vigna. MG4J 5.2.1. <http://mg4j.di.unimi.it/>
 /// - \[4\] Facebook Folly library: <https://github.com/facebook/folly>
-
 #[inline(always)]
 pub fn select_in_word(word: u64, k: u64) -> u32 {
     // use core::arch::x86_64::_pdep_u64;

@@ -672,7 +672,6 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -703,7 +702,6 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
@@ -907,7 +905,6 @@ where
     /// assert_eq!(qwt.rank(1, 0), Some(0));
     /// assert_eq!(qwt.rank(1, 9), None); // Too large position
     /// ```
-
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n
@@ -944,7 +941,6 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut cur_i = i;
@@ -997,7 +993,6 @@ where
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```
-
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_()].len == 0 {
@@ -1051,7 +1046,6 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()

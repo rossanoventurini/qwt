@@ -35,7 +35,6 @@
 //! assert_eq!(qwt.rank(3, 7), Some(1));  // Counts the occurrences of symbol 3 up to position 7, should return 1
 //! assert_eq!(qwt.select(3, 0), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
 //! ```
-
 use crate::utils::{msb, stable_partition_of_4};
 use crate::{
     AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, WTIterator, WTSupport,
@@ -1087,7 +1086,6 @@ where
     /// assert_eq!(qwt.rank(1, 9), None); // Too large position
     /// assert_eq!(qwt.rank(6, 1), None); // Too large symbol
     /// ```
-
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n || symbol > self.sigma {
@@ -1121,7 +1119,6 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
@@ -1174,7 +1171,6 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -1205,7 +1201,6 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut result = T::zero();
@@ -1255,7 +1250,6 @@ where
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
     /// ```
-
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol > self.sigma {
@@ -1305,7 +1299,6 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()
