@@ -198,11 +198,36 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
         self.position_bits == 0
     }
 
+    /// Bit cursor (`2 * len()`).
+    #[inline]
+    pub fn position_bits(&self) -> usize {
+        self.position_bits
+    }
+
+    /// Borrowed data lines (POD).
+    #[inline]
+    pub fn data_lines(&self) -> &'a [DataLine] {
+        self.data
+    }
+
+    /// Borrowed superblock counters (POD).
+    #[inline]
+    pub fn superblocks(&self) -> &'a [SuperblockPlain] {
+        self.superblocks
+    }
+
+    /// Borrowed select samples for symbol `s ∈ 0..4`.
+    #[inline]
+    pub fn select_samples(&self, s: usize) -> &'a [u32] {
+        self.select_samples[s]
+    }
+
     /// Wavelet-matrix child offsets (`n_occs_smaller`).
     #[inline]
     pub fn n_occs_smaller(&self) -> [usize; 5] {
         self.n_occs_smaller
     }
+
 
     /// Occurrences of all symbols strictly smaller than `symbol` (0..3).
     #[inline(always)]

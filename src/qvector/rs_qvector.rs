@@ -277,20 +277,20 @@ impl<S: RSSupport> RSQVector<S> {
 
     /// Underlying quad vector. Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn qvector(&self) -> &QVector {
+    pub(crate) fn qvector(&self) -> &QVector {
         &self.qv
     }
 
     /// Rank/select support structure. Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn rs_support(&self) -> &S {
+    pub(crate) fn rs_support(&self) -> &S {
         &self.rs_support
     }
 
     /// Wavelet-matrix child offsets `n_occs_smaller`.
     /// Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn n_occs_smaller(&self) -> [usize; 5] {
+    pub(crate) fn n_occs_smaller(&self) -> [usize; 5] {
         self.n_occs_smaller
     }
 

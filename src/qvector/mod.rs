@@ -18,12 +18,14 @@ use serde::{Deserialize, Serialize};
 //
 // We support `access`, `rank`, and `select queries for each line.
 /// One cache-line of 256 two-bit symbols (512 bits).
-/// Public for zero-copy / mmap flatten (byte-identical on-disk layout).
+/// POD layout for zero-copy I/O; fields are crate-private (Group B).
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
 #[repr(C, align(64))]
 pub struct DataLine {
-    pub words: [u128; 4],
+    pub(crate) words: [u128; 4],
 }
+
+
 
 impl DataLine {
     const MASK: u128 = 3;
@@ -235,13 +237,13 @@ impl QVector {
 
     /// Bit-cursor (`2 * len()`). Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn position_bits(&self) -> usize {
+    pub(crate) fn position_bits(&self) -> usize {
         self.position
     }
 
     /// Raw data lines. Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn data_lines(&self) -> &[DataLine] {
+    pub(crate) fn data_lines(&self) -> &[DataLine] {
         &self.data
     }
 

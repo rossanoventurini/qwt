@@ -206,14 +206,14 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 
     /// Superblock counter lines. Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn superblocks(&self) -> &[SuperblockPlain] {
+    pub(crate) fn superblocks(&self) -> &[SuperblockPlain] {
         &self.superblocks
     }
 
     /// Select samples for symbol `s ∈ 0..4`.
     /// Exposed for zero-copy / mmap flatten.
     #[inline]
-    pub fn select_samples(&self, s: usize) -> &[u32] {
+    pub(crate) fn select_samples(&self, s: usize) -> &[u32] {
         &self.select_samples[s]
     }
 
@@ -240,12 +240,14 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
 ///
-/// Public for zero-copy / mmap flatten (byte-identical on-disk layout).
+/// POD layout for zero-copy I/O; fields are crate-private (Group B).
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 #[repr(C, align(64))]
 pub struct SuperblockPlain {
-    pub counters: [u128; 4],
+    pub(crate) counters: [u128; 4],
 }
+
+
 
 impl SuperblockPlain {
     const BLOCKS_IN_SUPERBLOCK: usize = 8; // Number of blocks in each superblock
