@@ -37,9 +37,7 @@ pub fn checked_region(
     elem_size: usize,
     buf_len: usize,
 ) -> Result<usize, LayoutError> {
-    let nbytes = count
-        .checked_mul(elem_size)
-        .ok_or(LayoutError::Truncated)?;
+    let nbytes = count.checked_mul(elem_size).ok_or(LayoutError::Truncated)?;
     let end = off.checked_add(nbytes).ok_or(LayoutError::Truncated)?;
     if end > buf_len {
         return Err(LayoutError::Truncated);
@@ -64,7 +62,7 @@ pub fn cast_slice<T>(bytes: &[u8]) -> Result<&[T], LayoutError> {
     }
     let align = align_of::<T>();
     let addr = bytes.as_ptr() as usize;
-    if addr % align != 0 {
+    if !addr.is_multiple_of(align) {
         return Err(LayoutError::Misaligned);
     }
     if !bytes.len().is_multiple_of(size_of::<T>()) {
@@ -84,9 +82,10 @@ pub fn cast_slice_mut<T>(bytes: &mut [u8]) -> Result<&mut [T], LayoutError> {
     }
     let align = align_of::<T>();
     let addr = bytes.as_ptr() as usize;
-    if addr % align != 0 {
+    if !addr.is_multiple_of(align) {
         return Err(LayoutError::Misaligned);
     }
+
     if !bytes.len().is_multiple_of(size_of::<T>()) {
         return Err(LayoutError::Truncated);
     }
@@ -134,7 +133,7 @@ pub fn write_slice<T>(out: &mut Vec<u8>, data: &[T]) {
     if data.is_empty() {
         return;
     }
-    let nbytes = data.len() * size_of::<T>();
+    let nbytes = std::mem::size_of_val(data);
     // SAFETY: T is POD; we only read its bytes.
     let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, nbytes) };
     out.extend_from_slice(bytes);

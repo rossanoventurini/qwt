@@ -233,7 +233,6 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
     }
 }
 
-
 /// Stores counters for a superblock and its blocks.
 /// We use a u128 for each of the 4 symbols.
 /// A u128 is subdivided as follows:
@@ -246,8 +245,6 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 pub struct SuperblockPlain {
     pub(crate) counters: [u128; 4],
 }
-
-
 
 impl SuperblockPlain {
     const BLOCKS_IN_SUPERBLOCK: usize = 8; // Number of blocks in each superblock
@@ -271,7 +268,6 @@ impl SuperblockPlain {
         }
 
         Self { counters }
-
     }
 
     #[inline(always)]

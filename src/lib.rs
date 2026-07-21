@@ -24,7 +24,6 @@ pub use bytes::LayoutError;
 
 pub use qvector::rs_qvector::{RSQVector, RSQVector256, RSQVector512};
 
-
 pub mod quadwt;
 pub use quadwt::huffqwt::{HuffQWaveletTree, PrefixCode};
 pub use quadwt::{QWaveletTree, RangeDistinctIter, WTIndexable};

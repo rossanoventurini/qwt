@@ -76,16 +76,16 @@ impl LevelDir {
         let n_superblocks = get_u32(buf, &mut o);
         let _pad1 = get_u32(buf, &mut o);
         let mut off_sel = [0u64; 4];
-        for i in 0..4 {
-            off_sel[i] = get_u64(buf, &mut o);
+        for slot in &mut off_sel {
+            *slot = get_u64(buf, &mut o);
         }
         let mut n_sel = [0u32; 4];
-        for i in 0..4 {
-            n_sel[i] = get_u32(buf, &mut o);
+        for slot in &mut n_sel {
+            *slot = get_u32(buf, &mut o);
         }
         let mut n_occs_smaller = [0u64; 5];
-        for i in 0..5 {
-            n_occs_smaller[i] = get_u64(buf, &mut o);
+        for slot in &mut n_occs_smaller {
+            *slot = get_u64(buf, &mut o);
         }
         Ok(Self {
             off_data,
@@ -351,7 +351,7 @@ where
 
         // Data lines — offsets must be 64-aligned in the format; the source
         // buffer itself need not be (owned path copies into aligned heap).
-        if dir.off_data as usize % 64 != 0 {
+        if !(dir.off_data as usize).is_multiple_of(64) {
             return Err(LayoutError::Misaligned);
         }
         let data_off = dir.off_data as usize;
@@ -361,7 +361,7 @@ where
         let qv = QVector::from_raw_parts(lines, dir.position_bits as usize);
 
         // Superblocks
-        if dir.off_superblocks as usize % 64 != 0 {
+        if !(dir.off_superblocks as usize).is_multiple_of(64) {
             return Err(LayoutError::Misaligned);
         }
         let sb_off = dir.off_superblocks as usize;
@@ -376,7 +376,7 @@ where
 
         // Select samples
         let mut select_samples: [Box<[u32]>; 4] = Default::default();
-        for s in 0..4 {
+        for (s, sample_slot) in select_samples.iter_mut().enumerate() {
             let n_sel = dir.n_sel[s] as usize;
             let off = dir.off_sel[s] as usize;
             let _ = checked_region(off, n_sel, size_of::<u32>(), bytes.len())?;
@@ -385,7 +385,7 @@ where
                 let b = off + i * 4;
                 v.push(u32::from_le_bytes(bytes[b..b + 4].try_into().unwrap()));
             }
-            select_samples[s] = v.into_boxed_slice();
+            *sample_slot = v.into_boxed_slice();
         }
 
         let rs = RSSupportPlain::<B>::from_parts(superblocks, select_samples);

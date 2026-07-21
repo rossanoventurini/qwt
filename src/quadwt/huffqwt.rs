@@ -363,9 +363,7 @@ where
             prefetch_support: None,
             phantom_data: PhantomData,
         })
-
     }
-
 
     /// Returns an iterator over the values in the wavelet tree.
     ///

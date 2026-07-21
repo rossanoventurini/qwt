@@ -46,16 +46,16 @@ impl LevelDir {
         let n_superblocks = get_u32(buf, &mut o);
         let _pad1 = get_u32(buf, &mut o);
         let mut off_sel = [0u64; 4];
-        for i in 0..4 {
-            off_sel[i] = get_u64(buf, &mut o);
+        for slot in &mut off_sel {
+            *slot = get_u64(buf, &mut o);
         }
         let mut n_sel = [0u32; 4];
-        for i in 0..4 {
-            n_sel[i] = get_u32(buf, &mut o);
+        for slot in &mut n_sel {
+            *slot = get_u32(buf, &mut o);
         }
         let mut n_occs_smaller = [0u64; 5];
-        for i in 0..5 {
-            n_occs_smaller[i] = get_u64(buf, &mut o);
+        for slot in &mut n_occs_smaller {
+            *slot = get_u64(buf, &mut o);
         }
         debug_assert_eq!(o, LEVEL_DIR_SIZE);
         Ok(Self {
@@ -127,7 +127,9 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
     pub(crate) fn from_dir(bytes: &'a [u8], dir: &LevelDir) -> Result<Self, LayoutError> {
         debug_assert!(B_SIZE == 256 || B_SIZE == 512);
 
-        if dir.off_data as usize % 64 != 0 || dir.off_superblocks as usize % 64 != 0 {
+        if !(dir.off_data as usize).is_multiple_of(64)
+            || !(dir.off_superblocks as usize).is_multiple_of(64)
+        {
             return Err(LayoutError::Misaligned);
         }
 
@@ -156,7 +158,7 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
         let superblocks = cast_slice::<SuperblockPlain>(&bytes[sb_off..sb_off + sb_bytes])?;
 
         let mut select_samples: [&'a [u32]; 4] = [&[]; 4];
-        for s in 0..4 {
+        for (s, sample_slot) in select_samples.iter_mut().enumerate() {
             let n_sel = dir.n_sel[s] as usize;
             let off = dir.off_sel[s] as usize;
             let need = n_sel
@@ -166,12 +168,12 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
                 return Err(LayoutError::Truncated);
             }
             // u32 LE samples: 4-byte aligned offsets in a 64-aligned base → cast ok.
-            select_samples[s] = cast_slice::<u32>(&bytes[off..off + need])?;
+            *sample_slot = cast_slice::<u32>(&bytes[off..off + need])?;
         }
 
         let n_occs_smaller: [usize; 5] = std::array::from_fn(|i| dir.n_occs_smaller[i] as usize);
         let position_bits = dir.position_bits as usize;
-        if position_bits % 2 != 0 {
+        if !position_bits.is_multiple_of(2) {
             return Err(LayoutError::Inconsistent {
                 detail: "position_bits must be even",
             });
@@ -233,6 +235,9 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
     }
 
     /// Occurrences of all symbols strictly smaller than `symbol` (0..3).
+    ///
+    /// # Safety
+    /// `symbol` must be `≤ 3`.
     #[inline(always)]
     pub unsafe fn occs_smaller_unchecked(&self, symbol: u8) -> usize {
         debug_assert!(symbol <= 3);
@@ -240,6 +245,9 @@ impl<'a, const B_SIZE: usize> RSQVectorView<'a, B_SIZE> {
     }
 
     /// Total occurrences of `symbol` (0..3) on this level.
+    ///
+    /// # Safety
+    /// `symbol` must be `≤ 3`.
     #[inline(always)]
     pub unsafe fn occs_unchecked(&self, symbol: u8) -> usize {
         debug_assert!(symbol <= 3);

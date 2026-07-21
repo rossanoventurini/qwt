@@ -42,9 +42,11 @@ pub const FORMAT_VERSION: u16 = 1;
 pub const HEADER_SIZE: usize = 32;
 /// Bytes per plain-QWT level directory entry.
 ///
-/// Layout: `off_data u64` + `n_datalines u32` + `pad0 u32` + `position_bits u64`
-/// + `off_superblocks u64` + `n_superblocks u32` + `pad1 u32` + `off_sel[4] u64×4`
-/// + `n_sel[4] u32×4` + `n_occs_smaller[5] u64×5`
+/// Layout:
+/// - `off_data u64` + `n_datalines u32` + `pad0 u32` + `position_bits u64`
+/// - `off_superblocks u64` + `n_superblocks u32` + `pad1 u32` + `off_sel[4] u64×4`
+/// - `n_sel[4] u32×4` + `n_occs_smaller[5] u64×5`
+///
 /// = 8+4+4+8+8+4+4+32+16+40 = 128.
 pub const LEVEL_DIR_SIZE: usize = 128;
 /// Bytes per HQWT level directory entry (`LEVEL_DIR_SIZE` + `level_len` u64).

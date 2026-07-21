@@ -662,7 +662,7 @@ mod tests {
         // (almost always), from_bytes should fail with Misaligned when casting.
         let slice = &padded[1..];
         let addr = slice.as_ptr() as usize;
-        if addr % 64 != 0 && original.n_levels() > 0 {
+        if !addr.is_multiple_of(64) && original.n_levels() > 0 {
             let err = QwtView::<u32, 256>::from_bytes(slice).unwrap_err();
             assert_eq!(err, LayoutError::Misaligned);
         }

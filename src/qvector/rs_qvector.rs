@@ -308,7 +308,6 @@ impl<S: RSSupport> RSQVector<S> {
     }
 }
 
-
 impl<S> AccessQuad for RSQVector<S> {
     /// Accesses the `i`-th value in the quad vector.
     /// The caller must guarantee that the position `i` is valid.

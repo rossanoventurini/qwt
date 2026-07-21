@@ -309,8 +309,6 @@ where
         })
     }
 
-
-
     /// Smallest symbol in `range` that is `>= target`, or `None` if no such
     /// symbol occurs. Half-open row range `[start, end)`.
     ///

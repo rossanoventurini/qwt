@@ -25,8 +25,6 @@ pub struct DataLine {
     pub(crate) words: [u128; 4],
 }
 
-
-
 impl DataLine {
     const MASK: u128 = 3;
 
@@ -266,7 +264,6 @@ impl QVector {
         Self { data, position }
     }
 }
-
 
 impl AccessQuad for QVector {
     /// Access the `i`th value in the quaternary vector.
