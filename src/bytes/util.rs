@@ -50,7 +50,9 @@ pub fn cast_slice<T>(bytes: &[u8]) -> Result<&[T], LayoutError> {
 
 /// Mutable variant of [`cast_slice`].
 #[inline]
+#[allow(dead_code)] // reserved for in-place writers
 pub fn cast_slice_mut<T>(bytes: &mut [u8]) -> Result<&mut [T], LayoutError> {
+
     if bytes.is_empty() {
         return Ok(&mut []);
     }
@@ -99,7 +101,9 @@ pub fn copy_pod_slice<T: Copy + Default>(bytes: &[u8], n: usize) -> Result<Box<[
 /// Uses `std::slice::from_raw_parts` on the typed slice so the in-memory
 /// `#[repr(C)]` layout is preserved byte-for-byte.
 #[inline]
+#[allow(dead_code)] // reserved for bulk POD writers
 pub fn write_slice<T>(out: &mut Vec<u8>, data: &[T]) {
+
 
     if data.is_empty() {
         return;
