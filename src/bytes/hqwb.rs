@@ -140,7 +140,14 @@ fn get_u64(buf: &[u8], o: &mut usize) -> u64 {
     v
 }
 
-/// Serialize a plain HQWT256 into an `HQWB` blob.
+/// Serialize a plain [`HQWT256`](crate::HQWT256) into an `HQWB` blob.
+///
+/// Self-contained little-endian byte vector. Source need not be 64-aligned for
+/// a later [`hqwt256_from_bytes`] call (owned path copies POD payloads).
+///
+/// # Errors
+/// Returns [`LayoutError::NotLittleEndian`] on big-endian hosts, or
+/// [`LayoutError::Inconsistent`] if a code table exceeds `u16` length fields.
 pub fn hqwt256_to_bytes<T>(
     tree: &HuffQWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>,
 ) -> Result<Vec<u8>, LayoutError>
@@ -151,7 +158,9 @@ where
     to_bytes_generic::<T, 256>(tree)
 }
 
-/// Serialize a plain HQWT512 into an `HQWB` blob.
+/// Serialize a plain [`HQWT512`](crate::HQWT512) into an `HQWB` blob.
+///
+/// See [`hqwt256_to_bytes`].
 pub fn hqwt512_to_bytes<T>(
     tree: &HuffQWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>,
 ) -> Result<Vec<u8>, LayoutError>
@@ -326,7 +335,13 @@ where
     Ok(out)
 }
 
-/// Deserialize an `HQWB` blob into an owned HQWT256.
+/// Deserialize an `HQWB` blob into an owned [`HQWT256`](crate::HQWT256).
+///
+/// Copies POD payloads onto the heap, so `bytes` need not be 64-byte aligned.
+/// For a zero-copy alternative see [`crate::bytes::HqwtView`].
+///
+/// # Errors
+/// See [`LayoutError`].
 pub fn hqwt256_from_bytes<T>(
     bytes: &[u8],
 ) -> Result<HuffQWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>, LayoutError>
@@ -338,7 +353,9 @@ where
     from_bytes_generic::<T, 256>(bytes)
 }
 
-/// Deserialize an `HQWB` blob into an owned HQWT512.
+/// Deserialize an `HQWB` blob into an owned [`HQWT512`](crate::HQWT512).
+///
+/// See [`hqwt256_from_bytes`].
 pub fn hqwt512_from_bytes<T>(
     bytes: &[u8],
 ) -> Result<HuffQWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>, LayoutError>

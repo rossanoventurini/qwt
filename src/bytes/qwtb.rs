@@ -134,7 +134,14 @@ fn get_u64(buf: &[u8], o: &mut usize) -> u64 {
     v
 }
 
-/// Serialize a plain QWT256 into a `QWTB` blob.
+/// Serialize a plain [`QWT256`](crate::QWT256) into a `QWTB` blob.
+///
+/// The result is a self-contained little-endian byte vector. The source buffer
+/// for a later [`qwt256_from_bytes`] call need **not** be 64-byte aligned
+/// (the owned path copies POD payloads onto the heap).
+///
+/// # Errors
+/// Returns [`LayoutError::NotLittleEndian`] on big-endian hosts.
 pub fn qwt256_to_bytes<T>(
     tree: &QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>,
 ) -> Result<Vec<u8>, LayoutError>
@@ -145,7 +152,10 @@ where
     to_bytes_generic::<T, 256>(tree)
 }
 
-/// Serialize a plain QWT512 into a `QWTB` blob.
+/// Serialize a plain [`QWT512`](crate::QWT512) into a `QWTB` blob.
+///
+/// See [`qwt256_to_bytes`] for details; the only difference is the block size
+/// flag (`FLAG_B512`).
 pub fn qwt512_to_bytes<T>(
     tree: &QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>,
 ) -> Result<Vec<u8>, LayoutError>
@@ -271,7 +281,13 @@ where
     Ok(out)
 }
 
-/// Deserialize a `QWTB` blob into an owned QWT256.
+/// Deserialize a `QWTB` blob into an owned [`QWT256`](crate::QWT256).
+///
+/// Copies POD payloads onto the heap, so `bytes` need not be 64-byte aligned.
+/// For a zero-copy alternative see [`crate::bytes::QwtView`].
+///
+/// # Errors
+/// See [`LayoutError`] — magic/version/flags/alignment/truncation failures.
 pub fn qwt256_from_bytes<T>(
     bytes: &[u8],
 ) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<256>>, false>, LayoutError>
@@ -283,7 +299,9 @@ where
     from_bytes_generic::<T, 256>(bytes)
 }
 
-/// Deserialize a `QWTB` blob into an owned QWT512.
+/// Deserialize a `QWTB` blob into an owned [`QWT512`](crate::QWT512).
+///
+/// See [`qwt256_from_bytes`].
 pub fn qwt512_from_bytes<T>(
     bytes: &[u8],
 ) -> Result<QWaveletTree<T, RSQVector<RSSupportPlain<512>>, false>, LayoutError>
