@@ -281,16 +281,23 @@ where
     /// in v1 of the byte format.
     pub fn from_parts(
         n: usize,
+        n_levels: usize,
         sigma: T,
         qvs: Vec<RS>,
     ) -> Result<Self, crate::bytes::LayoutError> {
         if WITH_PREFETCH_SUPPORT {
             return Err(crate::bytes::LayoutError::PrefetchNotSupported);
         }
-        let n_levels = qvs.len();
-        if n == 0 && n_levels > 1 {
+        // Empty-tree convention from `new([])`: n_levels == 0 with a single default qv.
+        if n == 0 {
+            if n_levels != 0 {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree must have n_levels == 0",
+                });
+            }
+        } else if qvs.len() != n_levels {
             return Err(crate::bytes::LayoutError::Inconsistent {
-                detail: "empty tree cannot have more than one (default) level",
+                detail: "n_levels disagrees with qvs length",
             });
         }
         Ok(Self {
@@ -301,6 +308,7 @@ where
             prefetch_support: None,
         })
     }
+
 
 
     /// Smallest symbol in `range` that is `>= target`, or `None` if no such

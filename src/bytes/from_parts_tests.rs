@@ -60,7 +60,14 @@ fn qwt_from_parts_eq_queries() {
         })
         .collect();
 
-    let rebuilt = QWT256::from_parts(original.len(), original.sigma_raw(), levels).unwrap();
+    let rebuilt = QWT256::from_parts(
+        original.len(),
+        original.n_levels(),
+        original.sigma_raw(),
+        levels,
+    )
+    .unwrap();
+
     assert_eq!(original.len(), rebuilt.len());
     assert_eq!(original.n_levels(), rebuilt.n_levels());
     for i in 0..data.len() {
@@ -146,6 +153,7 @@ fn hqwt_from_parts_eq_queries() {
 #[test]
 fn qwt_pfs_from_parts_rejected() {
     use crate::QWT256Pfs;
-    let err = QWT256Pfs::<u32>::from_parts(0, 0, vec![]).unwrap_err();
+    let err = QWT256Pfs::<u32>::from_parts(0, 0, 0, vec![]).unwrap_err();
+
     assert_eq!(err, crate::bytes::LayoutError::PrefetchNotSupported);
 }

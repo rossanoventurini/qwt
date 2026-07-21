@@ -67,12 +67,40 @@ pub fn cast_slice_mut<T>(bytes: &mut [u8]) -> Result<&mut [T], LayoutError> {
     Ok(unsafe { std::slice::from_raw_parts_mut(bytes.as_mut_ptr() as *mut T, len) })
 }
 
+/// Copy a POD array out of a (possibly unaligned) byte slice into a freshly
+/// allocated, naturally aligned `Box<[T]>`.
+///
+/// Used by the owned `from_bytes` path, which must not require the source
+/// buffer to be 64-byte aligned (heap `Vec<u8>` typically is not). Zero-copy
+/// views should keep using [`cast_slice`] and reject misaligned inputs.
+///
+/// # Errors
+/// - [`LayoutError::Truncated`] if `bytes.len() < n * size_of::<T>()`
+#[inline]
+pub fn copy_pod_slice<T: Copy + Default>(bytes: &[u8], n: usize) -> Result<Box<[T]>, LayoutError> {
+    let need = n.checked_mul(size_of::<T>()).ok_or(LayoutError::Truncated)?;
+    if bytes.len() < need {
+        return Err(LayoutError::Truncated);
+    }
+    if n == 0 {
+        return Ok(Box::from([]));
+    }
+    let mut out = vec![T::default(); n];
+    // SAFETY: T is POD by caller contract; we copy exactly `need` bytes into
+    // a freshly allocated, naturally aligned buffer of `n` T values.
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), out.as_mut_ptr() as *mut u8, need);
+    }
+    Ok(out.into_boxed_slice())
+}
+
 /// Append the raw bytes of a POD slice to `out`.
 ///
 /// Uses `std::slice::from_raw_parts` on the typed slice so the in-memory
 /// `#[repr(C)]` layout is preserved byte-for-byte.
 #[inline]
 pub fn write_slice<T>(out: &mut Vec<u8>, data: &[T]) {
+
     if data.is_empty() {
         return;
     }
