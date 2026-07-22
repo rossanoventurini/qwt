@@ -419,30 +419,35 @@ where
 
             let mut level = 0;
 
-            self.qvs[0].prefetch_data(range.end);
-            self.qvs[0].prefetch_info(range.start);
-            self.qvs[0].prefetch_info(range.end);
+            // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+            let qv0 = unsafe { self.qvs.get_unchecked(0) };
+            qv0.prefetch_data(range.end);
+            qv0.prefetch_info(range.start);
+            qv0.prefetch_info(range.end);
 
             while shift >= 2 {
                 let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
 
-                // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
-                let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+                // SAFETY: Huffman code length implies `level < n_levels == qvs.len()`; `two_bits` in [0..3].
+                let qv = unsafe { self.qvs.get_unchecked(level) };
+                let offset = qv.occs_smaller_unchecked(two_bits);
 
                 let rank_start =
                     prefetch_support[level].approx_rank_unchecked(two_bits, range.start);
                 let rank_end = prefetch_support[level].approx_rank_unchecked(two_bits, range.end);
 
                 range = (rank_start + offset)..(rank_end + offset);
-                self.qvs[level + 1].prefetch_info(range.start);
-                self.qvs[level + 1].prefetch_info(range.start + 2048);
+                // SAFETY: next level exists while `shift >= 2` (not yet at leaf depth).
+                let next = unsafe { self.qvs.get_unchecked(level + 1) };
+                next.prefetch_info(range.start);
+                next.prefetch_info(range.start + 2048);
 
-                self.qvs[level + 1].prefetch_info(range.end);
-                self.qvs[level + 1].prefetch_info(range.end + 2048);
+                next.prefetch_info(range.end);
+                next.prefetch_info(range.end + 2048);
                 if level > 0 {
-                    self.qvs[level + 1].prefetch_info(range.start + 2 * 2048);
-                    self.qvs[level + 1].prefetch_info(range.end + 2 * 2048);
-                    self.qvs[level + 1].prefetch_info(range.end + 3 * 2048);
+                    next.prefetch_info(range.start + 2 * 2048);
+                    next.prefetch_info(range.end + 2 * 2048);
+                    next.prefetch_info(range.end + 3 * 2048);
                 }
                 // self.qvs[level + 1].prefetch_info(range.end + 4 * 2048);
 
@@ -573,28 +578,33 @@ where
 
         let mut level = 0;
 
-        self.qvs[0].prefetch_data(range.start);
-        self.qvs[0].prefetch_data(range.end);
+        // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+        let qv0 = unsafe { self.qvs.get_unchecked(0) };
+        qv0.prefetch_data(range.start);
+        qv0.prefetch_data(range.end);
         while shift >= 2 {
             let two_bits: u8 = (repr >> shift as usize) as u8 & 3;
 
-            // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
-            let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+            // SAFETY: Huffman code length implies `level < n_levels == qvs.len()`; `two_bits` in [0..3].
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let offset = qv.occs_smaller_unchecked(two_bits);
 
-            let rank_start = self.qvs[level].rank_block_unchecked(two_bits, range.start);
-            let rank_end = self.qvs[level].rank_block_unchecked(two_bits, range.end);
+            let rank_start = qv.rank_block_unchecked(two_bits, range.start);
+            let rank_end = qv.rank_block_unchecked(two_bits, range.end);
 
             range = (rank_start + offset)..(rank_end + offset);
 
             // The estimated position can be off by BLOCK_SIZE for every level
 
-            self.qvs[level + 1].prefetch_data(range.start);
-            self.qvs[level + 1].prefetch_data(range.start + BLOCK_SIZE);
+            // SAFETY: next level exists while `shift >= 2` (not yet at leaf depth).
+            let next = unsafe { self.qvs.get_unchecked(level + 1) };
+            next.prefetch_data(range.start);
+            next.prefetch_data(range.start + BLOCK_SIZE);
 
-            self.qvs[level + 1].prefetch_data(range.end);
-            self.qvs[level + 1].prefetch_data(range.end + BLOCK_SIZE);
+            next.prefetch_data(range.end);
+            next.prefetch_data(range.end + BLOCK_SIZE);
             for i in 0..level {
-                self.qvs[level + 1].prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
+                next.prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
             }
 
             // println!("Level: {} | two_bits {}", level, two_bits);
@@ -710,16 +720,18 @@ where
         let mut shift = 0;
 
         for level in 0..self.n_levels {
-            if cur_i >= self.lens[level] {
+            // SAFETY: `level < n_levels == lens/qvs.len()` by loop bound.
+            if cur_i >= *unsafe { self.lens.get_unchecked(level) } {
                 break;
             }
 
-            self.qvs[level].prefetch_info(cur_i);
-            let symbol = self.qvs[level].get_unchecked(cur_i);
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            qv.prefetch_info(cur_i);
+            let symbol = qv.get_unchecked(cur_i);
             result = (result << 2) | symbol as u32;
 
-            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
-            cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
+            let offset = unsafe { qv.occs_smaller_unchecked(symbol) };
+            cur_i = qv.rank_unchecked(symbol, cur_i) + offset;
 
             shift += 2;
         }
@@ -954,9 +966,11 @@ where
         while shift >= 0 {
             let two_bits = ((repr >> shift as usize) & 3) as u8;
 
-            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
-            cur_p = self.qvs[level].rank_unchecked(two_bits, cur_p) + offset;
-            cur_i = self.qvs[level].rank_unchecked(two_bits, cur_i) + offset;
+            // SAFETY: Huffman code length implies `level < n_levels == qvs.len()`.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let offset = unsafe { qv.occs_smaller_unchecked(two_bits) };
+            cur_p = qv.rank_unchecked(two_bits, cur_p) + offset;
+            cur_i = qv.rank_unchecked(two_bits, cur_i) + offset;
 
             level += 1;
             shift -= 2;
@@ -1014,9 +1028,11 @@ where
 
             let two_bits = ((repr >> shift as usize) & 3) as u8;
 
-            let rank_b = self.qvs[level].rank(two_bits, b)?;
+            // SAFETY: Huffman code length implies `level < n_levels == qvs.len()`.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let rank_b = qv.rank(two_bits, b)?;
 
-            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
+            b = rank_b + unsafe { qv.occs_smaller_unchecked(two_bits) };
             rank_path_off.push(rank_b);
 
             level += 1;
@@ -1030,7 +1046,9 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = ((repr >> shift as usize) & 3) as u8;
 
-            result = self.qvs[level].select(two_bits, rank_b + result)? - b;
+            // SAFETY: reverse walk over levels already visited above.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            result = qv.select(two_bits, rank_b + result)? - b;
             shift += 2;
         }
 

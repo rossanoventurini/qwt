@@ -551,31 +551,36 @@ where
             let mut shift: i64 = (2 * (self.n_levels - 1)) as i64;
             let mut range = 0..i;
 
-            self.qvs[0].prefetch_data(range.end);
-            self.qvs[0].prefetch_info(range.start);
-            self.qvs[0].prefetch_info(range.end);
+            // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+            let qv0 = unsafe { self.qvs.get_unchecked(0) };
+            qv0.prefetch_data(range.end);
+            qv0.prefetch_info(range.start);
+            qv0.prefetch_info(range.end);
 
             #[allow(clippy::needless_range_loop)]
             for level in 0..self.n_levels - 1 {
                 let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
-                // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
-                let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+                // SAFETY: `level < n_levels == qvs.len()` by loop bound; `two_bits` is in [0..3].
+                let qv = unsafe { self.qvs.get_unchecked(level) };
+                let offset = qv.occs_smaller_unchecked(two_bits);
 
                 let rank_start =
                     prefetch_support[level].approx_rank_unchecked(two_bits, range.start);
                 let rank_end = prefetch_support[level].approx_rank_unchecked(two_bits, range.end);
 
                 range = (rank_start + offset)..(rank_end + offset);
-                self.qvs[level + 1].prefetch_info(range.start);
-                self.qvs[level + 1].prefetch_info(range.start + 2048);
+                // SAFETY: `level + 1 < n_levels` by loop bound.
+                let next = unsafe { self.qvs.get_unchecked(level + 1) };
+                next.prefetch_info(range.start);
+                next.prefetch_info(range.start + 2048);
 
-                self.qvs[level + 1].prefetch_info(range.end);
-                self.qvs[level + 1].prefetch_info(range.end + 2048);
+                next.prefetch_info(range.end);
+                next.prefetch_info(range.end + 2048);
                 if level > 0 {
-                    self.qvs[level + 1].prefetch_info(range.start + 2 * 2048);
-                    self.qvs[level + 1].prefetch_info(range.end + 2 * 2048);
-                    self.qvs[level + 1].prefetch_info(range.end + 3 * 2048);
+                    next.prefetch_info(range.start + 2 * 2048);
+                    next.prefetch_info(range.end + 2 * 2048);
+                    next.prefetch_info(range.end + 3 * 2048);
                 }
                 // self.qvs[level + 1].prefetch_info(range.end + 4 * 2048);
 
@@ -692,28 +697,33 @@ where
 
         const BLOCK_SIZE: usize = 256; // TODO: fix me!
 
-        self.qvs[0].prefetch_data(range.start);
-        self.qvs[0].prefetch_data(range.end);
+        // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+        let qv0 = unsafe { self.qvs.get_unchecked(0) };
+        qv0.prefetch_data(range.start);
+        qv0.prefetch_data(range.end);
         for level in 0..self.n_levels - 1 {
             let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
-            // SAFETY: Here we are sure that two_bits is a symbol in [0..3]
-            let offset = self.qvs[level].occs_smaller_unchecked(two_bits);
+            // SAFETY: `level < n_levels == qvs.len()` by loop bound; `two_bits` is in [0..3].
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let offset = qv.occs_smaller_unchecked(two_bits);
 
-            let rank_start = self.qvs[level].rank_block_unchecked(two_bits, range.start);
-            let rank_end = self.qvs[level].rank_block_unchecked(two_bits, range.end);
+            let rank_start = qv.rank_block_unchecked(two_bits, range.start);
+            let rank_end = qv.rank_block_unchecked(two_bits, range.end);
 
             range = (rank_start + offset)..(rank_end + offset);
 
             // The estimated position can be off by BLOCK_SIZE for every level
 
-            self.qvs[level + 1].prefetch_data(range.start);
-            self.qvs[level + 1].prefetch_data(range.start + BLOCK_SIZE);
+            // SAFETY: `level + 1 < n_levels` by loop bound.
+            let next = unsafe { self.qvs.get_unchecked(level + 1) };
+            next.prefetch_data(range.start);
+            next.prefetch_data(range.start + BLOCK_SIZE);
 
-            self.qvs[level + 1].prefetch_data(range.end);
-            self.qvs[level + 1].prefetch_data(range.end + BLOCK_SIZE);
+            next.prefetch_data(range.end);
+            next.prefetch_data(range.end + BLOCK_SIZE);
             for i in 0..level {
-                self.qvs[level + 1].prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
+                next.prefetch_data(range.end + 2 * BLOCK_SIZE + i * BLOCK_SIZE);
             }
 
             // // CHECK!
@@ -1128,18 +1138,21 @@ where
         for level in 0..self.n_levels - 1 {
             let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
-            // Safety: Here we are sure that two_bits is a symbol in [0..3]
-            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
-            cur_p = self.qvs[level].rank_unchecked(two_bits, cur_p) + offset;
-            cur_i = self.qvs[level].rank_unchecked(two_bits, cur_i) + offset;
+            // SAFETY: `level < n_levels == qvs.len()` by loop bound; `two_bits` is in [0..3].
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let offset = unsafe { qv.occs_smaller_unchecked(two_bits) };
+            cur_p = qv.rank_unchecked(two_bits, cur_p) + offset;
+            cur_i = qv.rank_unchecked(two_bits, cur_i) + offset;
 
             shift -= 2;
         }
 
         let two_bits: u8 = ((symbol >> shift as usize).as_() & 3) as u8;
 
-        cur_i = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_i);
-        cur_p = self.qvs[self.n_levels - 1].rank_unchecked(two_bits, cur_p);
+        // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+        let qv = unsafe { self.qvs.get_unchecked(self.n_levels - 1) };
+        cur_i = qv.rank_unchecked(two_bits, cur_i);
+        cur_p = qv.rank_unchecked(two_bits, cur_p);
 
         cur_i - cur_p
     }
@@ -1209,16 +1222,20 @@ where
         for level in 0..self.n_levels - 1 {
             // The last rank can be saved. The improvement is just ~3%. Indeed, most of the cost is for the cache miss for data access that we pay anyway
 
-            self.qvs[level].prefetch_info(cur_i); // Compiler is not able to infer that later it is needed for the rank query. Access is roughly 33% slower for large files without this.
-            let symbol = self.qvs[level].get_unchecked(cur_i);
+            // SAFETY: `level < n_levels == qvs.len()` by loop bound.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            qv.prefetch_info(cur_i); // Compiler is not able to infer that later it is needed for the rank query. Access is roughly 33% slower for large files without this.
+            let symbol = qv.get_unchecked(cur_i);
             result = (result << 2) | (symbol as usize).as_();
 
             // SAFETY: Here we are sure that symbol is in [0..3]
-            let offset = unsafe { self.qvs[level].occs_smaller_unchecked(symbol) };
-            cur_i = self.qvs[level].rank_unchecked(symbol, cur_i) + offset;
+            let offset = unsafe { qv.occs_smaller_unchecked(symbol) };
+            cur_i = qv.rank_unchecked(symbol, cur_i) + offset;
         }
 
-        let symbol = self.qvs[self.n_levels - 1].get_unchecked(cur_i);
+        // SAFETY: non-empty trees have `n_levels >= 1` and `qvs.len() == n_levels`.
+        let qv = unsafe { self.qvs.get_unchecked(self.n_levels - 1) };
+        let symbol = qv.get_unchecked(cur_i);
         (result << 2) | (symbol as usize).as_()
     }
 }
@@ -1267,10 +1284,12 @@ where
 
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            let rank_b = self.qvs[level].rank(two_bits as u8, b)?;
+            // SAFETY: `level < n_levels == qvs.len()` by loop bound.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            let rank_b = qv.rank(two_bits as u8, b)?;
 
             // Safety: we are sure the symbol `two_bits` is in [0..3]
-            b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits as u8) };
+            b = rank_b + unsafe { qv.occs_smaller_unchecked(two_bits as u8) };
             shift -= 2;
 
             rank_path_off.push(rank_b);
@@ -1283,7 +1302,9 @@ where
             let rank_b = rank_path_off[level];
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
-            result = self.qvs[level].select(two_bits as u8, rank_b + result)? - b;
+            // SAFETY: `level < n_levels == qvs.len()` by loop bound.
+            let qv = unsafe { self.qvs.get_unchecked(level) };
+            result = qv.select(two_bits as u8, rank_b + result)? - b;
             shift += 2;
         }
 
