@@ -12,7 +12,7 @@ use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::AsPrimitive;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 // A quad vector is made of `DataLine`s. Each line consists of
 // four u128, so each `DataLine` is 512 bits and fits in a cache line.
@@ -129,10 +129,44 @@ impl RankQuad for DataLine {
 
 // The trait SelectQuad is not implemented because RSSupport needs to it by hand :-)
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Debug)]
 pub struct QVector {
     data: Box<[DataLine]>,
     position: usize,
+}
+
+impl<'de> Deserialize<'de> for QVector {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct QVectorWire {
+            data: Box<[DataLine]>,
+            position: usize,
+        }
+
+        let wire = QVectorWire::deserialize(deserializer)?;
+        let capacity = wire
+            .data
+            .len()
+            .checked_mul(512)
+            .ok_or_else(|| serde::de::Error::custom("QVector data capacity overflow"))?;
+        if !wire.position.is_multiple_of(2) {
+            return Err(serde::de::Error::custom(
+                "QVector position must be a multiple of 2",
+            ));
+        }
+        if wire.position > capacity {
+            return Err(serde::de::Error::custom(
+                "QVector position exceeds data capacity",
+            ));
+        }
+        Ok(Self {
+            data: wire.data,
+            position: wire.position,
+        })
+    }
 }
 
 impl QVector {

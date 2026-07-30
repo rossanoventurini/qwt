@@ -8,7 +8,7 @@ use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::{AsPrimitive, Unsigned};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 // Traits
 use crate::{AccessQuad, RankQuad, SelectQuad, WTSupport};
@@ -23,11 +23,32 @@ pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 
 /// The generic `S` is the data structure used to provide rank/select
 /// support at the level of blocks.
-#[derive(Default, Clone, PartialEq, Debug, Serialize, MemSize, MemDbg, Deserialize)]
+#[derive(Default, Clone, PartialEq, Debug, Serialize, MemSize, MemDbg)]
 pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
     n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
+}
+
+impl<'de, S> Deserialize<'de> for RSQVector<S>
+where
+    S: Deserialize<'de> + RSSupport,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RSQVectorWire<S> {
+            qv: QVector,
+            rs_support: S,
+            n_occs_smaller: [usize; 5],
+        }
+
+        let wire = RSQVectorWire::<S>::deserialize(deserializer)?;
+        let _ = (wire.rs_support, wire.n_occs_smaller);
+        Ok(Self::from(wire.qv))
+    }
 }
 
 impl<S> RSQVector<S> {

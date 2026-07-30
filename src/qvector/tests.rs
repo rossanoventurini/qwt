@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn deserialize_rejects_position_beyond_data_capacity() {
+    #[derive(Serialize)]
+    struct QVectorWire {
+        data: Box<[DataLine]>,
+        position: usize,
+    }
+
+    let bytes = bincode::serialize(&QVectorWire {
+        data: Box::new([]),
+        position: 2,
+    })
+    .unwrap();
+    assert!(bincode::deserialize::<QVector>(&bytes).is_err());
+}
+
+#[test]
 fn test_empty() {
     let qv = QVector::default();
     assert!(qv.is_empty());
