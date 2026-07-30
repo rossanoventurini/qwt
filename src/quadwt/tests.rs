@@ -43,9 +43,9 @@ fn test_occs_range() {
     assert!(qwt.occs_range(..data.len() + 1).is_none());
     assert!(qwt.occs_range(data.len() - 1..data.len() + 1).is_none());
 
-    // nonsense ranges
-    assert!(qwt.occs_range(5..4).is_none());
-    assert!(qwt.occs_range(2..0).is_none());
+    // nonsense ranges (struct form avoids clippy::reversed_empty_ranges on literals)
+    assert!(qwt.occs_range(std::ops::Range { start: 5, end: 4 }).is_none());
+    assert!(qwt.occs_range(std::ops::Range { start: 2, end: 0 }).is_none());
 
     // empty ranges
     assert_eq!(0, qwt.occs_range(data.len()..).unwrap().count());
@@ -281,4 +281,156 @@ fn test_serialize() {
     let des_qwt = bincode::deserialize::<QWaveletTree<u8, RSQVector512>>(&s).unwrap();
 
     assert_eq!(des_qwt, qwt);
+}
+
+
+#[test]
+fn test_get_and_rank() {
+    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let qwt = QWaveletTree::<_, RSQVector512>::new(&mut data.clone());
+
+    assert_eq!(qwt.get_and_rank(9), None);
+    for (i, &expected) in data.iter().enumerate() {
+        let (sym, rank_inc) = qwt.get_and_rank(i).unwrap();
+        assert_eq!(sym, expected);
+        // rank(symbol, i+1) == occurrences in 0..=i
+        assert_eq!(rank_inc, qwt.rank(sym, i + 1).unwrap());
+        // also equals 1 + rank(symbol, i)
+        assert_eq!(rank_inc, qwt.rank(sym, i).unwrap() + 1);
+    }
+}
+
+#[test]
+fn test_extract_range_matches_sorted_get() {
+    let data: [u8; 9] = [1, 0, 1, 0, 3, 4, 5, 3, 7];
+    let qwt = QWaveletTree::<_, RSQVector512>::new(&mut data.clone());
+
+    // empty / oob
+    assert!(qwt.extract_range(0..0).is_empty());
+    assert!(qwt.extract_range(5..5).is_empty());
+    assert!(qwt.extract_range(9..9).is_empty());
+    // Reversed bounds: construct Range so clippy does not flag a literal empty range.
+    let reversed = std::ops::Range { start: 3, end: 2 };
+    assert!(qwt.extract_range(reversed).is_empty());
+    assert!(qwt.extract_range(0..10).is_empty()); // end > n
+
+    // full range multiset
+    let multiset = qwt.extract_range(0..9);
+    let mut expected: Vec<_> = data.to_vec();
+    expected.sort_unstable();
+    assert_eq!(multiset, expected);
+
+    // distinct
+    let distinct = qwt.extract_range_distinct(0..9);
+    let mut exp_d = expected.clone();
+    exp_d.dedup();
+    assert_eq!(distinct, exp_d);
+
+    // subranges
+    for start in 0..=9 {
+        for end in start..=9 {
+            let got = qwt.extract_range(start..end);
+            let mut exp: Vec<_> = data[start..end].to_vec();
+            exp.sort_unstable();
+            assert_eq!(got, exp, "multiset mismatch for {}..{}", start, end);
+
+            let got_d = qwt.extract_range_distinct(start..end);
+            let mut exp_d = exp.clone();
+            exp_d.dedup();
+            assert_eq!(got_d, exp_d, "distinct mismatch for {}..{}", start, end);
+
+            // into API
+            let mut buf = vec![99u8; 3];
+            qwt.extract_range_distinct_into(start..end, &mut buf);
+            assert_eq!(buf, exp_d);
+        }
+    }
+
+    // singleton short-circuit path
+    assert_eq!(qwt.extract_range(4..5), vec![3]);
+    assert_eq!(qwt.extract_range_distinct(4..5), vec![3]);
+}
+
+/// Property: extract_range == sort(per-row get); distinct == sort+dedup
+#[test]
+fn test_extract_range_properties() {
+    use crate::AccessUnsigned;
+    let mut rng = rand::rng();
+
+    for sigma in [4, 16, 64, 256] {
+        let sequence = gen_sequence(1000, sigma);
+        let qwt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
+        let n = sequence.len();
+
+        for _ in 0..50 {
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
+            let (start, end) = if a <= b { (a, b) } else { (b, a) };
+
+            let got = qwt.extract_range(start..end);
+            let mut exp: Vec<_> = (start..end).map(|i| qwt.get(i).unwrap()).collect();
+            exp.sort_unstable();
+            assert_eq!(
+                got, exp,
+                "σ={} multiset mismatch for {}..{}",
+                sigma, start, end
+            );
+
+            let got_d = qwt.extract_range_distinct(start..end);
+            let mut exp_d = exp.clone();
+            exp_d.dedup();
+            assert_eq!(
+                got_d, exp_d,
+                "σ={} distinct mismatch for {}..{}",
+                sigma, start, end
+            );
+
+            // multiset length == range length
+            assert_eq!(got.len(), end - start);
+            // distinct is sorted unique
+            assert!(got_d.windows(2).all(|w| w[0] < w[1]) || got_d.len() <= 1);
+        }
+    }
+}
+
+#[test]
+fn test_extract_range_large_alphabet() {
+    let mut rng = rand::rng();
+
+    for sigma in [512_u16, 4000] {
+        let sequence: Vec<u16> = (0..1500).map(|_| rng.random_range(0..sigma)).collect();
+        let qwt = QWaveletTree::<_, RSQVector512>::new(&mut sequence.clone());
+        let n = sequence.len();
+
+        for _ in 0..30 {
+            let a = rng.random_range(0..=n);
+            let b = rng.random_range(0..=n);
+            let (start, end) = if a <= b { (a, b) } else { (b, a) };
+
+            let got = qwt.extract_range(start..end);
+            let mut exp: Vec<_> = sequence[start..end].to_vec();
+            exp.sort_unstable();
+            assert_eq!(got, exp);
+
+            let got_d = qwt.extract_range_distinct(start..end);
+            let mut exp_d = exp.clone();
+            exp_d.dedup();
+            assert_eq!(got_d, exp_d);
+        }
+
+        // get_and_rank spot check
+        for i in (0..n).step_by(17) {
+            let (sym, r) = qwt.get_and_rank(i).unwrap();
+            assert_eq!(sym, sequence[i]);
+            assert_eq!(r, qwt.rank(sym, i + 1).unwrap());
+        }
+    }
+}
+
+#[test]
+fn test_extract_range_empty_tree() {
+    let qwt = QWaveletTree::<u8, RSQVector512>::default();
+    assert!(qwt.extract_range(0..0).is_empty());
+    assert!(qwt.extract_range_distinct(0..0).is_empty());
+    assert_eq!(qwt.get_and_rank(0), None);
 }
