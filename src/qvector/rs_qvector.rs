@@ -277,7 +277,7 @@ impl<S> AccessQuad for RSQVector<S> {
 
 impl<S: RSSupport> RankQuad for RSQVector<S> {
     /// Returns rank of `symbol` up to position `i` **excluded**.
-    /// Returns `None` if out of bounds.
+    /// Returns `None` if `i` is out of bounds or `symbol` is not in [0..3].
     ///
     /// # Examples
     /// ```
@@ -293,10 +293,10 @@ impl<S: RSSupport> RankQuad for RSQVector<S> {
     /// ```
     #[inline(always)]
     fn rank(&self, symbol: u8, i: usize) -> Option<usize> {
-        if i > self.qv.len() {
+        if symbol > 3 || i > self.qv.len() {
             return None;
         }
-        // Safety: The check above guarantees we are not out of bound
+        // Safety: The checks above guarantee a valid symbol and position.
         Some(unsafe { self.rank_unchecked(symbol, i) })
     }
 
@@ -514,6 +514,18 @@ mod tests {
         assert_eq!(rsqv.rank(1, 256), Some(0));
         assert_eq!(rsqv.rank(2, 256), Some(0));
         assert_eq!(rsqv.rank(3, 256), Some(0));
+    }
+
+    #[test]
+    fn test_rank_rejects_invalid_symbols<D>()
+    where
+        D: From<QVector> + RankQuad,
+    {
+        let qv: QVector = [0, 1, 2, 3].into_iter().collect();
+        let rsqv = D::from(qv);
+
+        assert_eq!(rsqv.rank(4, 0), None);
+        assert_eq!(rsqv.rank(u8::MAX, 4), None);
     }
 
     #[test]
