@@ -272,6 +272,19 @@ fn test_serialize() {
     assert_eq!(des_qwt, qwt);
 }
 
+#[test]
+fn construction_is_deterministic_for_tied_frequencies() {
+    let sequence = (0u16..64).cycle().take(64 * 32).collect::<Vec<_>>();
+    let expected = HuffQWaveletTree::<_, RSQVector512>::from(sequence.clone());
+
+    for _ in 0..8 {
+        assert_eq!(
+            HuffQWaveletTree::<_, RSQVector512>::from(sequence.clone()),
+            expected
+        );
+    }
+}
+
 fn gen_seq(n: usize, sigma: usize) -> Vec<u64> {
     let mut rng = rand::rng();
     (0..n).map(|_| rng.random_range(0..sigma) as u64).collect()

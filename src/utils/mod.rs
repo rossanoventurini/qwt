@@ -276,6 +276,35 @@ where
     }
 }
 
+/// Writes the stable four-way partition of `sequence` into `output`.
+///
+/// `counts` contains the number of values in each two-bit bucket. Callers can
+/// collect these counts while building the current wavelet-tree level, avoiding
+/// a separate counting pass and independently growing bucket vectors.
+pub(crate) fn stable_partition_of_4_into<T>(
+    sequence: &[T],
+    shift: usize,
+    counts: [usize; 4],
+    output: &mut [T],
+) where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
+{
+    debug_assert_eq!(sequence.len(), output.len());
+    debug_assert_eq!(counts.iter().sum::<usize>(), sequence.len());
+    let mut positions = [
+        0,
+        counts[0],
+        counts[0] + counts[1],
+        counts[0] + counts[1] + counts[2],
+    ];
+    for &symbol in sequence {
+        let bucket = (symbol.as_() >> shift) & 3;
+        output[positions[bucket]] = symbol;
+        positions[bucket] += 1;
+    }
+}
+
 pub fn stable_partition_of_4_with_codes<T>(sequence: &mut [T], shift: usize, codes: &[PrefixCode])
 where
     T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
@@ -299,6 +328,39 @@ where
     for i in 0..5 {
         sequence[pos..pos + vecs[i].len()].copy_from_slice(&(vecs[i][..]));
         pos += vecs[i].len()
+    }
+}
+
+/// Writes the stable Huffman four-way partition of `sequence` into `output`.
+/// The fifth bucket contains symbols whose code ended at an earlier level.
+pub(crate) fn stable_partition_of_4_with_codes_into<T>(
+    sequence: &[T],
+    shift: usize,
+    codes: &[PrefixCode],
+    counts: [usize; 5],
+    output: &mut [T],
+) where
+    T: Unsigned + PrimInt + Ord + Shr<usize> + AsPrimitive<usize>,
+    usize: AsPrimitive<T>,
+{
+    debug_assert_eq!(sequence.len(), output.len());
+    debug_assert_eq!(counts.iter().sum::<usize>(), sequence.len());
+    let mut positions = [
+        0,
+        counts[0],
+        counts[0] + counts[1],
+        counts[0] + counts[1] + counts[2],
+        counts[0] + counts[1] + counts[2] + counts[3],
+    ];
+    for &symbol in sequence {
+        let code = &codes[symbol.as_()];
+        let bucket = if code.len <= shift as u32 {
+            4
+        } else {
+            ((code.content >> (code.len - shift as u32)) & 3) as usize
+        };
+        output[positions[bucket]] = symbol;
+        positions[bucket] += 1;
     }
 }
 

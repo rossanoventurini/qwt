@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    cmp::Reverse,
     fmt::Debug,
     marker::PhantomData,
     ops::{Bound, Range, RangeBounds},
@@ -12,8 +12,8 @@ use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    utils::stable_partition_of_4_with_codes, AccessUnsigned, OccsRangeUnsigned, QVectorBuilder,
-    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
+    utils::stable_partition_of_4_with_codes_into, AccessUnsigned, OccsRangeUnsigned,
+    QVectorBuilder, RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
 };
 
 use super::{prefetch_support::PrefetchSupport, RSforWT};
@@ -38,19 +38,12 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
-struct LenInfo(usize, u32); //symbol, len
+struct LenInfo(usize, u32, usize); // symbol, code length, frequency
 
 #[allow(clippy::identity_op)]
-fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
-    // count size of the alphabet
-    let alph_size = freq.iter().count();
-
-    let mut f = freq
-        .iter()
-        .map(|(&k, &v)| LenInfo(k, v * 2)) // each fragment is 2 bits
-        .collect::<Vec<_>>();
-
-    f.sort_by_key(|x| x.1);
+fn craft_wm_codes(mut lengths: Vec<LenInfo>, sigma: usize) -> Vec<PrefixCode> {
+    let alph_size = lengths.len();
+    lengths.sort_unstable_by_key(|x| (x.1, Reverse(x.2), x.0));
 
     let mut c = vec![0; alph_size * 4];
     let mut assignments = vec![PrefixCode { content: 0, len: 0 }; sigma + 1];
@@ -58,9 +51,7 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
     let mut l = 0;
 
     for j in 0..alph_size {
-        // println!("f[{}]: ({}, {})", j, f[j].0, f[j].1);
-
-        while f[j].1 > l {
+        while lengths[j].1 > l {
             for r in j..m {
                 c[(m - j) * 3 + r] = c[r];
                 c[(m - j) * 2 + r] = c[r] | 1 << l;
@@ -78,7 +69,7 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
             reversed_code |= ((c[j] >> t) & 3) << (l - t - 2);
         }
 
-        assignments[f[j].0] = PrefixCode {
+        assignments[lengths[j].0] = PrefixCode {
             content: reversed_code,
             len: l,
         };
@@ -114,6 +105,18 @@ where
     /// assert_eq!(qwt.len(), 8);
     /// ```
     pub fn new(sequence: &mut [T]) -> Self {
+        let mut partitioned = vec![T::zero(); sequence.len()];
+        Self::from_buffers(sequence, &mut partitioned)
+    }
+
+    /// Builds from an owned sequence using one reusable partition buffer.
+    fn from_owned(mut sequence: Vec<T>) -> Self {
+        let mut partitioned = vec![T::zero(); sequence.len()];
+        Self::from_buffers(&mut sequence, &mut partitioned)
+    }
+
+    /// Builds the index by alternating between the input and scratch buffers.
+    fn from_buffers<'a>(mut sequence: &'a mut [T], mut partitioned: &'a mut [T]) -> Self {
         if sequence.is_empty() {
             return Self {
                 n: 0,
@@ -127,37 +130,35 @@ where
             };
         }
 
-        let sigma = *sequence.iter().max().unwrap();
-        //count symbol frequences
-        let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
-            *map.entry(c.as_()).or_insert(0usize) += 1;
-            map
-        });
+        let sigma = sequence.iter().copied().max().unwrap().as_();
+        let codes = {
+            // The encode table is already indexed by the largest symbol, so
+            // dense counting avoids hashing every input value. Frequency is
+            // also the tie-breaker for equal-length codes: hotter symbols get
+            // the lexicographically earlier paths, then symbol id stabilizes
+            // the serialized representation across processes.
+            let mut frequencies = vec![0usize; sigma + 1];
+            for &symbol in sequence.iter() {
+                frequencies[symbol.as_()] += 1;
+            }
 
-        // println!("entropy: {}", Frequencies::entropy(&freqs));
+            let mut symbol_frequencies = frequencies
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|&(_, frequency)| frequency != 0)
+                .collect::<Vec<_>>();
+            symbol_frequencies.sort_unstable_by_key(|&(symbol, frequency)| (frequency, symbol));
 
-        // println!("freqs: {:?}", &freqs);
-
-        // let tot_occs = sequence.len();
-        // println!("total occurrences: {}", tot_occs);
-
-        let mut lengths =
-            Coding::from_frequencies_cloned(BitsPerFragment(2), &freqs).code_lengths();
-
-        // println!("lengths: {:?}", &lengths);
-
-        // let mut awpl = 0;
-
-        // for (&k, &v) in lengths.iter() {
-        //     // println!("{} {} {}", &k, &v, freqs[&k]);
-        //     awpl += v as usize * 2 * freqs[&k];
-        // }
-
-        // println!("awpl in bits: {}", awpl as f64 / tot_occs as f64);
-
-        let codes = craft_wm_codes(&mut lengths, sigma.as_());
-
-        // println!("{:?}", codes);
+            let (values, mut weights): (Vec<_>, Vec<_>) = symbol_frequencies.into_iter().unzip();
+            let coding =
+                Coding::from_sorted(BitsPerFragment(2), values.into_boxed_slice(), &mut weights);
+            let lengths = coding
+                .codes()
+                .map(|(symbol, code)| LenInfo(*symbol, code.len * 2, frequencies[*symbol]))
+                .collect();
+            craft_wm_codes(lengths, sigma)
+        };
 
         let max_len = codes
             .iter()
@@ -187,6 +188,7 @@ where
 
         for _level in 0..n_levels {
             let mut cur_qv = QVectorBuilder::new();
+            let mut counts = [0usize; 5];
 
             for &s in sequence.iter() {
                 let cur_code = codes
@@ -198,6 +200,12 @@ where
                     let qv_symbol = (cur_code.content >> (cur_code.len - shift)) & 3;
                     cur_qv.push(qv_symbol as u8);
                 }
+                let bucket = if cur_code.len <= shift {
+                    4
+                } else {
+                    ((cur_code.content >> (cur_code.len - shift)) & 3) as usize
+                };
+                counts[bucket] += 1;
             }
 
             let qv = cur_qv.build();
@@ -212,7 +220,14 @@ where
             lens.push(cur_qv_len);
             qvs.push(RS::from(qv));
 
-            stable_partition_of_4_with_codes(sequence, shift as usize, &codes);
+            stable_partition_of_4_with_codes_into(
+                sequence,
+                shift as usize,
+                &codes,
+                counts,
+                partitioned,
+            );
+            std::mem::swap(&mut sequence, &mut partitioned);
             shift += 2;
         }
 
@@ -665,8 +680,8 @@ where
     usize: AsPrimitive<T>,
     RS: RSforWT,
 {
-    fn from(mut v: Vec<T>) -> Self {
-        HuffQWaveletTree::new(&mut v[..])
+    fn from(v: Vec<T>) -> Self {
+        HuffQWaveletTree::from_owned(v)
     }
 }
 
@@ -1041,7 +1056,7 @@ where
     where
         I: IntoIterator<Item = T>,
     {
-        HuffQWaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
+        HuffQWaveletTree::from(iter.into_iter().collect::<Vec<T>>())
     }
 }
 

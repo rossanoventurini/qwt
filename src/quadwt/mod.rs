@@ -36,7 +36,7 @@
 //! assert_eq!(qwt.select(3, 0), Some(2));  // Finds the position of the 1st occurrence of symbol 3, should return Some(2)
 //! ```
 
-use crate::utils::{msb, stable_partition_of_4};
+use crate::utils::{msb, stable_partition_of_4_into};
 use crate::{
     AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, WTIterator, WTSupport,
 };
@@ -127,6 +127,18 @@ where
     /// ```
     #[must_use]
     pub fn new(sequence: &mut [T]) -> Self {
+        let mut partitioned = vec![T::zero(); sequence.len()];
+        Self::from_buffers(sequence, &mut partitioned)
+    }
+
+    /// Builds from an owned sequence using one reusable partition buffer.
+    fn from_owned(mut sequence: Vec<T>) -> Self {
+        let mut partitioned = vec![T::zero(); sequence.len()];
+        Self::from_buffers(&mut sequence, &mut partitioned)
+    }
+
+    /// Builds the index by alternating between the input and scratch buffers.
+    fn from_buffers<'a>(mut sequence: &'a mut [T], mut partitioned: &'a mut [T]) -> Self {
         if sequence.is_empty() {
             return Self {
                 n: 0,
@@ -148,9 +160,11 @@ where
 
         for _level in 0..n_levels {
             let mut cur_qv = QVectorBuilder::with_capacity(sequence.len());
+            let mut counts = [0usize; 4];
             for &symbol in sequence.iter() {
                 let two_bits: u8 = ((symbol >> shift).as_() & 3) as u8; // take the last 2 bits
                 cur_qv.push(two_bits);
+                counts[two_bits as usize] += 1;
             }
 
             let qv = cur_qv.build();
@@ -161,7 +175,8 @@ where
             }
             qvs.push(RS::from(qv));
 
-            stable_partition_of_4(sequence, shift);
+            stable_partition_of_4_into(sequence, shift, counts, partitioned);
+            std::mem::swap(&mut sequence, &mut partitioned);
 
             if shift >= 2 {
                 shift -= 2;
@@ -943,7 +958,7 @@ where
     where
         I: IntoIterator<Item = T>,
     {
-        QWaveletTree::new(&mut iter.into_iter().collect::<Vec<T>>())
+        QWaveletTree::from(iter.into_iter().collect::<Vec<T>>())
     }
 }
 
@@ -954,8 +969,8 @@ where
     usize: AsPrimitive<T>,
     RS: RSforWT,
 {
-    fn from(mut v: Vec<T>) -> Self {
-        QWaveletTree::new(&mut v[..])
+    fn from(v: Vec<T>) -> Self {
+        QWaveletTree::from_owned(v)
     }
 }
 

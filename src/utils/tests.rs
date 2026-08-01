@@ -46,3 +46,60 @@ fn test_stable_partition_of_4() {
 
     assert_eq!(vv, v);
 }
+
+#[test]
+fn stable_partition_of_4_into_matches_bucket_partition() {
+    let input = vec![0u16, 17, 2, 31, 16, 3, 18, 1, 30, 19, 4, 29];
+    let shift = 2;
+    let mut counts = [0usize; 4];
+    for &symbol in &input {
+        counts[((symbol >> shift) & 3) as usize] += 1;
+    }
+
+    let mut expected = input.clone();
+    stable_partition_of_4(&mut expected, shift);
+    let mut output = vec![0; input.len()];
+    stable_partition_of_4_into(&input, shift, counts, &mut output);
+
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn stable_partition_of_4_with_codes_into_matches_bucket_partition() {
+    let codes = vec![
+        PrefixCode { content: 0, len: 2 },
+        PrefixCode { content: 1, len: 2 },
+        PrefixCode {
+            content: 0b1000,
+            len: 4,
+        },
+        PrefixCode {
+            content: 0b1100,
+            len: 4,
+        },
+        PrefixCode {
+            content: 0b010000,
+            len: 6,
+        },
+        PrefixCode { content: 0, len: 6 },
+    ];
+    let input = vec![0u8, 2, 5, 1, 4, 3, 2, 0, 5, 4, 3, 1];
+    let shift = 2;
+    let mut counts = [0usize; 5];
+    for &symbol in &input {
+        let code = &codes[symbol as usize];
+        let bucket = if code.len <= shift {
+            4
+        } else {
+            ((code.content >> (code.len - shift)) & 3) as usize
+        };
+        counts[bucket] += 1;
+    }
+
+    let mut expected = input.clone();
+    stable_partition_of_4_with_codes(&mut expected, shift as usize, &codes);
+    let mut output = vec![0; input.len()];
+    stable_partition_of_4_with_codes_into(&input, shift as usize, &codes, counts, &mut output);
+
+    assert_eq!(output, expected);
+}
