@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     utils::stable_partition_of_4_with_codes, AccessUnsigned, OccsRangeUnsigned, QVectorBuilder,
-    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
+    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator, MAX_QUAD_LEVELS,
 };
 
 use super::{prefetch_support::PrefetchSupport, RSforWT};
@@ -925,8 +925,11 @@ where
             return None;
         }
 
-        let mut path_off = Vec::with_capacity(self.n_levels);
-        let mut rank_path_off = Vec::with_capacity(self.n_levels);
+        if self.n_levels > MAX_QUAD_LEVELS {
+            return None;
+        }
+        let mut path_off = [0usize; MAX_QUAD_LEVELS];
+        let mut rank_path_off = [0usize; MAX_QUAD_LEVELS];
 
         let code = &self.codes_encode[symbol.as_()];
         let mut shift: i64 = code.len as i64 - 2;
@@ -936,14 +939,14 @@ where
 
         let mut level = 0;
         while shift >= 0 {
-            path_off.push(b);
+            path_off[level] = b;
 
             let two_bits = ((repr >> shift as usize) & 3) as u8;
 
             let rank_b = self.qvs[level].rank(two_bits, b)?;
 
             b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits) };
-            rank_path_off.push(rank_b);
+            rank_path_off[level] = rank_b;
 
             level += 1;
             shift -= 2;

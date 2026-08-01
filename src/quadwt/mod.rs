@@ -39,6 +39,7 @@
 use crate::utils::{msb, stable_partition_of_4};
 use crate::{
     AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, WTIterator, WTSupport,
+    MAX_QUAD_LEVELS,
 };
 use crate::{QVector, QVectorBuilder}; // Traits
 
@@ -831,14 +832,17 @@ where
             return None;
         }
 
-        let mut path_off = Vec::with_capacity(self.n_levels);
-        let mut rank_path_off = Vec::with_capacity(self.n_levels);
+        if self.n_levels > MAX_QUAD_LEVELS {
+            return None;
+        }
+        let mut path_off = [0usize; MAX_QUAD_LEVELS];
+        let mut rank_path_off = [0usize; MAX_QUAD_LEVELS];
 
         let mut b = 0;
         let mut shift: i64 = 2 * (self.n_levels - 1) as i64;
 
         for level in 0..self.n_levels {
-            path_off.push(b);
+            path_off[level] = b;
 
             let two_bits = (symbol >> shift as usize).as_() & 3;
 
@@ -848,7 +852,7 @@ where
             b = rank_b + unsafe { self.qvs[level].occs_smaller_unchecked(two_bits as u8) };
             shift -= 2;
 
-            rank_path_off.push(rank_b);
+            rank_path_off[level] = rank_b;
         }
 
         shift = 0;

@@ -13,6 +13,9 @@ use num_traits::AsPrimitive;
 pub use qvector::QVector;
 pub use qvector::QVectorBuilder;
 
+/// Maximum number of 2-bit levels needed by the widest supported integer.
+pub(crate) const MAX_QUAD_LEVELS: usize = u128::BITS as usize / 2;
+
 pub mod bitvector;
 pub use bitvector::narrow;
 pub use bitvector::wide;
