@@ -12,7 +12,7 @@ use crate::{
 };
 
 use mem_dbg::{MemDbg, MemSize};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub mod narrow;
 pub mod wide;
@@ -172,11 +172,60 @@ impl SelectBin for DataLine {
 }
 
 /// Implementation of an immutable bit vector.
-#[derive(Default, Clone, Serialize, Deserialize, MemSize, MemDbg, Eq, PartialEq)]
+#[derive(Default, Clone, Serialize, MemSize, MemDbg, Eq, PartialEq)]
 pub struct BitVector {
     data: Box<[DataLine]>,
     n_bits: usize,
     count_ones: usize,
+}
+
+#[derive(Deserialize)]
+struct BitVectorSerde {
+    data: Box<[DataLine]>,
+    n_bits: usize,
+    count_ones: usize,
+}
+
+fn validate_deserialized_data(data: &[DataLine], n_bits: usize) -> Result<usize, &'static str> {
+    if data.len() != n_bits.div_ceil(512) {
+        return Err("bitvector length disagrees with its data storage");
+    }
+
+    let mut count_ones = 0usize;
+    for (index, &word) in cast_to_u64_slice(data).iter().enumerate() {
+        let bit_start = index.checked_mul(64).ok_or("bitvector length overflow")?;
+        if bit_start >= n_bits {
+            if word != 0 {
+                return Err("bitvector has set bits outside its declared length");
+            }
+            continue;
+        }
+        let used = (n_bits - bit_start).min(64);
+        if used < 64 && word >> used != 0 {
+            return Err("bitvector has set bits outside its declared length");
+        }
+        count_ones = count_ones
+            .checked_add(word.count_ones() as usize)
+            .ok_or("bitvector one count overflow")?;
+    }
+    Ok(count_ones)
+}
+
+impl<'de> Deserialize<'de> for BitVector {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = BitVectorSerde::deserialize(deserializer)?;
+        let count_ones = validate_deserialized_data(&decoded.data, decoded.n_bits)
+            .map_err(serde::de::Error::custom)?;
+        let _ = decoded.count_ones;
+        Ok(Self {
+            data: decoded.data,
+            n_bits: decoded.n_bits,
+            count_ones,
+        })
+    }
 }
 
 impl BitVector {
@@ -208,7 +257,7 @@ impl BitVector {
     #[must_use]
     #[inline]
     pub fn get_bits(&self, index: usize, len: usize) -> Option<u64> {
-        if (len == 0) | (len > 64) | (index + len > self.n_bits) {
+        if len == 0 || len > 64 || index.checked_add(len)? > self.n_bits {
             return None;
         }
         // SAFETY: safe access due to the above checks
@@ -809,11 +858,35 @@ impl<'a> ExactSizeIterator for BitVectorIter<'a> {
 }
 
 /// Implementation of a mutable bit vector.
-#[derive(Default, Clone, Serialize, Deserialize, MemSize, MemDbg, Eq, PartialEq)]
+#[derive(Default, Clone, Serialize, MemSize, MemDbg, Eq, PartialEq)]
 pub struct BitVectorMut {
     data: Vec<DataLine>,
     n_bits: usize,
     count_ones: usize,
+}
+
+#[derive(Deserialize)]
+struct BitVectorMutSerde {
+    data: Vec<DataLine>,
+    n_bits: usize,
+    count_ones: usize,
+}
+
+impl<'de> Deserialize<'de> for BitVectorMut {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = BitVectorMutSerde::deserialize(deserializer)?;
+        let count_ones = validate_deserialized_data(&decoded.data, decoded.n_bits)
+            .map_err(serde::de::Error::custom)?;
+        let _ = decoded.count_ones;
+        Ok(Self {
+            data: decoded.data,
+            n_bits: decoded.n_bits,
+            count_ones,
+        })
+    }
 }
 
 impl BitVectorMut {
@@ -1078,7 +1151,7 @@ impl BitVectorMut {
     #[must_use]
     #[inline]
     pub fn get_bits(&self, index: usize, len: usize) -> Option<u64> {
-        if (len == 0) | (len > 64) | (index + len >= self.n_bits) {
+        if len == 0 || len > 64 || index.checked_add(len)? > self.n_bits {
             return None;
         }
         // SAFETY: safe access due to the above checks

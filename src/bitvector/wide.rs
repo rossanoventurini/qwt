@@ -4,7 +4,7 @@
 use crate::{utils::prefetch_read_NTA, AccessBin, BitVector, RankBin, SelectBin};
 
 use mem_dbg::{MemDbg, MemSize};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 //superblock is 44 bits, blocks are (BLOCK_SIZE-1) * 12 bits each
 const BLOCK_SIZE: usize = 8; // 8 64bit words for each block
@@ -13,12 +13,37 @@ const SUPERBLOCK_SIZE: usize = 8 * BLOCK_SIZE; // 8 blocks for each superblock (
 const SELECT_ONES_PER_HINT: usize = 64 * SUPERBLOCK_SIZE * 2; // must be > superblock_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Debug)]
 pub struct RS {
     bv: BitVector,
     superblock_metadata: Box<[u128]>, // in each u128 we store the pair (superblock, <7 blocks>) like so |L1  |L2|L2|L2|L2|L2|L2|L2|
     select_samples: [Box<[usize]>; 2],
     count_zeros: usize,
+}
+
+#[derive(Deserialize)]
+struct RSSerde {
+    bv: BitVector,
+    superblock_metadata: Box<[u128]>,
+    select_samples: [Box<[usize]>; 2],
+    count_zeros: usize,
+}
+
+impl<'de> Deserialize<'de> for RS {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = RSSerde::deserialize(deserializer)?;
+        // All remaining fields are caches derived from the bitvector and must
+        // not be trusted across the persistence boundary.
+        let _ = (
+            decoded.superblock_metadata,
+            decoded.select_samples,
+            decoded.count_zeros,
+        );
+        Ok(Self::new(decoded.bv))
+    }
 }
 
 impl RS {

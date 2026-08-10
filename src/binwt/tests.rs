@@ -3,6 +3,48 @@ use crate::{AccessUnsigned, OccsRangeUnsigned, RankUnsigned, SelectUnsigned, HWT
 use rand::RngExt;
 
 #[test]
+fn malformed_deserialized_tree_is_rejected() {
+    #[derive(serde::Serialize)]
+    struct InvalidWaveletTree {
+        n: usize,
+        n_levels: usize,
+        sigma: Option<u32>,
+        codes_encode: Option<Vec<crate::quadwt::huffqwt::PrefixCode>>,
+        codes_decode: Option<Vec<Vec<(u32, u32)>>>,
+        bvs: Vec<crate::BitVector>,
+        lens: Vec<usize>,
+        phantom_data: std::marker::PhantomData<u32>,
+    }
+
+    let bytes = bincode::serialize(&InvalidWaveletTree {
+        n: 1,
+        n_levels: 1,
+        sigma: Some(0),
+        codes_encode: None,
+        codes_decode: None,
+        bvs: Vec::new(),
+        lens: vec![1],
+        phantom_data: std::marker::PhantomData,
+    })
+    .unwrap();
+    assert!(bincode::deserialize::<WT<u32>>(&bytes).is_err());
+}
+
+#[test]
+fn binary_wavelet_trees_round_trip_through_serde() {
+    let data = vec![1u32, 0, 1, 0, 2, 4, 5, 3];
+    let plain = WT::from(data.clone());
+    let compressed = HWT::from(data.clone());
+
+    let plain: WT<u32> = bincode::deserialize(&bincode::serialize(&plain).unwrap()).unwrap();
+    let compressed: HWT<u32> =
+        bincode::deserialize(&bincode::serialize(&compressed).unwrap()).unwrap();
+
+    assert_eq!(plain.iter().collect::<Vec<_>>(), data);
+    assert_eq!(compressed.iter().collect::<Vec<_>>(), data);
+}
+
+#[test]
 fn build_test() {
     let s: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 1, 1, 1, 1, 30000];
 

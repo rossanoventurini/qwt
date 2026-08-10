@@ -1,4 +1,64 @@
 use super::*;
+
+#[test]
+fn serde_rejects_length_outside_data_capacity() {
+    #[derive(serde::Serialize)]
+    struct InvalidBitVector {
+        data: Box<[DataLine]>,
+        n_bits: usize,
+        count_ones: usize,
+    }
+
+    let bytes = bincode::serialize(&InvalidBitVector {
+        data: Vec::new().into_boxed_slice(),
+        n_bits: 1,
+        count_ones: 0,
+    })
+    .unwrap();
+    assert!(bincode::deserialize::<BitVector>(&bytes).is_err());
+}
+
+#[test]
+fn serde_rejects_set_bits_after_declared_length() {
+    #[derive(serde::Serialize)]
+    struct InvalidBitVector {
+        data: Box<[DataLine]>,
+        n_bits: usize,
+        count_ones: usize,
+    }
+
+    let mut line = DataLine::default();
+    line.words[0] = 0b10;
+    let bytes = bincode::serialize(&InvalidBitVector {
+        data: vec![line].into_boxed_slice(),
+        n_bits: 1,
+        count_ones: 0,
+    })
+    .unwrap();
+    assert!(bincode::deserialize::<BitVector>(&bytes).is_err());
+}
+
+#[test]
+fn serde_rebuilds_cached_one_count() {
+    #[derive(serde::Serialize)]
+    struct BitVectorWithBadCache {
+        data: Box<[DataLine]>,
+        n_bits: usize,
+        count_ones: usize,
+    }
+
+    let mut line = DataLine::default();
+    line.words[0] = 1;
+    let bytes = bincode::serialize(&BitVectorWithBadCache {
+        data: vec![line].into_boxed_slice(),
+        n_bits: 1,
+        count_ones: usize::MAX,
+    })
+    .unwrap();
+    let bitvector = bincode::deserialize::<BitVector>(&bytes).unwrap();
+    assert_eq!(bitvector.count_ones(), 1);
+    assert_eq!(bitvector.count_zeros(), 0);
+}
 use crate::perf_and_test_utils::{gen_strictly_increasing_sequence, negate_vector};
 
 #[test]
@@ -58,13 +118,17 @@ fn test_get_set_bits() {
     assert_eq!(bv.get_bits(61, 35).unwrap(), 0);
     assert_eq!(bv.get_bits(0, 42).unwrap(), 0);
     assert_eq!(bv.get_bits(n - 42 - 1, 42).unwrap(), 0);
-    assert_eq!(bv.get_bits(n - 42, 42), None);
+    assert_eq!(bv.get_bits(n - 42, 42), Some(0));
+    assert_eq!(bv.get_bits(usize::MAX, 1), None);
     bv.set_bits(0, 6, 42);
     assert_eq!(bv.get_bits(0, 6).unwrap(), 42);
     bv.set_bits(n - 61 - 1, 61, 42);
     assert_eq!(bv.get_bits(n - 61 - 1, 61).unwrap(), 42);
     bv.set_bits(n - 67 - 1, 33, 42);
     assert_eq!(bv.get_bits(n - 67 - 1, 33).unwrap(), 42);
+
+    let immutable: BitVector = bv.into();
+    assert_eq!(immutable.get_bits(usize::MAX, 1), None);
 }
 
 #[test]

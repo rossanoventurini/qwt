@@ -30,6 +30,10 @@ macro_rules! generate_rs_tests {
 
                 assert_eq!(rs.rank1(0), None);
                 assert_eq!(rs.rank1(100), None);
+                assert_eq!(rs.count_ones(), 0);
+                assert_eq!(rs.count_zeros(), 0);
+                assert_eq!(rs.select1(0), None);
+                assert_eq!(rs.select0(0), None);
             }
             // Tests a bit vector where the last bit of l2 is set
             #[test]
@@ -138,3 +142,47 @@ macro_rules! generate_rs_tests {
 
 generate_rs_tests!(narrow, crate::bitvector::narrow::RS);
 generate_rs_tests!(wide, crate::bitvector::wide::RS);
+
+#[test]
+fn narrow_serde_rebuilds_rank_select_metadata() {
+    #[derive(serde::Serialize)]
+    struct NarrowRsWithBadCache<'a> {
+        bv: &'a BitVector,
+        block_rank_pairs: Box<[u64]>,
+        select_samples: [Box<[usize]>; 2],
+    }
+
+    let bv: BitVector = [true, false, true].into_iter().collect();
+    let bytes = bincode::serialize(&NarrowRsWithBadCache {
+        bv: &bv,
+        block_rank_pairs: Vec::new().into_boxed_slice(),
+        select_samples: [Vec::new().into_boxed_slice(), Vec::new().into_boxed_slice()],
+    })
+    .unwrap();
+    let rs = bincode::deserialize::<crate::bitvector::narrow::RS>(&bytes).unwrap();
+    assert_eq!(rs.rank1(3), Some(2));
+    assert_eq!(rs.select1(1), Some(2));
+}
+
+#[test]
+fn wide_serde_rebuilds_rank_select_metadata() {
+    #[derive(serde::Serialize)]
+    struct WideRsWithBadCache<'a> {
+        bv: &'a BitVector,
+        superblock_metadata: Box<[u128]>,
+        select_samples: [Box<[usize]>; 2],
+        count_zeros: usize,
+    }
+
+    let bv: BitVector = [true, false, true].into_iter().collect();
+    let bytes = bincode::serialize(&WideRsWithBadCache {
+        bv: &bv,
+        superblock_metadata: Vec::new().into_boxed_slice(),
+        select_samples: [Vec::new().into_boxed_slice(), Vec::new().into_boxed_slice()],
+        count_zeros: usize::MAX,
+    })
+    .unwrap();
+    let rs = bincode::deserialize::<crate::bitvector::wide::RS>(&bytes).unwrap();
+    assert_eq!(rs.rank1(3), Some(2));
+    assert_eq!(rs.select0(0), Some(1));
+}

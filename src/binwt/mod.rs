@@ -7,19 +7,19 @@ use std::{
 use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     quadwt::huffqwt::PrefixCode,
     utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
-    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, OccsRangeUnsigned, RankUnsigned,
-    SelectUnsigned, WTIndexable, WTIterator,
+    AccessBin, AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, OccsRangeUnsigned,
+    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
 };
 
 pub trait BinRSforWT: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
 impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
 
-#[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
+#[derive(Default, Clone, PartialEq, Serialize, MemSize, MemDbg, Debug)]
 pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     n: usize,                                 // The length of the represented sequence
     n_levels: usize,                          // The number of levels of the wavelet matrix
@@ -31,7 +31,47 @@ pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     phantom_data: PhantomData<T>,
 }
 
-struct LenInfo(usize, u32); //symbol, len
+#[derive(Deserialize)]
+struct WaveletTreeSerde<T, BRS> {
+    n: usize,
+    n_levels: usize,
+    sigma: Option<T>,
+    codes_encode: Option<Vec<PrefixCode>>,
+    codes_decode: Option<Vec<Vec<(u32, T)>>>,
+    bvs: Vec<BRS>,
+    lens: Vec<usize>,
+    phantom_data: PhantomData<T>,
+}
+
+impl<'de, T, BRS, const COMPRESSED: bool> Deserialize<'de> for WaveletTree<T, BRS, COMPRESSED>
+where
+    T: WTIndexable + Deserialize<'de>,
+    usize: AsPrimitive<T>,
+    BRS: BinRSforWT + Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = WaveletTreeSerde::<T, BRS>::deserialize(deserializer)?;
+        let _ = decoded.phantom_data;
+        let tree = Self {
+            n: decoded.n,
+            n_levels: decoded.n_levels,
+            sigma: decoded.sigma,
+            codes_encode: decoded.codes_encode,
+            codes_decode: decoded.codes_decode,
+            bvs: decoded.bvs,
+            lens: decoded.lens,
+            phantom_data: PhantomData,
+        };
+        tree.validate_deserialized()
+            .map_err(serde::de::Error::custom)?;
+        Ok(tree)
+    }
+}
+
+struct LenInfo(usize, u32); // symbol, len
 
 #[allow(clippy::identity_op)]
 fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
@@ -84,6 +124,126 @@ where
     usize: AsPrimitive<T>,
     BRS: BinRSforWT,
 {
+    fn validate_deserialized(&self) -> Result<(), &'static str> {
+        if self.bvs.len() != self.n_levels || self.lens.len() != self.n_levels {
+            return Err("wavelet-tree level metadata has inconsistent lengths");
+        }
+        if self.n == 0 {
+            if self.n_levels != 0
+                || !self.bvs.is_empty()
+                || !self.lens.is_empty()
+                || self.sigma.is_some()
+                || self.codes_encode.is_some()
+                || self.codes_decode.is_some()
+            {
+                return Err("empty wavelet tree contains non-empty metadata");
+            }
+            return Ok(());
+        }
+
+        let type_levels = std::mem::size_of::<T>()
+            .checked_mul(u8::BITS as usize)
+            .ok_or("wavelet-tree type width overflow")?;
+        if self.n_levels == 0 || self.n_levels > type_levels {
+            return Err("wavelet-tree level count exceeds the symbol type width");
+        }
+        if COMPRESSED && self.n_levels > u32::BITS as usize {
+            return Err("compressed wavelet-tree code exceeds 32 bits");
+        }
+
+        for (level, (bv, &len)) in self.bvs.iter().zip(&self.lens).enumerate() {
+            if len > self.n {
+                return Err("wavelet-tree level exceeds the sequence length");
+            }
+            if (len > 0 && AccessBin::get(bv, len - 1).is_none())
+                || AccessBin::get(bv, len).is_some()
+            {
+                return Err("wavelet-tree level length disagrees with its bitvector");
+            }
+            if !COMPRESSED && len != self.n {
+                return Err("plain wavelet-tree levels must match the sequence length");
+            }
+            if COMPRESSED && level > 0 && len > self.lens[level - 1] {
+                return Err("compressed wavelet-tree level lengths must be non-increasing");
+            }
+        }
+        if COMPRESSED && self.lens.first().copied() != Some(self.n) {
+            return Err("compressed wavelet-tree first level must match the sequence length");
+        }
+
+        if COMPRESSED {
+            if self.sigma.is_some() {
+                return Err("compressed wavelet tree must not contain plain sigma metadata");
+            }
+            let encode = self
+                .codes_encode
+                .as_ref()
+                .ok_or("compressed wavelet tree is missing its encoder")?;
+            let decode = self
+                .codes_decode
+                .as_ref()
+                .ok_or("compressed wavelet tree is missing its decoder")?;
+            if decode.len() != self.n_levels + 1 {
+                return Err("compressed wavelet-tree decoder has the wrong depth");
+            }
+            for row in decode {
+                if !row.windows(2).all(|pair| pair[0].0 < pair[1].0) {
+                    return Err("compressed wavelet-tree decoder rows must be strictly sorted");
+                }
+            }
+            for (symbol, code) in encode.iter().enumerate() {
+                if code.len == 0 {
+                    continue;
+                }
+                let code_len = code.len as usize;
+                if code_len > self.n_levels
+                    || (code_len < u32::BITS as usize && code.content >= (1u32 << code_len))
+                {
+                    return Err("compressed wavelet-tree encoder contains an invalid code");
+                }
+                let decoded_symbol = decode[code_len]
+                    .binary_search_by_key(&code.content, |(content, _)| *content)
+                    .ok()
+                    .and_then(|index| decode[code_len].get(index))
+                    .map(|(_, value)| value.as_());
+                if decoded_symbol != Some(symbol) {
+                    return Err("compressed wavelet-tree encode/decode tables disagree");
+                }
+            }
+            for (code_len, row) in decode.iter().enumerate().skip(1) {
+                for &(content, symbol) in row {
+                    let Some(code) = encode.get(symbol.as_()) else {
+                        return Err("compressed wavelet-tree decoder symbol is out of range");
+                    };
+                    if code.len as usize != code_len || code.content != content {
+                        return Err("compressed wavelet-tree decode/encode tables disagree");
+                    }
+                }
+            }
+        } else {
+            if self.codes_encode.is_some() || self.codes_decode.is_some() {
+                return Err("plain wavelet tree contains compressed-code metadata");
+            }
+            let sigma = self
+                .sigma
+                .ok_or("plain wavelet tree is missing sigma metadata")?;
+            if self.n_levels != msb(sigma) as usize + 1 {
+                return Err("plain wavelet-tree sigma disagrees with its level count");
+            }
+        }
+
+        let mut actual_sigma = 0usize;
+        for index in 0..self.n {
+            let symbol = AccessUnsigned::get(self, index)
+                .ok_or("wavelet-tree payload cannot decode every declared position")?;
+            actual_sigma = actual_sigma.max(symbol.as_());
+        }
+        if !COMPRESSED && self.sigma.is_none_or(|sigma| sigma.as_() != actual_sigma) {
+            return Err("plain wavelet-tree sigma disagrees with its encoded payload");
+        }
+        Ok(())
+    }
+
     /// Builds a binary wavelet tree of the `sequence` of unsigned integers.
     /// The input `sequence` will be **destroyed**.
     /// If `[COMPRESSED == true]` the wavelet tree will be compressed, meaning the symbols
@@ -321,8 +481,33 @@ where
         if i >= self.n {
             return None;
         }
-
-        Some(unsafe { self.get_unchecked(i) })
+        let mut cur_i = i;
+        let mut result: u32 = 0;
+        let mut shift = 0;
+        for level in 0..self.n_levels {
+            if COMPRESSED && cur_i >= *self.lens.get(level)? {
+                break;
+            }
+            let bv = self.bvs.get(level)?;
+            let symbol = bv.get(cur_i)?;
+            result = (result << 1) | u32::from(symbol);
+            let ones = bv.rank1(cur_i)?;
+            cur_i = if symbol {
+                ones.checked_add(bv.count_zeros())?
+            } else {
+                cur_i.checked_sub(ones)?
+            };
+            shift += 1;
+        }
+        if COMPRESSED {
+            let leaves = self.codes_decode.as_ref()?.get(shift)?;
+            let index = leaves
+                .binary_search_by_key(&result, |(code, _)| *code)
+                .ok()?;
+            Some(leaves.get(index)?.1)
+        } else {
+            T::from(result)
+        }
     }
 
     #[inline(always)]
@@ -383,12 +568,12 @@ where
     fn occs_range<R: RangeBounds<usize>>(&self, range: R) -> Option<Self::Iter<'_>> {
         let start = match range.start_bound() {
             Bound::Included(start) => *start,
-            Bound::Excluded(start) => *start + 1,
+            Bound::Excluded(start) => start.checked_add(1)?,
             Bound::Unbounded => 0,
         };
 
         let end = match range.end_bound() {
-            Bound::Included(end) => *end + 1,
+            Bound::Included(end) => end.checked_add(1)?,
             Bound::Excluded(end) => *end,
             Bound::Unbounded => self.n,
         };
@@ -450,15 +635,10 @@ where
         while let Some(cur) = self.stack.pop() {
             // have we reached the bottom of the tree? huffman tree needs slightly different logic to check
             if COMPRESSED {
-                // SAFETY: surely it's compressed
-                let codes = unsafe { self.tree.codes_decode.as_ref().unwrap_unchecked() };
-
-                // SAFETY: assumes tree depth corresponds exactly to max code length in codes_decode
-                let leaves = unsafe { codes.get_unchecked(cur.level) };
+                let leaves = self.tree.codes_decode.as_ref()?.get(cur.level)?;
 
                 if let Ok(idx) = leaves.binary_search_by_key(&(cur.bit_path as u32), |(c, _)| *c) {
-                    // SAFETY: we binary searched; if Ok, it definitely exists
-                    let leaf = unsafe { leaves.get_unchecked(idx) };
+                    let leaf = leaves.get(idx)?;
 
                     // prefix free property means we don't descend further here
                     return Some((leaf.1, cur.range.end - cur.range.start));
@@ -467,15 +647,12 @@ where
                 return Some((cur.bit_path.as_(), cur.range.end - cur.range.start));
             }
 
-            // SAFETY: if compressed, a well-formed tree guarantees that we find a leaf above before running
-            // out of levels. if not compressed, we necessarily iterate up to 0..levels.
-            let bv = unsafe { self.tree.bvs.get_unchecked(cur.level) };
+            let bv = self.tree.bvs.get(cur.level)?;
 
             // right child (pushing it first makes non-huffman iterate in lexicographic symbol order)
 
-            // SAFETY: derives from top level bounds check -> valid ranges
-            let r_lo = unsafe { bv.rank1_unchecked(cur.range.start) };
-            let r_hi = unsafe { bv.rank1_unchecked(cur.range.end) };
+            let r_lo = bv.rank1(cur.range.start)?;
+            let r_hi = bv.rank1(cur.range.end)?;
 
             if r_hi > r_lo {
                 let offset = bv.count_zeros();
@@ -521,18 +698,38 @@ where
             return None;
         }
 
-        if !COMPRESSED && symbol > *self.sigma.as_ref().unwrap() {
-            return None;
+        let (symbol_len, repr) = if COMPRESSED {
+            let code = self.codes_encode.as_ref()?.get(symbol.as_())?;
+            if code.len == 0 {
+                return None;
+            }
+            (code.len as usize, code.content)
+        } else {
+            if symbol > *self.sigma.as_ref()? {
+                return None;
+            }
+            (self.n_levels, symbol.as_() as u32)
+        };
+        let mut cur_i = i;
+        let mut cur_p = 0usize;
+        for level in 0..symbol_len {
+            let bit = ((repr >> (symbol_len - level - 1)) & 1) == 1;
+            let bv = self.bvs.get(level)?;
+            let offset = bv.count_zeros();
+            let tmp_p = bv.rank1(cur_p)?;
+            let tmp_i = bv.rank1(cur_i)?;
+            cur_p = if bit {
+                tmp_p.checked_add(offset)?
+            } else {
+                cur_p.checked_sub(tmp_p)?
+            };
+            cur_i = if bit {
+                tmp_i.checked_add(offset)?
+            } else {
+                cur_i.checked_sub(tmp_i)?
+            };
         }
-
-        if COMPRESSED
-            && (symbol.as_() >= self.codes_encode.as_ref().unwrap().len()
-                || self.codes_encode.as_ref().unwrap()[symbol.as_()].len == 0)
-        {
-            return None;
-        }
-
-        Some(unsafe { self.rank_unchecked(symbol, i) })
+        cur_i.checked_sub(cur_p)
     }
 
     #[inline(always)]
@@ -577,21 +774,18 @@ where
 {
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
-        if COMPRESSED && self.codes_encode.as_ref().unwrap()[symbol.as_()].len == 0 {
-            return None;
-        }
-
-        let symbol_len;
-        let repr;
-
-        if COMPRESSED {
-            let code = &self.codes_encode.as_ref().unwrap()[symbol.as_()];
-            symbol_len = code.len as usize;
-            repr = code.content;
+        let (symbol_len, repr) = if COMPRESSED {
+            let code = self.codes_encode.as_ref()?.get(symbol.as_())?;
+            if code.len == 0 {
+                return None;
+            }
+            (code.len as usize, code.content)
         } else {
-            repr = symbol.as_() as u32;
-            symbol_len = self.n_levels;
-        }
+            if symbol > *self.sigma.as_ref()? {
+                return None;
+            }
+            (self.n_levels, symbol.as_() as u32)
+        };
         let mut b = 0;
 
         let mut path_off = Vec::with_capacity(symbol_len);
@@ -601,19 +795,11 @@ where
             path_off.push(b);
 
             let bit = ((repr >> (symbol_len - level - 1)) & 1) == 1;
+            let bv = self.bvs.get(level)?;
 
-            let rank_b = if bit {
-                self.bvs[level].rank1(b)
-            } else {
-                self.bvs[level].rank0(b)
-            }?;
+            let rank_b = if bit { bv.rank1(b) } else { bv.rank0(b) }?;
 
-            b = rank_b
-                + if bit {
-                    self.bvs[level].count_zeros()
-                } else {
-                    0
-                };
+            b = rank_b.checked_add(if bit { bv.count_zeros() } else { 0 })?;
 
             rank_path_off.push(rank_b);
         }
@@ -623,12 +809,14 @@ where
             b = path_off[level];
             let rank_b = rank_path_off[level];
             let bit = ((repr >> (symbol_len - level - 1)) & 1) == 1;
+            let bv = self.bvs.get(level)?;
 
-            result = if bit {
-                self.bvs[level].select1(rank_b + result)
+            let selected = if bit {
+                bv.select1(rank_b.checked_add(result)?)
             } else {
-                self.bvs[level].select0(rank_b + result)
-            }? - b;
+                bv.select0(rank_b.checked_add(result)?)
+            }?;
+            result = selected.checked_sub(b)?;
         }
 
         Some(result)

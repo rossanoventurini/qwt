@@ -9,7 +9,7 @@ use crate::{
 };
 
 use mem_dbg::{MemDbg, MemSize};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 //block_rank_pairs layout
 //|superblock0|block0|superblock1|block1...
@@ -18,11 +18,31 @@ const BLOCK_SIZE: usize = 8; // in 64bit words
 const SELECT_ONES_PER_HINT: usize = 64 * BLOCK_SIZE * 2; // must be > block_size * 64
 const SELECT_ZEROS_PER_HINT: usize = SELECT_ONES_PER_HINT;
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, PartialEq, MemSize, MemDbg)]
+#[derive(Clone, Default, Serialize, Debug, Eq, PartialEq, MemSize, MemDbg)]
 pub struct RS {
     bv: BitVector,
     block_rank_pairs: Box<[u64]>,
     select_samples: [Box<[usize]>; 2],
+}
+
+#[derive(Deserialize)]
+struct RSSerde {
+    bv: BitVector,
+    block_rank_pairs: Box<[u64]>,
+    select_samples: [Box<[usize]>; 2],
+}
+
+impl<'de> Deserialize<'de> for RS {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = RSSerde::deserialize(deserializer)?;
+        // Rank/select metadata is a cache derived from the bitvector. Rebuild it
+        // instead of trusting persisted offsets that feed unchecked operations.
+        let _ = (decoded.block_rank_pairs, decoded.select_samples);
+        Ok(Self::new(decoded.bv))
+    }
 }
 
 impl RS {
@@ -123,7 +143,7 @@ impl RS {
     /// Returns the number of bits set to 1 in the bitvector.
     #[inline(always)]
     pub fn count_ones(&self) -> usize {
-        self.rank1(self.bv.len() - 1).unwrap() + self.bv.get(self.bv.len() - 1).unwrap() as usize
+        self.bv.count_ones()
     }
 
     /// Returns the number of bits set to 0 in the bitvector.

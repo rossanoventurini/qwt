@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn serde_rejects_position_outside_data_capacity() {
+    #[derive(serde::Serialize)]
+    struct InvalidQVector {
+        data: Box<[DataLine]>,
+        position: usize,
+    }
+
+    let bytes = bincode::serialize(&InvalidQVector {
+        data: Vec::new().into_boxed_slice(),
+        position: 2,
+    })
+    .unwrap();
+    assert!(bincode::deserialize::<QVector>(&bytes).is_err());
+}
+
+#[test]
 fn test_empty() {
     let qv = QVector::default();
     assert!(qv.is_empty());
@@ -9,6 +25,13 @@ fn test_empty() {
     let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     assert!(!qv.is_empty());
     assert_eq!(qv.len(), 10);
+}
+
+#[test]
+fn default_rank_support_has_a_valid_empty_sentinel() {
+    let qv = crate::RSQVector256::default();
+    assert_eq!(crate::RankQuad::rank(&qv, 0, 0), Some(0));
+    assert_eq!(crate::SelectQuad::select(&qv, 0, 0), None);
 }
 
 #[test]

@@ -185,38 +185,21 @@ pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
     res
 }
 
-use std::mem;
-
 use crate::quadwt::huffqwt::PrefixCode;
 
-#[repr(C, align(64))]
-struct AlignToSixtyFour([u8; 64]);
-
-/// Returns a 64-byte aligned vector of T with at least the
-/// given capacity.
+/// Returns a vector with at least the given capacity when `T` itself has
+/// 64-byte alignment.
 ///
-/// Todo: make this safe by checking invariants.
-///
-/// # Safety
-/// See Safety of [Vec::Vec::from_raw_parts](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts).
-pub unsafe fn get_64byte_aligned_vector<T>(capacity: usize) -> Vec<T> {
-    assert!(mem::size_of::<T>() <= mem::size_of::<AlignToSixtyFour>());
-    assert!(mem::size_of::<AlignToSixtyFour>().is_multiple_of(mem::size_of::<T>())); // must divide otherwise fro raw parts below doesnt work
-
-    let n_units = (capacity * mem::size_of::<T>()).div_ceil(mem::size_of::<AlignToSixtyFour>());
-    let mut aligned: Vec<AlignToSixtyFour> = Vec::with_capacity(n_units);
-
-    let ptr = aligned.as_mut_ptr();
-    let len_units = aligned.len();
-    let cap_units = aligned.capacity();
-
-    mem::forget(aligned);
-
-    Vec::from_raw_parts(
-        ptr as *mut T,
-        len_units * mem::size_of::<AlignToSixtyFour>() / mem::size_of::<T>(),
-        cap_units * mem::size_of::<AlignToSixtyFour>() / mem::size_of::<T>(),
-    )
+/// A standard `Vec<T>` must be allocated and deallocated with `T`'s exact
+/// layout. It cannot safely over-align ordinary element types by casting an
+/// allocation made for another type. Callers that need 64-byte alignment for
+/// smaller-alignment elements must use an owning aligned-buffer type instead.
+pub fn get_64byte_aligned_vector<T>(capacity: usize) -> Vec<T> {
+    assert!(
+        std::mem::align_of::<T>() >= 64,
+        "T must itself have at least 64-byte alignment"
+    );
+    Vec::with_capacity(capacity)
 }
 
 /// Computes the position of the most significant bit in v.

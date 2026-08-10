@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn aligned_vector_requires_an_aligned_element_layout() {
+    #[repr(align(64))]
+    struct Aligned([u8; 64]);
+
+    let mut vector = get_64byte_aligned_vector::<Aligned>(2);
+    vector.push(Aligned([0; 64]));
+    assert!(vector.capacity() >= 2);
+    assert_eq!((vector.as_ptr() as usize) % 64, 0);
+    assert_eq!(vector[0].0[0], 0);
+    assert!(std::panic::catch_unwind(|| get_64byte_aligned_vector::<u8>(1)).is_err());
+}
+
+#[test]
 fn test_select_in_word() {
     assert_eq!(select_in_word(1, 0), 0);
     assert_eq!(select_in_word(2, 0), 1);
