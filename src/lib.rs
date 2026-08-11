@@ -24,6 +24,7 @@ pub use bitvector::narrow::RS as RSNarrow;
 #[deprecated(since = "0.5.0", note = "renamed to `qwt::wide::RS`")]
 pub use bitvector::wide::RS as RSWide;
 
+mod kernel;
 pub mod utils;
 
 pub use qvector::rs_qvector::RSQVector;

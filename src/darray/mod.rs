@@ -61,14 +61,18 @@
 //! `select0` as well.
 
 use crate::bitvector::{BitVectorBitPositionsIter, BitVectorIter};
+#[cfg(not(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature = "popcnt"
+)))]
+use crate::kernel::scalar_popcount_u64;
+use crate::kernel::{selected_popcount_path, PopcountPath};
 use crate::utils::select_in_word;
 use crate::BitVector;
 use crate::{AccessBin, SelectBin};
 
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
-#[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::_popcnt64;
 
 const BLOCK_SIZE: usize = 1024;
 const SUBBLOCK_SIZE: usize = 32;
@@ -382,32 +386,52 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         }
         let subblock = i / SUBBLOCK_SIZE;
         let start_pos = (block_pos as usize) + (inventories.subblock_inventory[subblock] as usize);
-        let mut reminder = i & (SUBBLOCK_SIZE - 1);
+        let reminder = i & (SUBBLOCK_SIZE - 1);
 
         if reminder == 0 {
             return Some(start_pos);
         }
 
-        let mut word_idx = start_pos >> 6;
+        let word_idx = start_pos >> 6;
         let word_shift = start_pos & 63;
-        let mut word = if !BIT {
-            !self.bv.get_word(word_idx) & (std::u64::MAX << word_shift) // if select0, negate the current word!
+        let word = if !BIT {
+            !self.bv.get_word(word_idx) & (u64::MAX << word_shift) // if select0, negate the current word!
         } else {
-            self.bv.get_word(word_idx) & (std::u64::MAX << word_shift)
+            self.bv.get_word(word_idx) & (u64::MAX << word_shift)
         };
 
+        let (word_idx, word, reminder) = match selected_popcount_path() {
+            #[cfg(not(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "popcnt"
+            )))]
+            PopcountPath::Scalar => {
+                self.scan_select_words::<BIT, _>(reminder, word_idx, word, scalar_popcount_u64)
+            }
+            // SAFETY: `Popcnt` is selected only when the build or host supports it.
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            PopcountPath::Popcnt => unsafe {
+                self.scan_select_words_popcnt::<BIT>(reminder, word_idx, word)
+            },
+        };
+        let select_intra = select_in_word(word, reminder as u64) as usize;
+
+        Some((word_idx << 6) + select_intra)
+    }
+
+    #[inline(always)]
+    fn scan_select_words<const BIT: bool, F>(
+        &self,
+        mut reminder: usize,
+        mut word_idx: usize,
+        mut word: u64,
+        popcount: F,
+    ) -> (usize, u64, usize)
+    where
+        F: Fn(u64) -> usize,
+    {
         loop {
-            let popcnt;
-            #[cfg(not(target_arch = "x86_64"))]
-            {
-                popcnt = word.count_ones() as usize;
-            }
-            #[cfg(target_arch = "x86_64")]
-            {
-                unsafe {
-                    popcnt = _popcnt64(word as i64) as usize;
-                }
-            }
+            let popcnt = popcount(word);
             if reminder < popcnt {
                 break;
             }
@@ -418,9 +442,36 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
                 word = !word; // if select0, negate the current word!
             }
         }
-        let select_intra = select_in_word(word, reminder as u64) as usize;
+        (word_idx, word, reminder)
+    }
 
-        Some((word_idx << 6) + select_intra)
+    #[cfg(target_arch = "x86_64")]
+    #[inline]
+    #[target_feature(enable = "popcnt")]
+    unsafe fn scan_select_words_popcnt<const BIT: bool>(
+        &self,
+        reminder: usize,
+        word_idx: usize,
+        word: u64,
+    ) -> (usize, u64, usize) {
+        self.scan_select_words::<BIT, _>(reminder, word_idx, word, |value| {
+            std::arch::x86_64::_popcnt64(value as i64) as usize
+        })
+    }
+
+    #[cfg(target_arch = "x86")]
+    #[inline]
+    #[target_feature(enable = "popcnt")]
+    unsafe fn scan_select_words_popcnt<const BIT: bool>(
+        &self,
+        reminder: usize,
+        word_idx: usize,
+        word: u64,
+    ) -> (usize, u64, usize) {
+        self.scan_select_words::<BIT, _>(reminder, word_idx, word, |value| {
+            (std::arch::x86::_popcnt32(value as i32)
+                + std::arch::x86::_popcnt32((value >> 32) as i32)) as usize
+        })
     }
 }
 
