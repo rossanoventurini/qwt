@@ -12,6 +12,14 @@ fn test_empty() {
 }
 
 #[test]
+fn unchecked_select_accepts_zero_based_valid_occurrences() {
+    let qv = crate::RSQVector256::new(&[2_u8, 0, 2, 1, 2]);
+    // SAFETY: symbol 2 has three occurrences, so indices 0 and 2 are valid.
+    assert_eq!(unsafe { crate::SelectQuad::select_unchecked(&qv, 2, 0) }, 0);
+    assert_eq!(unsafe { crate::SelectQuad::select_unchecked(&qv, 2, 2) }, 4);
+}
+
+#[test]
 fn test_iterators() {
     let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     for (i, v) in qv.iter().enumerate() {

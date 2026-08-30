@@ -349,17 +349,15 @@ impl<S: RSSupport> SelectQuad for RSQVector<S> {
     /// Returns the position of the `i+1`th occurrence of `symbol`.
     ///
     /// # Safety
-    /// Calling this method with a value of `i` which is larger than the number of
-    /// occurrences of the `symbol` or if `symbol is larger than 3 is  
-    /// undefined behavior.
+    /// Calling this method when the `i`th occurrence of `symbol` does not exist,
+    /// or when `symbol` is larger than 3, is undefined behavior.
     ///
     /// In the current implementation there is no reason to prefer this unsafe select
     /// over the safe one.
     #[inline]
     unsafe fn select_unchecked(&self, symbol: u8, i: usize) -> usize {
         debug_assert!(symbol <= 3);
-        debug_assert!(i > 0);
-        debug_assert!(self.occs(symbol) <= Some(i));
+        debug_assert!(i < unsafe { self.occs_unchecked(symbol) });
 
         self.select(symbol, i).unwrap()
     }

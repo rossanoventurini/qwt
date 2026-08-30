@@ -218,7 +218,9 @@ assert_eq!(qwt.rank_prefetch(1, 9), None);
 
 For more details, take a look at the [documentation](https://docs.rs/qwt/latest/qwt/).
 
-Serialization and deserialization can be done with [`bincode`](https://docs.rs/bincode/latest/bincode/) as follows.
+Serialization and deserialization can be done with the final Bincode 1.x release,
+[`bincode` 1.3.3](https://docs.rs/bincode/1.3.3/bincode/) (using
+`bincode = "=1.3.3"` in `Cargo.toml`), as follows.
 
 ```rust
 use std::fs;
