@@ -73,14 +73,31 @@ impl AccessQuad for DataLine {
 
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> u8 {
-        let word_id_high = i >> 7;
-        let word_id_low = word_id_high + 2;
-        let cur_shift = i & 127;
+        #[cfg(target_endian = "little")]
+        {
+            let lane = i >> 6;
+            let shift = i & 63;
+            let words = self.words.as_ptr().cast::<u64>();
+            // SAFETY: the caller guarantees `i < 256`, so `lane < 4`. On
+            // little-endian targets `[u128; 4]` is eight contiguous native
+            // `u64` lanes, and the low-bit plane (`words[2..4]`) starts four
+            // lanes after the high-bit plane (`words[0..2]`).
+            let word_high = unsafe { *words.add(lane) };
+            let word_low = unsafe { *words.add(lane + 4) };
+            (((word_high >> shift) & 1) << 1 | (word_low >> shift) & 1) as u8
+        }
 
-        let word_high = unsafe { *self.words.get_unchecked(word_id_high) };
-        let word_low = unsafe { *self.words.get_unchecked(word_id_low) };
+        #[cfg(target_endian = "big")]
+        {
+            let word_id_high = i >> 7;
+            let word_id_low = word_id_high + 2;
+            let cur_shift = i & 127;
 
-        ((word_high >> (cur_shift) & 1) << 1 | (word_low >> cur_shift) & 1) as u8
+            let word_high = unsafe { *self.words.get_unchecked(word_id_high) };
+            let word_low = unsafe { *self.words.get_unchecked(word_id_low) };
+
+            ((word_high >> (cur_shift) & 1) << 1 | (word_low >> cur_shift) & 1) as u8
+        }
     }
 }
 

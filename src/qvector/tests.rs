@@ -75,3 +75,16 @@ fn test_data_line() {
         }
     }
 }
+
+#[test]
+fn data_line_access_crosses_native_lane_boundaries() {
+    let mut data_line = DataLine::default();
+    let expected =
+        std::array::from_fn::<_, 256, _>(|position| ((position / 64 + position % 3) % 4) as u8);
+    for (position, &symbol) in expected.iter().enumerate() {
+        data_line.set_symbol(symbol, position as u8);
+    }
+    for (position, &symbol) in expected.iter().enumerate() {
+        assert_eq!(data_line.get(position), Some(symbol));
+    }
+}
