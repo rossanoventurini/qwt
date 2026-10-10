@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 //
 // We support `access`, `rank`, and `select queries for each line.
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
+#[mem_size(flat)]
 #[repr(C, align(64))]
 struct DataLine {
     words: [u128; 4],

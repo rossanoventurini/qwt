@@ -18,6 +18,7 @@ pub mod narrow;
 pub mod wide;
 
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
+#[mem_size(flat)]
 #[repr(C, align(64))]
 struct DataLine {
     words: [u64; 8],

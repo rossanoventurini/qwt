@@ -19,6 +19,7 @@ use crate::{
 use super::{prefetch_support::PrefetchSupport, RSforWT};
 
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemDbg, MemSize, Debug)]
+#[mem_size(flat)]
 pub struct PrefixCode {
     pub content: u32,
     pub len: u32,

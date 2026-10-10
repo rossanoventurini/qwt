@@ -213,6 +213,7 @@ impl<const B_SIZE: usize> RSSupportPlain<B_SIZE> {
 /// - First 44 bits to store superblock counters
 /// - Next 84 to store counters for 7 (out of 8) blocks (the first one is excluded)
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
+#[mem_size(flat)]
 #[repr(C, align(64))]
 struct SuperblockPlain {
     counters: [u128; 4],
