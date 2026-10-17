@@ -12,7 +12,6 @@ pub fn prefetch_read_NTA<T>(data: &[T], offset: usize) {
     {
         #[cfg(target_arch = "x86")]
         use std::arch::x86::{_mm_prefetch, _MM_HINT_NTA};
-
         #[cfg(target_arch = "x86_64")]
         use std::arch::x86_64::{_mm_prefetch, _MM_HINT_NTA};
 
@@ -185,9 +184,8 @@ pub fn popcnt_wide<const N: usize>(data: &[u64]) -> usize {
     res
 }
 
-use std::mem;
-
 use crate::quadwt::huffqwt::PrefixCode;
+use std::mem;
 
 #[repr(C, align(64))]
 struct AlignToSixtyFour([u8; 64]);
@@ -286,10 +284,10 @@ where
     for &a in sequence.iter() {
         let code = &codes[a.as_()];
         if code.len <= shift as u32 {
-            //we dont care about this symbol (already taken care of)
+            // we dont care about this symbol (already taken care of)
             vecs[4].push(a);
         } else {
-            //we partition as normal
+            // we partition as normal
             let two_bits = (code.content >> (code.len - shift as u32)) & 3;
             vecs[two_bits as usize].push(a);
         }
@@ -312,7 +310,7 @@ where
     for &a in sequence.iter() {
         let code = &codes[a.as_()];
         if code.len <= shift as u32 {
-            //we dont care about this symbol (already taken care of)
+            // we dont care about this symbol (already taken care of)
             vecs[2].push(a);
         } else {
             let bit = (code.content >> (code.len - shift as u32)) & 1;

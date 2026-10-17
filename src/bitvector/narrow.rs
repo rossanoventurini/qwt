@@ -3,15 +3,12 @@
 //!
 //! This implementation is inspired by the C++ implementation by [Giuseppe Ottaviano](https://github.com/ot/succinct/blob/master/rs_bit_vector.cpp).
 
-use crate::{
-    utils::{prefetch_read_NTA, select_in_word},
-    AccessBin, BitVector, RankBin, SelectBin,
-};
-
+use crate::utils::{prefetch_read_NTA, select_in_word};
+use crate::{AccessBin, BitVector, RankBin, SelectBin};
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
-//block_rank_pairs layout
+// block_rank_pairs layout
 //|superblock0|block0|superblock1|block1...
 const BLOCK_SIZE: usize = 8; // in 64bit words
 
@@ -59,7 +56,7 @@ impl RS {
                 next_rank += word_pop;
                 cur_subrank += word_pop;
 
-                //check for samples
+                // check for samples
                 if next_rank / SELECT_ONES_PER_HINT as u64 > cur_hint_1 {
                     select_samples[1].push(b);
                     cur_hint_1 += 1;
@@ -174,7 +171,7 @@ impl RS {
         // rank = self.block_rank(position);
         // println!("selected block {} with rank {}", position, rank);
 
-        //now we examine sub_blocks
+        // now we examine sub_blocks
         position *= BLOCK_SIZE;
 
         // println!("now sub_blocks");
@@ -217,7 +214,7 @@ impl RS {
         // rank = position * max_rank_for_block - self.block_rank(position);
         // println!("selected block {} with rank0 {}", position, position * max_rank_for_block - self.block_rank(position));
 
-        //now we examine sub_blocks
+        // now we examine sub_blocks
         position *= BLOCK_SIZE;
 
         let max_rank_for_subblock = 64;

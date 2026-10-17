@@ -1,10 +1,9 @@
-use rand::RngExt;
-
+use crate::perf_and_test_utils::{gen_sequence, TimingQueries};
 use crate::{
-    perf_and_test_utils::{gen_sequence, TimingQueries},
     AccessUnsigned, HuffQWaveletTree, OccsRangeUnsigned, RSQVector512, RankUnsigned,
     SelectUnsigned, HQWT256,
 };
+use rand::RngExt;
 
 #[test]
 fn test_small() {

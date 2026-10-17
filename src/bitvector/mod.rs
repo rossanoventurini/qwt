@@ -6,11 +6,8 @@
 //!
 //! For both data structures, it is possible to iterate over bits or positions of bits set either to zero or one.
 
-use crate::{
-    utils::{prefetch_read_NTA, select_in_word},
-    AccessBin, RankBin, SelectBin,
-};
-
+use crate::utils::{prefetch_read_NTA, select_in_word};
+use crate::{AccessBin, RankBin, SelectBin};
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
@@ -24,14 +21,14 @@ struct DataLine {
 }
 
 impl DataLine {
-    //set symbol to position `i`
+    // set symbol to position `i`
     #[inline]
     fn set_symbol(&mut self, symbol: u64, i: usize) {
         assert!(i < 512);
 
         let mask: u64 = 1 << (i % 64);
-        self.words[i >> 6] ^= self.words[i >> 6] & mask; //zero out the position
-        self.words[i >> 6] ^= (symbol & 1) << (i % 64); //set position to symbol
+        self.words[i >> 6] ^= self.words[i >> 6] & mask; // zero out the position
+        self.words[i >> 6] ^= (symbol & 1) << (i % 64); // set position to symbol
     }
 
     #[inline]
@@ -107,7 +104,7 @@ impl RankBin for DataLine {
 }
 
 fn cast_to_u64_slice(data_lines: &[DataLine]) -> &[u64] {
-    //WARNING: this works because DataLine is aligned
+    // WARNING: this works because DataLine is aligned
     unsafe {
         let len = data_lines.len().checked_mul(8).unwrap();
         let ptr = data_lines.as_ptr();
@@ -128,7 +125,7 @@ impl SelectBin for DataLine {
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         let mut off = 0;
-        let mut rank = 0; //rank so far
+        let mut rank = 0; // rank so far
 
         for w in 0..8 {
             let kp = self.words.get_unchecked(w).count_ones();
@@ -188,9 +185,9 @@ impl BitVector {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVector, AccessBin};
+    /// use qwt::{AccessBin, BitVector};
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     /// assert_eq!(bv.get(1), Some(false));
     ///
@@ -226,9 +223,9 @@ impl BitVector {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVector};
+    /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// // This is unsafe because it does not perform bounds checking
@@ -249,7 +246,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// // Get the 64-bit word at index 0
@@ -269,12 +266,12 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5,64,129];
+    /// let v = vec![0, 2, 3, 4, 5, 64, 129];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// // Get all 64-bit words
     /// let words = bv.words();
-    /// assert_eq!(words, [0b111101,0b1,0b10]);
+    /// assert_eq!(words, [0b111101, 0b1, 0b10]);
     /// ```
     #[must_use]
     #[inline]
@@ -291,7 +288,6 @@ impl BitVector {
     ///
     /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
     /// let bv: BitVector = vv.iter().copied().collect();
-    ///
     /// ```
     #[must_use]
     pub fn ones(&self) -> BitVectorBitPositionsIter<'_, true> {
@@ -321,8 +317,8 @@ impl BitVector {
     /// # Examples
     ///
     /// ```
-    /// use qwt::BitVector;
     /// use qwt::perf_and_test_utils::negate_vector;
+    /// use qwt::BitVector;
     ///
     /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
     /// let bv: BitVector = vv.iter().copied().collect();
@@ -348,7 +344,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,5];
+    /// let v = vec![0, 2, 3, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// let mut iter = bv.iter();
@@ -379,7 +375,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// assert!(!bv.is_empty());
@@ -400,7 +396,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// assert_eq!(bv.len(), 6);
@@ -416,7 +412,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// assert_eq!(bv.count_ones(), 5);
@@ -432,7 +428,7 @@ impl BitVector {
     /// ```
     /// use qwt::BitVector;
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// assert_eq!(bv.count_zeros(), 1);
@@ -461,9 +457,9 @@ impl AccessBin for BitVector {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, AccessBin};
+    /// use qwt::{AccessBin, BitVector};
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
     /// assert_eq!(bv.get(5), Some(true));
@@ -486,12 +482,12 @@ impl AccessBin for BitVector {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{BitVector, AccessBin};
+    /// use qwt::{AccessBin, BitVector};
     ///
-    /// let v = vec![0,2,3,4,5];
+    /// let v = vec![0, 2, 3, 4, 5];
     /// let bv: BitVector = v.into_iter().collect();
     ///
-    /// assert_eq!(unsafe{bv.get_unchecked(5)}, true);
+    /// assert_eq!(unsafe { bv.get_unchecked(5) }, true);
     /// ```
 
     #[inline(always)]
@@ -580,7 +576,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use qwt::{BitVector, BitVectorMut, AccessBin};
+/// use qwt::{AccessBin, BitVector, BitVectorMut};
 ///
 /// let mut bvm = BitVectorMut::new();
 /// bvm.push(true);
@@ -608,9 +604,9 @@ impl From<BitVectorMut> for BitVector {
 /// # Examples
 ///
 /// ```
-/// use qwt::{BitVector, BitVectorMut, AccessBin};
+/// use qwt::{AccessBin, BitVector, BitVectorMut};
 ///
-/// let v = vec![0,2,3,4,5];
+/// let v = vec![0, 2, 3, 4, 5];
 /// let mut bv: BitVector = v.into_iter().collect();
 ///
 /// // Convert immutable BitVector to mutable BitVectorMut
@@ -879,10 +875,10 @@ impl BitVectorMut {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVectorMut, BitVector};
+    /// use qwt::{BitVector, BitVectorMut};
     ///
     /// let v = [0b1110];
-    /// let bv: BitVector = BitVectorMut::from_packed_data(&v,4).into();
+    /// let bv: BitVector = BitVectorMut::from_packed_data(&v, 4).into();
     /// assert_eq!(bv.words()[0], 0b1110);
     /// ```
     #[must_use]
@@ -909,7 +905,7 @@ impl BitVectorMut {
     /// # Example
     ///
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::new();
     /// bv.push(true);
@@ -952,10 +948,9 @@ impl BitVectorMut {
     /// use qwt::BitVectorMut;
     ///
     /// let mut bv = BitVectorMut::with_capacity(7);
-    /// bv.append_bits(0b101, 3);  // appends 101
-    /// bv.append_bits(0b0110, 4); // appends 0110  
+    /// bv.append_bits(0b101, 3); // appends 101
+    /// bv.append_bits(0b0110, 4); // appends 0110
     ///
-    ///         
     /// assert_eq!(bv.len(), 7);
     /// assert_eq!(bv.get_bits(0, 3), Some(5));
     /// ```
@@ -996,7 +991,7 @@ impl BitVectorMut {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::with_capacity(10);
     /// bv.extend_with_zeros(10);
@@ -1019,7 +1014,7 @@ impl BitVectorMut {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::with_capacity(2);
     /// bv.push(true);
@@ -1058,7 +1053,7 @@ impl BitVectorMut {
     /// # Examples
     ///
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::with_capacity(6);
     /// bv.append_bits(0b111101, 6); // Appends 111101 note that we append bits from right to left
@@ -1258,8 +1253,8 @@ impl BitVectorMut {
     /// # Examples
     ///
     /// ```
-    /// use qwt::BitVectorMut;
     /// use qwt::perf_and_test_utils::negate_vector;
+    /// use qwt::BitVectorMut;
     ///
     /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
     /// let bv: BitVectorMut = vv.iter().copied().collect();
@@ -1402,7 +1397,7 @@ impl AccessBin for BitVectorMut {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::with_capacity(10);
     /// bv.extend_with_zeros(10);
@@ -1425,11 +1420,11 @@ impl AccessBin for BitVectorMut {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{BitVectorMut, AccessBin};
+    /// use qwt::{AccessBin, BitVectorMut};
     ///
     /// let mut bv = BitVectorMut::with_capacity(10);
     /// bv.extend_with_zeros(10);
-    /// assert_eq!(unsafe{bv.get_unchecked(8)}, false);
+    /// assert_eq!(unsafe { bv.get_unchecked(8) }, false);
     /// ```
 
     #[inline(always)]
@@ -1448,14 +1443,13 @@ impl Extend<bool> for BitVectorMut {
         }
     }
 
-    /* Nigthly
-        fn extend_one(&mut self, item: bool) {
-            self.push(item);
-        }
-        fn extend_reserve(&mut self, additional: usize) {
-            self.data.reserve
-        }
-    */
+    // Nigthly
+    // fn extend_one(&mut self, item: bool) {
+    // self.push(item);
+    // }
+    // fn extend_reserve(&mut self, additional: usize) {
+    // self.data.reserve
+    // }
 }
 
 /// Implements creating a `BitVectorMut` from an iterator over `bool` values.
@@ -1513,7 +1507,7 @@ impl FromIterator<usize> for BitVectorMut {
 /// # Examples
 ///
 /// ```
-/// use qwt::{BitVectorMut, AccessBin};
+/// use qwt::{AccessBin, BitVectorMut};
 ///
 /// let mut bv = BitVectorMut::new();
 ///

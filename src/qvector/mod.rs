@@ -7,11 +7,9 @@
 //! This way, we load just one cache line everytime we access a `DataLine`.
 
 use crate::{AccessQuad, RankQuad}; // Traits
-
 use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::AsPrimitive;
-
 use serde::{Deserialize, Serialize};
 
 // A quad vector is made of `DataLine`s. Each line consists of
@@ -19,10 +17,12 @@ use serde::{Deserialize, Serialize};
 // This way, it is easier to force the alignment to 64 bytes.
 //
 // We support `access`, `rank`, and `select queries for each line.
+/// One cache-line of 256 two-bit symbols (512 bits).
+/// Public for zero-copy / mmap flatten (byte-identical on-disk layout).
 #[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, MemSize, MemDbg, Deserialize, Debug)]
 #[repr(C, align(64))]
-struct DataLine {
-    words: [u128; 4],
+pub struct DataLine {
+    pub words: [u128; 4],
 }
 
 impl DataLine {
@@ -33,8 +33,11 @@ impl DataLine {
         0,
     ];
 
+    /// Bitmasks of positions holding `symbol` in this line.
+    ///
+    /// Returns two `u128` words covering symbols 0..128 and 128..256.
     #[inline(always)]
-    fn normalize(&self, symbol: u8) -> (u128, u128) {
+    pub fn normalize(&self, symbol: u8) -> (u128, u128) {
         let mask_high = Self::REPEATEDSYMB[(symbol >> 1) as usize];
         let mask_low = Self::REPEATEDSYMB[(symbol & 1) as usize];
 
@@ -125,6 +128,57 @@ impl RankQuad for DataLine {
 
         rank as usize
     }
+
+    /// Rank of all four symbols `0..3` up to position `i` (excluded) within this line.
+    ///
+    /// Loads each data word once and partitions bits by (high, low) pair.
+    /// Used by range-distinct iteration to avoid four independent
+    /// `rank_unchecked` passes over the same cache line.
+    #[inline(always)]
+    unsafe fn rank_all_unchecked(&self, i: usize) -> [usize; 4] {
+        debug_assert!(i <= 256, "Only positions up to 256 are possible");
+
+        let last_word = i >> 7;
+        let offset = i & 127;
+        let mask_full = u128::MAX;
+        // offset==0 → empty mask; (1<<0)-1 == 0. For offset in 1..127, (1<<offset)-1.
+        // When i is a multiple of 128 with last_word>0, the previous word uses mask_full
+        // and this word is not included — matching rank_unchecked.
+        let mask_offset = if offset == 0 {
+            0u128
+        } else {
+            (1_u128 << offset) - 1
+        };
+
+        let mask0 = if last_word == 0 {
+            mask_offset
+        } else {
+            mask_full
+        };
+        let mask1 = if last_word == 1 {
+            mask_offset
+        } else {
+            mask_full * (last_word == 2) as u128
+        };
+
+        let h0 = self.words[0] & mask0;
+        let l0 = self.words[2] & mask0;
+        let nh0 = mask0 ^ h0;
+        let nl0 = mask0 ^ l0;
+
+        let h1 = self.words[1] & mask1;
+        let l1 = self.words[3] & mask1;
+        let nh1 = mask1 ^ h1;
+        let nl1 = mask1 ^ l1;
+
+        // symbol = (high << 1) | low
+        [
+            ((nh0 & nl0).count_ones() + (nh1 & nl1).count_ones()) as usize, // 0
+            ((nh0 & l0).count_ones() + (nh1 & l1).count_ones()) as usize,   // 1
+            ((h0 & nl0).count_ones() + (h1 & nl1).count_ones()) as usize,   // 2
+            ((h0 & l0).count_ones() + (h1 & l1).count_ones()) as usize,     // 3
+        ]
+    }
 }
 
 // The trait SelectQuad is not implemented because RSSupport needs to it by hand :-)
@@ -169,14 +223,26 @@ impl QVector {
     /// ```
     /// use qwt::QVector;
     ///
-    /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(100).collect();;
+    /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(100).collect();
     ///
     /// for (i, v) in qv.iter().enumerate() {
-    ///    assert_eq!((i%4) as u8, v);
+    ///     assert_eq!((i % 4) as u8, v);
     /// }
     /// ```
     pub fn iter(&self) -> QVectorIterator<&QVector> {
         QVectorIterator { i: 0, qv: self }
+    }
+
+    /// Bit-cursor (`2 * len()`). Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub fn position_bits(&self) -> usize {
+        self.position
+    }
+
+    /// Raw data lines. Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub fn data_lines(&self) -> &[DataLine] {
+        &self.data
     }
 }
 
@@ -188,7 +254,7 @@ impl AccessQuad for QVector {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{QVector, AccessQuad};
+    /// use qwt::{AccessQuad, QVector};
     ///
     /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     /// unsafe {
@@ -211,8 +277,7 @@ impl AccessQuad for QVector {
     ///
     /// # Examples
     /// ```
-    /// use qwt::QVector;
-    /// use qwt::AccessQuad;
+    /// use qwt::{AccessQuad, QVector};
     ///
     /// let qv: QVector = [0, 1, 2, 3].into_iter().cycle().take(10).collect();
     ///
@@ -369,7 +434,7 @@ where
         I: IntoIterator<Item = T>,
     {
         for value in iter {
-            //debug_assert!((0..4).contains(&value));
+            // debug_assert!((0..4).contains(&value));
             self.push(value.as_());
         }
     }
