@@ -262,6 +262,51 @@ assert_eq!(wt.iter().collect::<Vec<_>>(), hqwt.iter().collect::<Vec<_>>());
 
 ```
 
+## <a name="bytes">Byte layout and zero-copy I/O</a>
+
+In addition to serde/`bincode`, plain and Huffman quad wavelet trees can be
+serialized to a stable little-endian byte container and opened either as an
+**owned** tree or as a **zero-copy borrowed view** over caller-owned bytes
+(for example an `mmap` region). The crate never depends on an mmap library —
+the caller owns the buffer.
+
+| Container | Tree | Owned API | Zero-copy view |
+| :-------- | :--- | :-------- | :------------- |
+| `QWTB` | plain QWT 256/512 | `qwt256_to_bytes` / `qwt256_from_bytes` (and `qwt512_*`) | [`QwtView`] |
+| `HQWB` | Huffman QWT 256/512 | `hqwt256_to_bytes` / `hqwt256_from_bytes` (and `hqwt512_*`) | [`HqwtView`] |
+
+Both paths live in the [`bytes`](https://docs.rs/qwt/latest/qwt/bytes/) module
+and implement the same `AccessUnsigned` / `RankUnsigned` / `SelectUnsigned`
+traits as the owned trees.
+
+```rust
+use qwt::bytes::{qwt256_to_bytes, qwt256_from_bytes, QwtView, AlignedBytes};
+use qwt::{AccessUnsigned, QWT256};
+
+let qwt = QWT256::from(vec![1u8, 0, 1, 0, 2, 4, 5, 3]);
+
+// Owned round-trip (copies POD payloads onto the heap; source need not be aligned)
+let bytes = qwt256_to_bytes(&qwt).unwrap();
+let owned: QWT256<u8> = qwt256_from_bytes(&bytes).unwrap();
+assert_eq!(owned.get(2), Some(1));
+
+// Zero-copy view (requires a 64-byte-aligned base; use AlignedBytes or an mmap page)
+let aligned = AlignedBytes::from_slice(&bytes);
+let view = QwtView::<u8, 256>::from_bytes(aligned.as_slice()).unwrap();
+assert_eq!(view.get(2), Some(1));
+assert_eq!(view.rank(1, 4), owned.rank(1, 4));
+```
+
+Notes:
+
+- Format is **little-endian only** (v1). Big-endian hosts get `LayoutError::NotLittleEndian`.
+- Prefetch-augmented trees (`*Pfs`) are not supported in v1 (`LayoutError::PrefetchNotSupported`).
+- Zero-copy views cast `DataLine` / `SuperblockPlain` POD slices in place, so the
+  absolute base address of the buffer must be 64-byte aligned. `AlignedBytes`
+  copies into an over-allocated buffer and exposes a 64-aligned window; page-aligned
+  mmaps satisfy the requirement naturally.
+- The existing serde/`bincode` path is unchanged.
+
 We can index any sequence over any [num::traits::Unsigned](https://docs.rs/num/latest/num/traits/trait.Unsigned.html) integers. 
 As the space usage depends on the largest value in the sequence, it could be worth remapping the values to remove "holes".
 

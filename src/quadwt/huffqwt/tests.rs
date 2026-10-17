@@ -1,10 +1,9 @@
-use rand::RngExt;
-
+use crate::perf_and_test_utils::{gen_sequence, TimingQueries};
 use crate::{
-    perf_and_test_utils::{gen_sequence, TimingQueries},
     AccessUnsigned, HuffQWaveletTree, OccsRangeUnsigned, RSQVector512, RankUnsigned,
     SelectUnsigned, HQWT256,
 };
+use rand::RngExt;
 
 #[test]
 fn test_small() {
@@ -45,8 +44,12 @@ fn test_occs_range() {
     assert!(qwt.occs_range(data.len() - 1..data.len() + 1).is_none());
 
     // nonsense ranges
-    assert!(qwt.occs_range(5..4).is_none());
-    assert!(qwt.occs_range(2..0).is_none());
+    assert!(qwt
+        .occs_range(std::ops::Range { start: 5, end: 4 })
+        .is_none());
+    assert!(qwt
+        .occs_range(std::ops::Range { start: 2, end: 0 })
+        .is_none());
 
     // empty ranges
     assert_eq!(0, qwt.occs_range(data.len()..).unwrap().count());
