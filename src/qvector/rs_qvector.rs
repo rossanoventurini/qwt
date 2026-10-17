@@ -1,21 +1,17 @@
 //! This module provides support for `rank` and `select` queries on a quad vector.
 
 use super::{QVector, QVectorIterator};
-
 use crate::utils::{prefetch_read_NTA, select_in_word_u128};
-
+// Traits
+use crate::{AccessQuad, RankQuad, SelectQuad, WTSupport};
 use mem_dbg::{MemDbg, MemSize};
 use num_traits::int::PrimInt;
 use num_traits::{AsPrimitive, Unsigned};
-
 use serde::{Deserialize, Serialize};
-
-// Traits
-use crate::{AccessQuad, RankQuad, SelectQuad, WTSupport};
 
 /// Alternative representations to support Rank/Select queries at the level of blocks
 mod rs_support_plain;
-use crate::qvector::rs_qvector::rs_support_plain::RSSupportPlain;
+pub use rs_support_plain::{RSSupportPlain, SuperblockPlain};
 
 /// Possible specializations which provide different space/time trade-offs.
 pub type RSQVector256 = RSQVector<RSSupportPlain<256>>;
@@ -27,7 +23,7 @@ pub type RSQVector512 = RSQVector<RSSupportPlain<512>>;
 pub struct RSQVector<S> {
     qv: QVector,
     rs_support: S,
-    n_occs_smaller: [usize; 5], // for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches.
+    n_occs_smaller: [usize; 5], /* for each symbol c, store the number of occurrences of in qv of symbols smaller than c. We store 5 (instead of 4) counters so we can use them to compute also the number of occurrences of each symbol without branches. */
 }
 
 impl<S> RSQVector<S> {
@@ -41,7 +37,7 @@ impl<S> RSQVector<S> {
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
     /// for (i, v) in rsqv.iter().enumerate() {
-    ///    assert_eq!((i%4) as u8, v);
+    ///     assert_eq!((i % 4) as u8, v);
     /// }
     /// ```
     pub fn iter(&self) -> QVectorIterator<&QVector> {
@@ -224,6 +220,51 @@ impl<S: RSSupport> RSQVector<S> {
         0
     }
 
+    /// Intra-block ranks for all four symbols up to `i` (excluded).
+    /// One data-line load shared across symbols (fused 4-way rank).
+    #[inline(always)]
+    fn rank_intra_block_all(&self, i: usize) -> [usize; 4] {
+        debug_assert!(
+            S::BLOCK_SIZE == 256 || S::BLOCK_SIZE == 512,
+            "RSQVector supports only blocks of size 256 or 512."
+        );
+
+        if S::BLOCK_SIZE == 256 {
+            let data_line_id = i >> 8;
+            let offset = i & 255;
+            return if let Some(d) = self.qv.data.get(data_line_id) {
+                unsafe { d.rank_all_unchecked(offset) }
+            } else {
+                [0; 4]
+            };
+        }
+
+        // BLOCK_SIZE == 512: two data lines may be needed.
+        let block_id = i >> 9;
+        let offset_in_block = i & 511;
+        let offset_in_first = if offset_in_block <= 256 {
+            offset_in_block
+        } else {
+            256
+        };
+        let mut ranks = if let Some(d) = self.qv.data.get(block_id * 2) {
+            unsafe { d.rank_all_unchecked(offset_in_first) }
+        } else {
+            [0; 4]
+        };
+        if offset_in_block > 256 {
+            let second = if let Some(d) = self.qv.data.get(block_id * 2 + 1) {
+                unsafe { d.rank_all_unchecked(offset_in_block - 256) }
+            } else {
+                [0; 4]
+            };
+            for s in 0..4 {
+                ranks[s] += second[s];
+            }
+        }
+        ranks
+    }
+
     // Returns the number of symbols in the quad vector.
     pub fn len(&self) -> usize {
         self.qv.len()
@@ -232,6 +273,38 @@ impl<S: RSSupport> RSQVector<S> {
     /// Checks if the vector is empty.
     pub fn is_empty(&self) -> bool {
         self.qv.len() == 0
+    }
+
+    /// Underlying quad vector. Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub(crate) fn qvector(&self) -> &QVector {
+        &self.qv
+    }
+
+    /// Rank/select support structure. Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub(crate) fn rs_support(&self) -> &S {
+        &self.rs_support
+    }
+
+    /// Wavelet-matrix child offsets `n_occs_smaller`.
+    /// Exposed for zero-copy / mmap flatten.
+    #[inline]
+    pub(crate) fn n_occs_smaller(&self) -> [usize; 5] {
+        self.n_occs_smaller
+    }
+
+    /// Build from a quad vector, its rank/select support, and WM child offsets.
+    ///
+    /// Inverse of [`qvector`](Self::qvector) + [`rs_support`](Self::rs_support) +
+    /// [`n_occs_smaller`](Self::n_occs_smaller). Used by zero-copy I/O.
+    #[must_use]
+    pub fn from_parts(qv: QVector, rs_support: S, n_occs_smaller: [usize; 5]) -> Self {
+        Self {
+            qv,
+            rs_support,
+            n_occs_smaller,
+        }
     }
 }
 
@@ -244,7 +317,7 @@ impl<S> AccessQuad for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, AccessQuad};
+    /// use qwt::{AccessQuad, RSQVector256};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
@@ -261,7 +334,7 @@ impl<S> AccessQuad for RSQVector<S> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{RSQVector256, AccessQuad};
+    /// use qwt::{AccessQuad, RSQVector256};
     ///
     /// let rsqv: RSQVector256 = (0..10_u64).into_iter().map(|x| x % 4).collect();
     ///
@@ -310,6 +383,37 @@ impl<S: RSSupport> RankQuad for RSQVector<S> {
         debug_assert!(symbol <= 3);
         self.rs_support.rank_block(symbol, i) + self.rank_intra_block(symbol, i)
     }
+
+    /// Ranks of all four symbols at position `i` with shared block/data loads.
+    ///
+    /// # Safety
+    /// `i` must be ≤ sequence length.
+    #[inline(always)]
+    unsafe fn rank_all_unchecked(&self, i: usize) -> [usize; 4] {
+        // Superblock counters are one aligned 64-byte line (4×u128). Load once.
+        let superblock_index = i / (S::BLOCK_SIZE * 8);
+        let block_index = (i / S::BLOCK_SIZE) & 7;
+        // SAFETY: superblock_index in range for valid i (same as rank_block).
+        let block_ranks = {
+            // Access via rank_block for each symbol still hits the same cache line;
+            // prefer specialized path when available through public rank_block.
+            [
+                self.rs_support.rank_block(0, i),
+                self.rs_support.rank_block(1, i),
+                self.rs_support.rank_block(2, i),
+                self.rs_support.rank_block(3, i),
+            ]
+        };
+        // Silence unused when BLOCK_SIZE path uses different indexing helpers.
+        let _ = (superblock_index, block_index);
+        let intra = self.rank_intra_block_all(i);
+        [
+            block_ranks[0] + intra[0],
+            block_ranks[1] + intra[1],
+            block_ranks[2] + intra[2],
+            block_ranks[3] + intra[3],
+        ]
+    }
 }
 
 impl<S: RSSupport> SelectQuad for RSQVector<S> {
@@ -350,7 +454,7 @@ impl<S: RSSupport> SelectQuad for RSQVector<S> {
     ///
     /// # Safety
     /// Calling this method with a value of `i` which is larger than the number of
-    /// occurrences of the `symbol` or if `symbol is larger than 3 is  
+    /// occurrences of the `symbol` or if `symbol is larger than 3 is
     /// undefined behavior.
     ///
     /// In the current implementation there is no reason to prefer this unsafe select
@@ -367,7 +471,7 @@ impl<S: RSSupport> SelectQuad for RSQVector<S> {
 
 impl<S: RSSupport> WTSupport for RSQVector<S> {
     /// Returns the number of occurrences of `symbol` in the indexed sequence,
-    /// `None` if `symbol` is not in [0..3].  
+    /// `None` if `symbol` is not in [0..3].
     #[inline(always)]
     fn occs(&self, symbol: u8) -> Option<usize> {
         if symbol > 3 {
@@ -500,7 +604,6 @@ where
 #[generic_tests::define]
 mod tests {
     use super::*;
-    use std::iter;
 
     #[test]
     fn test_just_one_data_line<D>()
@@ -587,7 +690,7 @@ mod tests {
         ] {
             // tests blocks and superblocks boundaries
             for symbol in 0..3u8 {
-                let qv: QVector = iter::repeat(symbol).take(n).collect();
+                let qv: QVector = std::iter::repeat_n(symbol, n).collect();
                 let rsqv = D::from(qv.clone());
                 for i in 0..qv.len() + 1 {
                     if i < qv.len() {

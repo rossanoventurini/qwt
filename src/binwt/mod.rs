@@ -1,20 +1,16 @@
-use std::{
-    collections::HashMap,
-    marker::PhantomData,
-    ops::{Bound, Range, RangeBounds},
+use crate::quadwt::huffqwt::PrefixCode;
+use crate::utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes};
+use crate::{
+    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, OccsRangeUnsigned, RankUnsigned,
+    SelectUnsigned, WTIndexable, WTIterator,
 };
-
 use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    quadwt::huffqwt::PrefixCode,
-    utils::{msb, stable_partition_of_2, stable_partition_of_2_with_codes},
-    AccessUnsigned, BinWTSupport, BitVector, BitVectorMut, OccsRangeUnsigned, RankUnsigned,
-    SelectUnsigned, WTIndexable, WTIterator,
-};
+use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::ops::{Bound, Range, RangeBounds};
 
 pub trait BinRSforWT: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
 impl<T> BinRSforWT for T where T: From<BitVector> + BinWTSupport + MemSize + MemDbg + Default {}
@@ -31,7 +27,7 @@ pub struct WaveletTree<T, BRS, const COMPRESSED: bool = false> {
     phantom_data: PhantomData<T>,
 }
 
-struct LenInfo(usize, u32); //symbol, len
+struct LenInfo(usize, u32); // symbol, len
 
 #[allow(clippy::identity_op)]
 fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
@@ -47,7 +43,7 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
 
     let mut c = vec![0; alph_size];
     let mut assignments = vec![PrefixCode { content: 0, len: 0 }; sigma + 1];
-    let mut m = 1; //how many codes we have so far
+    let mut m = 1; // how many codes we have so far
     let mut l = 0;
 
     for j in 0..alph_size {
@@ -62,8 +58,8 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
             l += 1;
         }
 
-        //the codes are stored in lexicographic order of their reverse codes,
-        //now we get the actual one we need by reversing it
+        // the codes are stored in lexicographic order of their reverse codes,
+        // now we get the actual one we need by reversing it
         let mut reversed_code = 0;
         for t in 0..l {
             reversed_code |= ((c[j] >> t) & 1) << (l - t - 1);
@@ -128,9 +124,9 @@ where
         let sigma = *sequence.iter().max().unwrap();
 
         if COMPRESSED {
-            //we craft the codes
+            // we craft the codes
 
-            //count symbol frequences
+            // count symbol frequences
             let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
                 *map.entry(c.as_()).or_insert(0u32) += 1;
                 map
@@ -155,7 +151,7 @@ where
                 }
             }
 
-            //sort codes to make it easier to search
+            // sort codes to make it easier to search
             for v in decoder.iter_mut() {
                 v.sort_by_key(|(x, _)| *x)
             }
@@ -169,13 +165,11 @@ where
             sig = Some(sigma);
         }
 
-        //populate bvs
+        // populate bvs
         let mut bvs = Vec::with_capacity(n_levels);
         let mut lens = Vec::with_capacity(n_levels);
 
-        let mut shift = 1;
-
-        for _level in 0..n_levels {
+        for shift in 1..=n_levels {
             let mut cur_bv = BitVectorMut::new();
 
             for &s in sequence.iter() {
@@ -184,12 +178,12 @@ where
                         "some error occurred during code translation while building huffqwt",
                     );
 
-                    if cur_code.len >= shift {
-                        let symbol = ((cur_code.content >> (cur_code.len - shift)) & 1) == 1;
+                    if cur_code.len >= shift as u32 {
+                        let symbol = ((cur_code.content >> (cur_code.len - shift as u32)) & 1) == 1;
                         cur_bv.push(symbol);
                     }
                 } else {
-                    let symbol = ((s >> (n_levels - shift as usize)).as_() & 1) == 1;
+                    let symbol = ((s >> (n_levels - shift)).as_() & 1) == 1;
                     cur_bv.push(symbol);
                 }
             }
@@ -200,16 +194,10 @@ where
             bvs.push(BRS::from(bv));
 
             if COMPRESSED {
-                stable_partition_of_2_with_codes(
-                    sequence,
-                    shift as usize,
-                    codes_encode.as_ref().unwrap(),
-                );
+                stable_partition_of_2_with_codes(sequence, shift, codes_encode.as_ref().unwrap());
             } else {
-                stable_partition_of_2(sequence, n_levels - shift as usize);
+                stable_partition_of_2(sequence, n_levels - shift);
             }
-
-            shift += 1;
         }
 
         bvs.shrink_to_fit();
@@ -266,7 +254,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{WT, HWT};
+    /// use qwt::{HWT, WT};
     ///
     /// let data = vec![1u8, 0, 1, 0, 255, 4, 5, 3];
     ///
@@ -294,7 +282,10 @@ where
     ///
     /// assert_eq!(wt.iter().collect::<Vec<_>>(), data);
     ///
-    /// assert_eq!(wt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
+    /// assert_eq!(
+    ///     wt.iter().rev().collect::<Vec<_>>(),
+    ///     data.into_iter().rev().collect::<Vec<_>>()
+    /// );
     /// ```
     pub fn iter(
         &self,

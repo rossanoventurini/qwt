@@ -110,36 +110,34 @@ pub fn gen_strictly_increasing_sequence(n: usize, u: usize) -> Vec<usize> {
     v
 }
 
-/*
-/// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
-/// and the next position.
-pub fn test_rank1<T>(ds: &T, bv: &BitVector)
-where
-    T: Rank,
-{
-    for (rank, pos) in bv.ones().enumerate() {
-        let result = ds.rank1(pos);
-        assert_eq!(result, Some(rank));
-        let result = ds.rank1(pos + 1);
-        dbg!(pos + 1, rank);
-        assert_eq!(result, Some(rank + 1));
-    }
-    let result = ds.rank1(bv.len() + 1);
-    assert_eq!(result, None);
-}
-
-/// Tests select1 op by querying every position of vector.
-pub fn test_select1<T>(ds: &T, data: &[usize])
-where
-    T: Select,
-{
-    for (i, &v) in data.iter().enumerate() {
-        let result = ds.select1(i);
-        dbg!(i, v);
-        assert_eq!(result, Some(v));
-    }
-}
-*/
+// Tests rank1 op by querying every position of a bit set to 1 in the binary vector
+// and the next position.
+// pub fn test_rank1<T>(ds: &T, bv: &BitVector)
+// where
+// T: Rank,
+// {
+// for (rank, pos) in bv.ones().enumerate() {
+// let result = ds.rank1(pos);
+// assert_eq!(result, Some(rank));
+// let result = ds.rank1(pos + 1);
+// dbg!(pos + 1, rank);
+// assert_eq!(result, Some(rank + 1));
+// }
+// let result = ds.rank1(bv.len() + 1);
+// assert_eq!(result, None);
+// }
+//
+// Tests select1 op by querying every position of vector.
+// pub fn test_select1<T>(ds: &T, data: &[usize])
+// where
+// T: Select,
+// {
+// for (i, &v) in data.iter().enumerate() {
+// let result = ds.select1(i);
+// dbg!(i, v);
+// assert_eq!(result, Some(v));
+// }
+// }
 
 pub struct TimingQueries {
     timings: Vec<u128>,

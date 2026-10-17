@@ -19,8 +19,7 @@
 //! Without this support, the query [`SelectBin::select0`] will panic.
 //!
 //! ```
-//! use qwt::DArray;
-//! use qwt::{SelectBin, RankBin};
+//! use qwt::{DArray, RankBin, SelectBin};
 //!
 //! let vv: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
 //! let da: DArray<false> = vv.into_iter().collect();
@@ -53,18 +52,13 @@
 //! the position of the first one in its block and start a linear scan from that position
 //! looking for the i-th occurrence of 1. If the block is sparse, the answer is stored in vector
 //! *overflow_positions*.
-//!
 // TODO! //! Space overhead is TODO!
-//!
 //! These three vectors are stored in a private struct `Inventories`.
 //! The const generic BITS in this struct allows us to build and store these vectors to support
 //! `select0` as well.
-
 use crate::bitvector::{BitVectorBitPositionsIter, BitVectorIter};
 use crate::utils::select_in_word;
-use crate::BitVector;
-use crate::{AccessBin, SelectBin};
-
+use crate::{AccessBin, BitVector, SelectBin};
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "x86_64")]
@@ -77,7 +71,6 @@ const MAX_IN_BLOCK_DISTACE: usize = 1 << 16;
 /// Const generic SELECT0_SUPPORT may optionally add
 /// extra data structures to support fast `select0` queries,
 /// which otherwise are not supported.
-
 #[derive(Default, Debug, Clone, Serialize, Deserialize, MemSize, MemDbg, PartialEq)]
 pub struct DArray<const SELECT0_SUPPORT: bool = false> {
     bv: BitVector,
@@ -191,8 +184,8 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// ```
     /// use qwt::{DArray, SelectBin};
     ///
-    /// let v = vec![0,2,3,4,5];
-    /// let da: DArray::<true> = v.into_iter().collect(); // <true> to support the select0 query
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray<true> = v.into_iter().collect(); // <true> to support the select0 query
     ///
     /// assert_eq!(da.select1(2), Some(3));
     /// assert_eq!(da.select0(0), Some(1));
@@ -254,8 +247,8 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// # Examples
     ///
     /// ```
-    /// use qwt::DArray;
     /// use qwt::perf_and_test_utils::negate_vector;
+    /// use qwt::DArray;
     ///
     /// let vv: Vec<usize> = vec![0, 63, 128, 129, 254, 1026];
     /// let da: DArray = vv.iter().copied().collect();
@@ -281,7 +274,7 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
     /// ```
     /// use qwt::DArray;
     ///
-    /// let v = vec![0,2,3,5];
+    /// let v = vec![0, 2, 3, 5];
     /// let da: DArray = v.into_iter().collect();
     ///
     /// let mut iter = da.iter();
@@ -391,9 +384,9 @@ impl<const SELECT0_SUPPORT: bool> DArray<SELECT0_SUPPORT> {
         let mut word_idx = start_pos >> 6;
         let word_shift = start_pos & 63;
         let mut word = if !BIT {
-            !self.bv.get_word(word_idx) & (std::u64::MAX << word_shift) // if select0, negate the current word!
+            !self.bv.get_word(word_idx) & (u64::MAX << word_shift) // if select0, negate the current word!
         } else {
-            self.bv.get_word(word_idx) & (std::u64::MAX << word_shift)
+            self.bv.get_word(word_idx) & (u64::MAX << word_shift)
         };
 
         loop {
@@ -429,16 +422,15 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{DArray, AccessBin};
+    /// use qwt::{AccessBin, DArray};
     ///
-    /// let v = vec![0,2,3,4,5];
-    /// let da: DArray = v.into_iter().collect();;
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray = v.into_iter().collect();
     ///
     /// assert_eq!(da.get(5), Some(true));
     /// assert_eq!(da.get(1), Some(false));
     /// assert_eq!(da.get(10), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, i: usize) -> Option<bool> {
         self.bv.get(i)
@@ -451,13 +443,12 @@ impl<const SELECT0_SUPPORT: bool> AccessBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Examples
     /// ```
-    /// use qwt::{DArray, AccessBin};
+    /// use qwt::{AccessBin, DArray};
     ///
-    /// let v = vec![0,2,3,4,5];
-    /// let da: DArray = v.into_iter().collect();;
-    /// assert_eq!(unsafe{da.get_unchecked(8)}, false);
+    /// let v = vec![0, 2, 3, 4, 5];
+    /// let da: DArray = v.into_iter().collect();
+    /// assert_eq!(unsafe { da.get_unchecked(8) }, false);
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> bool {
         self.bv.get_unchecked(i)
@@ -482,7 +473,6 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-
     #[inline(always)]
     fn select1(&self, i: usize) -> Option<usize> {
         self.select(i, &self.ones_inventories)
@@ -500,9 +490,8 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
     /// let da: DArray = v.into_iter().collect();
     ///
-    /// assert_eq!(unsafe{da.select1_unchecked(1)}, 12);
+    /// assert_eq!(unsafe { da.select1_unchecked(1) }, 12);
     /// ```
-
     #[inline(always)]
     unsafe fn select1_unchecked(&self, i: usize) -> usize {
         self.select(i, &self.ones_inventories).unwrap()
@@ -526,7 +515,6 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     ///
     /// # Panics
     /// It panics if [`DArray`] is built without support for `select0`query.
-
     #[inline(always)]
     fn select0(&self, i: usize) -> Option<usize> {
         assert!(SELECT0_SUPPORT);
@@ -546,8 +534,8 @@ impl<const SELECT0_SUPPORT: bool> SelectBin for DArray<SELECT0_SUPPORT> {
     /// let v: Vec<usize> = vec![0, 12, 33, 42, 55, 61, 1000];
     /// let da: DArray<true> = v.into_iter().collect();
     ///
-    /// assert_eq!(unsafe{da.select0_unchecked(1)}, 2);
-    /// assert_eq!(unsafe{da.select0_unchecked(11)}, 13);
+    /// assert_eq!(unsafe { da.select0_unchecked(1) }, 2);
+    /// assert_eq!(unsafe { da.select0_unchecked(11) }, 13);
     /// ```
     #[inline(always)]
     unsafe fn select0_unchecked(&self, i: usize) -> usize {

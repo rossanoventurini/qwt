@@ -75,3 +75,28 @@ fn test_data_line() {
         }
     }
 }
+
+#[test]
+fn superblock_public_accessors_reject_invalid_symbols_and_blocks() {
+    let superblock = crate::SuperblockPlain::default();
+    assert!(std::panic::catch_unwind(|| superblock.get_rank(4, 0)).is_err());
+    assert!(std::panic::catch_unwind(|| superblock.get_rank(0, 8)).is_err());
+    assert!(std::panic::catch_unwind(|| superblock.get_rank_all(8)).is_err());
+    assert!(std::panic::catch_unwind(|| superblock.get_superblock_counter(4)).is_err());
+    assert!(std::panic::catch_unwind(|| superblock.block_predecessor(4, 0)).is_err());
+}
+
+#[test]
+fn data_line_rank_all_matches_scalar_rank() {
+    let mut data_line = DataLine::default();
+    for position in 0..=255u8 {
+        data_line.set_symbol(position % 4, position);
+    }
+    for end in 0..=256 {
+        // SAFETY: every tested boundary is within the 256-symbol line.
+        let all = unsafe { data_line.rank_all_unchecked(end) };
+        for symbol in 0..4u8 {
+            assert_eq!(all[symbol as usize], data_line.rank(symbol, end).unwrap());
+        }
+    }
+}
