@@ -1,19 +1,18 @@
-use std::{fs, path::Path};
-
 use clap::Parser;
 use mem_dbg::{MemSize, SizeFlags};
+use qwt::perf_and_test_utils::{
+    gen_queries, gen_rank_queries, gen_select_queries, random_range_queries, type_of, TimingQueries,
+};
+use qwt::quadwt::RSforWT;
+use qwt::utils::{msb, text_remap};
 use qwt::{
-    perf_and_test_utils::{
-        gen_queries, gen_rank_queries, gen_select_queries, random_range_queries, type_of,
-        TimingQueries,
-    },
-    quadwt::RSforWT,
-    utils::{msb, text_remap},
     AccessUnsigned, HQWT256Pfs, HQWT512Pfs, HuffQWaveletTree, OccsRangeUnsigned, QWT256Pfs,
     QWT512Pfs, QWaveletTree, RankUnsigned, SelectUnsigned, HQWT256, HQWT512, HWT, QWT256, QWT512,
     WT,
 };
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 
 const N_RUNS: usize = 10;
 

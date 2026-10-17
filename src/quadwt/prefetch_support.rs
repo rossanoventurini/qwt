@@ -1,5 +1,5 @@
-use crate::{narrow::RS, BitVectorMut, QVector, RankBin};
-
+use crate::narrow::RS;
+use crate::{BitVectorMut, QVector, RankBin};
 use mem_dbg::{MemDbg, MemSize};
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,11 @@ impl PrefetchSupport {
     /// The ith bit in the bit vector of symbol `c` is `1` if and only if the
     /// ith block contains an occurrence of which is a multiple of `sample_rate`, `0´ otherwise.
     pub fn new(qv: &QVector, sample_rate_shift: usize) -> Self {
+        // Values at or above the machine word width would panic in both the
+        // constructor and `approx_rank_unchecked`. Saturating to the largest
+        // representable power-of-two rate preserves the intended one-large-
+        // block behavior for any realizable QVector.
+        let sample_rate_shift = sample_rate_shift.min(usize::BITS as usize - 1);
         let mut bvs = [
             BitVectorMut::default(),
             BitVectorMut::default(),
@@ -58,5 +63,16 @@ impl PrefetchSupport {
             .rank1(block_id + 1)
             .unwrap()
             * sample_rate
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oversized_sample_rate_shift_is_saturated() {
+        let support = PrefetchSupport::new(&QVector::default(), usize::MAX);
+        assert_eq!(support.sample_rate_shift, usize::BITS as usize - 1);
     }
 }

@@ -1,22 +1,20 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    marker::PhantomData,
-    ops::{Bound, Range, RangeBounds},
-    vec,
+use super::prefetch_support::PrefetchSupport;
+use super::RSforWT;
+use crate::utils::stable_partition_of_4_with_codes;
+use crate::{
+    AccessUnsigned, OccsRangeUnsigned, QVectorBuilder, RankUnsigned, SelectUnsigned, WTIndexable,
+    WTIterator, MAX_QUAD_LEVELS,
 };
-
 use mem_dbg::{MemDbg, MemSize};
 use minimum_redundancy::{BitsPerFragment, Coding};
 use num_traits::AsPrimitive;
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    utils::stable_partition_of_4_with_codes, AccessUnsigned, OccsRangeUnsigned, QVectorBuilder,
-    RankUnsigned, SelectUnsigned, WTIndexable, WTIterator,
-};
-
-use super::{prefetch_support::PrefetchSupport, RSforWT};
+use serde::{Deserialize, Deserializer, Serialize};
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::ops::{Bound, Range, RangeBounds};
+use std::vec;
 
 #[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemDbg, MemSize, Debug)]
 pub struct PrefixCode {
@@ -26,7 +24,7 @@ pub struct PrefixCode {
 
 /// Implements a compressed wavelet tree on quad vectors.
 /// It doesn't achieve maximum compression, but the queries are faster
-#[derive(Default, Clone, PartialEq, Serialize, Deserialize, MemSize, MemDbg, Debug)]
+#[derive(Default, Clone, PartialEq, Serialize, MemSize, MemDbg, Debug)]
 pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     n: usize,                         // The length of the represented sequence
     n_levels: usize,                  // The number of levels of the wavelet matrix
@@ -38,23 +36,123 @@ pub struct HuffQWaveletTree<T, RS, const WITH_PREFETCH_SUPPORT: bool = false> {
     prefetch_support: Option<Vec<PrefetchSupport>>,
 }
 
-struct LenInfo(usize, u32); //symbol, len
+#[derive(Deserialize)]
+struct HuffQWaveletTreeSerde<T, RS> {
+    n: usize,
+    n_levels: usize,
+    codes_encode: Vec<PrefixCode>,
+    codes_decode: Vec<Vec<(u32, T)>>,
+    qvs: Vec<RS>,
+    lens: Vec<usize>,
+    phantom_data: PhantomData<T>,
+    prefetch_support: Option<Vec<PrefetchSupport>>,
+}
+
+impl<'de, T, RS, const WITH_PREFETCH_SUPPORT: bool> Deserialize<'de>
+    for HuffQWaveletTree<T, RS, WITH_PREFETCH_SUPPORT>
+where
+    T: WTIndexable + Deserialize<'de>,
+    usize: AsPrimitive<T>,
+    RS: RSforWT + Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let decoded = HuffQWaveletTreeSerde::<T, RS>::deserialize(deserializer)?;
+        let _ = decoded.phantom_data;
+        if WITH_PREFETCH_SUPPORT || decoded.prefetch_support.is_some() {
+            return Err(serde::de::Error::custom(
+                "deserializing prefetch-augmented Huffman QWT state is not supported",
+            ));
+        }
+        Self::from_parts(
+            decoded.n,
+            decoded.n_levels,
+            decoded.codes_encode,
+            decoded.codes_decode,
+            decoded.qvs,
+            decoded.lens,
+        )
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+struct LenInfo(usize, u32, usize); // symbol, len, frequency
+
+fn limit_code_lengths(lengths: &mut [LenInfo]) {
+    if !lengths.iter().any(|x| x.1 > u32::BITS) {
+        return;
+    }
+
+    // Represent the Kraft sum as occupied slots at the maximum depth. Capping
+    // an overwide leaf can overfill that depth, so lengthen the least-frequent
+    // shorter leaves just enough to make room. This retains useful short codes
+    // for common symbols instead of replacing the tree with fixed-width codes.
+    const MAX_CODE_BITS: u32 = u32::BITS;
+    const MAX_DEPTH_SLOTS: u128 = 1_u128 << MAX_CODE_BITS;
+    for LenInfo(_, len, _) in lengths.iter_mut() {
+        *len = (*len).min(MAX_CODE_BITS);
+    }
+    let mut occupied_slots = lengths
+        .iter()
+        .map(|x| 1_u128 << (MAX_CODE_BITS - x.1))
+        .sum::<u128>();
+    if occupied_slots <= MAX_DEPTH_SLOTS {
+        return;
+    }
+
+    let mut candidates = (0..lengths.len())
+        .filter(|&index| lengths[index].1 < MAX_CODE_BITS)
+        .collect::<Vec<_>>();
+    candidates.sort_unstable_by_key(|&index| {
+        let LenInfo(symbol, len, frequency) = lengths[index];
+        (frequency, len, symbol)
+    });
+    for index in candidates {
+        while occupied_slots > MAX_DEPTH_SLOTS && lengths[index].1 < MAX_CODE_BITS {
+            let old_slots = 1_u128 << (MAX_CODE_BITS - lengths[index].1);
+            lengths[index].1 += 2;
+            occupied_slots -= old_slots - old_slots / 4;
+        }
+        if occupied_slots <= MAX_DEPTH_SLOTS {
+            break;
+        }
+    }
+    assert!(
+        occupied_slots <= MAX_DEPTH_SLOTS,
+        "Huffman QWT alphabet exceeds the u32 code space"
+    );
+}
 
 #[allow(clippy::identity_op)]
-fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCode> {
-    // count size of the alphabet
-    let alph_size = freq.iter().count();
-
-    let mut f = freq
+fn craft_wm_codes(
+    lengths: &HashMap<usize, u32>,
+    frequencies: &HashMap<usize, usize>,
+    sigma: usize,
+) -> Vec<PrefixCode> {
+    let mut f = lengths
         .iter()
-        .map(|(&k, &v)| LenInfo(k, v * 2)) // each fragment is 2 bits
+        .map(|(&symbol, &len)| {
+            LenInfo(
+                symbol,
+                len * 2,
+                frequencies.get(&symbol).copied().unwrap_or_default(),
+            )
+        })
         .collect::<Vec<_>>();
+    craft_wm_codes_from_lengths(&mut f, sigma)
+}
 
-    f.sort_by_key(|x| x.1);
+#[allow(clippy::identity_op)]
+fn craft_wm_codes_from_lengths(f: &mut [LenInfo], sigma: usize) -> Vec<PrefixCode> {
+    limit_code_lengths(f);
+    f.sort_unstable_by_key(|x| (x.1, Reverse(x.2), x.0));
 
+    let alph_size = f.len();
     let mut c = vec![0; alph_size * 4];
     let mut assignments = vec![PrefixCode { content: 0, len: 0 }; sigma + 1];
-    let mut m = 1; //how many codes we have so far
+    let mut m = 1; // how many codes we have so far
     let mut l = 0;
 
     for j in 0..alph_size {
@@ -71,8 +169,8 @@ fn craft_wm_codes(freq: &mut HashMap<usize, u32>, sigma: usize) -> Vec<PrefixCod
             l += 2;
         }
 
-        //the codes are stored in lexicographic order of their reverse codes,
-        //now we get the actual one we need by reversing it
+        // the codes are stored in lexicographic order of their reverse codes,
+        // now we get the actual one we need by reversing it
         let mut reversed_code = 0;
         for t in (0..l).step_by(2) {
             reversed_code |= ((c[j] >> t) & 3) << (l - t - 2);
@@ -128,7 +226,7 @@ where
         }
 
         let sigma = *sequence.iter().max().unwrap();
-        //count symbol frequences
+        // count symbol frequences
         let freqs = sequence.iter().fold(HashMap::new(), |mut map, &c| {
             *map.entry(c.as_()).or_insert(0usize) += 1;
             map
@@ -141,8 +239,7 @@ where
         // let tot_occs = sequence.len();
         // println!("total occurrences: {}", tot_occs);
 
-        let mut lengths =
-            Coding::from_frequencies_cloned(BitsPerFragment(2), &freqs).code_lengths();
+        let lengths = Coding::from_frequencies_cloned(BitsPerFragment(2), &freqs).code_lengths();
 
         // println!("lengths: {:?}", &lengths);
 
@@ -155,7 +252,7 @@ where
 
         // println!("awpl in bits: {}", awpl as f64 / tot_occs as f64);
 
-        let codes = craft_wm_codes(&mut lengths, sigma.as_());
+        let codes = craft_wm_codes(&lengths, &freqs, sigma.as_());
 
         // println!("{:?}", codes);
 
@@ -164,7 +261,7 @@ where
             .map(|x| x.len)
             .max()
             .expect("error while finding max code length") as usize;
-        let n_levels = max_len / 2; //we handle 2 bits for each level
+        let n_levels = max_len / 2; // we handle 2 bits for each level
 
         let mut codes_decode = vec![Vec::default(); max_len + 1];
         for (i, c) in codes.iter().enumerate() {
@@ -173,7 +270,7 @@ where
             }
         }
 
-        //sort codes to make it easier to search
+        // sort codes to make it easier to search
         for v in codes_decode.iter_mut() {
             v.sort_by_key(|(x, _)| *x)
         }
@@ -194,7 +291,7 @@ where
                     .expect("some error occurred during code translation while building huffqwt");
 
                 if cur_code.len >= shift {
-                    //we put in a qvector
+                    // we put in a qvector
                     let qv_symbol = (cur_code.content >> (cur_code.len - shift)) & 3;
                     cur_qv.push(qv_symbol as u8);
                 }
@@ -289,6 +386,270 @@ where
         self.n_levels
     }
 
+    /// Wavelet levels (RSQ vectors).
+    ///
+    /// Exposed for zero-copy / mmap flatten of the tree layout.
+    #[must_use]
+    pub fn levels(&self) -> &[RS] {
+        &self.qvs
+    }
+
+    /// Per-level sequence lengths (`lens[level]`), needed by Huffman `get`
+    /// early-leaf termination. Same order as [`Self::levels`].
+    #[must_use]
+    pub fn level_lens(&self) -> &[usize] {
+        &self.lens
+    }
+
+    /// Encode LUT: index = symbol id, value = prefix code (len==0 ⇒ absent).
+    #[must_use]
+    pub fn codes_encode(&self) -> &[PrefixCode] {
+        &self.codes_encode
+    }
+
+    /// Decode LUT: `codes_decode[bit_len]` is sorted by code content.
+    /// Symbols are stored as `T` in the heap tree; callers flatten as needed.
+    #[must_use]
+    pub fn codes_decode(&self) -> &[Vec<(u32, T)>] {
+        &self.codes_decode
+    }
+
+    /// Assemble a Huffman QWT from prebuilt levels and code tables.
+    ///
+    /// Inverse of the inspector accessors. Used by zero-copy I/O.
+    /// Prefetch-augmented trees are rejected in v1.
+    pub fn from_parts(
+        n: usize,
+        n_levels: usize,
+        codes_encode: Vec<PrefixCode>,
+        codes_decode: Vec<Vec<(u32, T)>>,
+        qvs: Vec<RS>,
+        lens: Vec<usize>,
+    ) -> Result<Self, crate::bytes::LayoutError> {
+        if WITH_PREFETCH_SUPPORT {
+            return Err(crate::bytes::LayoutError::PrefetchNotSupported);
+        }
+        if n_levels > MAX_QUAD_LEVELS {
+            return Err(crate::bytes::LayoutError::Inconsistent {
+                detail: "Huffman QWT level count exceeds the supported maximum",
+            });
+        }
+        // Empty-tree convention from `new([])`: n_levels == 0 with a single
+        // default qv and lens=[0]. Callers may pass empty vecs; we normalize.
+        let (qvs, lens) = if n == 0 {
+            if n_levels != 0 {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree must have n_levels == 0",
+                });
+            }
+            if qvs.is_empty() && lens.is_empty() {
+                (vec![RS::default()], vec![0])
+            } else if qvs.len() == 1 && lens == [0] {
+                (qvs, lens)
+            } else {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "empty tree expects empty or default sentinel levels",
+                });
+            }
+        } else if n_levels == 0 || qvs.len() != n_levels || lens.len() != n_levels {
+            return Err(crate::bytes::LayoutError::Inconsistent {
+                detail: "n_levels disagrees with qvs/lens lengths",
+            });
+        } else {
+            (qvs, lens)
+        };
+        if n > 0 && lens.first().copied() != Some(n) {
+            return Err(crate::bytes::LayoutError::Inconsistent {
+                detail: "first Huffman QWT level length disagrees with header length",
+            });
+        }
+        if n > 0 {
+            for (level, &level_len) in qvs.iter().zip(&lens) {
+                let actual_len = (0..4u8)
+                    .map(|symbol| level.occs(symbol).unwrap_or(usize::MAX))
+                    .try_fold(0usize, usize::checked_add)
+                    .ok_or(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman QWT level occurrence counts overflow",
+                    })?;
+                if actual_len != level_len || level.rank(0, level_len).is_none() {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman QWT level payload length disagrees with directory",
+                    });
+                }
+            }
+        }
+        let max_code_bits = n_levels.saturating_mul(2);
+        for (symbol, code) in codes_encode.iter().enumerate() {
+            if code.len == 0 {
+                continue;
+            }
+            let code_len = code.len as usize;
+            if !code_len.is_multiple_of(2)
+                || code_len > max_code_bits
+                || code_len > u32::BITS as usize
+            {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman encode code length is invalid",
+                });
+            }
+            if code_len < u32::BITS as usize && code.content >= (1u32 << code_len) {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman encode code has bits outside its declared length",
+                });
+            }
+            let Some(bucket) = codes_decode.get(code_len) else {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman decode bucket is missing",
+                });
+            };
+            let Ok(index) = bucket.binary_search_by_key(&code.content, |(content, _)| *content)
+            else {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman encode code is absent from its decode bucket",
+                });
+            };
+            if bucket[index].1.as_() != symbol {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman encode/decode symbol mapping disagrees",
+                });
+            }
+        }
+        for (code_len, bucket) in codes_decode.iter().enumerate() {
+            if bucket.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman decode bucket must be strictly sorted",
+                });
+            }
+            for &(content, symbol) in bucket {
+                let Some(code) = codes_encode.get(symbol.as_()) else {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman decode symbol is outside the encode table",
+                    });
+                };
+                if code.len as usize != code_len || code.content != content {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman decode entry disagrees with its encode code",
+                    });
+                }
+            }
+        }
+        for code in codes_encode.iter().filter(|code| code.len != 0) {
+            let mut start = 0usize;
+            let mut end = n;
+            let mut shift = code.len as usize;
+            let mut level_index = 0usize;
+            while shift > 0 {
+                shift -= 2;
+                let Some(level) = qvs.get(level_index) else {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman code descends beyond available levels",
+                    });
+                };
+                if end > lens[level_index] {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman rank path exceeds a level length",
+                    });
+                }
+                let fragment = ((code.content >> shift) & 3) as u8;
+                start =
+                    level
+                        .rank(fragment, start)
+                        .ok_or(crate::bytes::LayoutError::Inconsistent {
+                            detail: "Huffman rank path start is invalid",
+                        })?
+                        + level.occs_smaller(fragment).unwrap_or(0);
+                end = level
+                    .rank(fragment, end)
+                    .ok_or(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman rank path end is invalid",
+                    })?
+                    + level.occs_smaller(fragment).unwrap_or(0);
+                level_index += 1;
+            }
+        }
+        // Validate every populated access path as a contiguous wavelet range.
+        // This proves the same property as decoding every row, but work scales
+        // with the Huffman prefix tree rather than the represented sequence.
+        let mut pending = if n == 0 {
+            Vec::new()
+        } else {
+            vec![(0usize, 0usize, n, 0u32, 0usize)]
+        };
+        while let Some((level_index, start, end, content, code_len)) = pending.pop() {
+            let Some(level) = qvs.get(level_index) else {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman access path exceeds available levels",
+                });
+            };
+            if end > lens[level_index] {
+                return Err(crate::bytes::LayoutError::Inconsistent {
+                    detail: "Huffman access path exceeds a level",
+                });
+            }
+            // SAFETY: `start..end` was checked against this level's length;
+            // child ranges come from validated rank metadata and offsets.
+            let ranks_start = unsafe { level.rank_all_unchecked(start) };
+            let ranks_end = unsafe { level.rank_all_unchecked(end) };
+            for digit in 0..4usize {
+                if ranks_start[digit] == ranks_end[digit] {
+                    continue;
+                }
+                let child_content = (content << 2) | digit as u32;
+                let child_code_len = code_len + 2;
+                let has_decode = codes_decode.get(child_code_len).is_some_and(|bucket| {
+                    bucket
+                        .binary_search_by_key(&child_content, |(candidate, _)| *candidate)
+                        .is_ok()
+                });
+                let Some(next_level_len) = lens.get(level_index + 1).copied() else {
+                    if !has_decode {
+                        return Err(crate::bytes::LayoutError::Inconsistent {
+                            detail: "Huffman access path has no decode entry",
+                        });
+                    }
+                    continue;
+                };
+                let offset = level.occs_smaller(digit as u8).unwrap_or(0);
+                let child_start = offset + ranks_start[digit];
+                let child_end = offset + ranks_end[digit];
+                if child_end <= next_level_len {
+                    if has_decode {
+                        return Err(crate::bytes::LayoutError::Inconsistent {
+                            detail: "Huffman decode entry has a populated descendant",
+                        });
+                    }
+                    pending.push((
+                        level_index + 1,
+                        child_start,
+                        child_end,
+                        child_content,
+                        child_code_len,
+                    ));
+                } else if child_start >= next_level_len {
+                    if !has_decode {
+                        return Err(crate::bytes::LayoutError::Inconsistent {
+                            detail: "Huffman access path has no decode entry",
+                        });
+                    }
+                } else {
+                    return Err(crate::bytes::LayoutError::Inconsistent {
+                        detail: "Huffman prefix is split across terminal and continuing rows",
+                    });
+                }
+            }
+        }
+        Ok(Self {
+            n,
+            n_levels,
+            codes_encode,
+            codes_decode,
+            qvs,
+            lens,
+            prefetch_support: None,
+            phantom_data: PhantomData,
+        })
+    }
+
     /// Returns an iterator over the values in the wavelet tree.
     ///
     /// # Examples
@@ -302,7 +663,10 @@ where
     ///
     /// assert_eq!(qwt.iter().collect::<Vec<_>>(), data);
     ///
-    /// assert_eq!(qwt.iter().rev().collect::<Vec<_>>(), data.into_iter().rev().collect::<Vec<_>>());
+    /// assert_eq!(
+    ///     qwt.iter().rev().collect::<Vec<_>>(),
+    ///     data.into_iter().rev().collect::<Vec<_>>()
+    /// );
     /// ```
     pub fn iter(
         &self,
@@ -423,7 +787,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{HQWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -432,8 +796,8 @@ where
     /// assert_eq!(qwt.rank_prefetch(1, 2), Some(1));
     /// assert_eq!(qwt.rank_prefetch(3, 8), Some(1));
     /// assert_eq!(qwt.rank_prefetch(1, 0), Some(0));
-    /// assert_eq!(qwt.rank_prefetch(1, 9), None);  // Too large position
-    /// assert_eq!(qwt.rank_prefetch(6, 1), None);  // Too large symbol
+    /// assert_eq!(qwt.rank_prefetch(1, 9), None); // Too large position
+    /// assert_eq!(qwt.rank_prefetch(6, 1), None); // Too large symbol
     /// ```
     #[inline(always)]
     #[must_use]
@@ -462,7 +826,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{HQWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -475,7 +839,7 @@ where
     #[must_use]
     #[inline(always)]
     pub unsafe fn rank_prefetch_unchecked(&self, symbol: T, i: usize) -> usize {
-        //we get the code on which we rank
+        // we get the code on which we rank
         let code = &self.codes_encode[symbol.as_()];
 
         if WITH_PREFETCH_SUPPORT {
@@ -583,7 +947,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{HQWT256, AccessUnsigned};
+    /// use qwt::{AccessUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -593,7 +957,6 @@ where
     /// assert_eq!(qwt.get(3), Some(0));
     /// assert_eq!(qwt.get(8), None);
     /// ```
-
     #[inline(always)]
     fn get(&self, i: usize) -> Option<Self::Item> {
         if i >= self.n {
@@ -613,7 +976,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{HQWT256, AccessUnsigned};
+    /// use qwt::{AccessUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -624,7 +987,6 @@ where
     ///     assert_eq!(qwt.get_unchecked(3), 0);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn get_unchecked(&self, i: usize) -> Self::Item {
         let mut cur_i = i;
@@ -649,7 +1011,7 @@ where
 
         // println!("found result len:{}, repr:{}", shift, result);
 
-        //find the symbol
+        // find the symbol
         let idx = self.codes_decode[shift]
             .binary_search_by_key(&result, |(x, _)| *x)
             .expect("could not translate symbol");
@@ -816,19 +1178,18 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{HQWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
     /// let qwt = HQWT256::from(data);
     ///
-    /// assert_eq!(qwt.rank(6, 1), None);  // Too large symbol
+    /// assert_eq!(qwt.rank(6, 1), None); // Too large symbol
     /// assert_eq!(qwt.rank(1, 2), Some(1));
     /// assert_eq!(qwt.rank(3, 8), Some(1));
     /// assert_eq!(qwt.rank(1, 0), Some(0));
-    /// assert_eq!(qwt.rank(1, 9), None);  // Too large position
+    /// assert_eq!(qwt.rank(1, 9), None); // Too large position
     /// ```
-
     #[inline(always)]
     fn rank(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if i > self.n
@@ -855,7 +1216,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use qwt::{HQWT256, RankUnsigned};
+    /// use qwt::{RankUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -865,7 +1226,6 @@ where
     ///     assert_eq!(qwt.rank_unchecked(1, 2), 1);
     /// }
     /// ```
-
     #[inline(always)]
     unsafe fn rank_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         let mut cur_i = i;
@@ -905,7 +1265,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use qwt::{HQWT256, SelectUnsigned};
+    /// use qwt::{SelectUnsigned, HQWT256};
     ///
     /// let data = vec![1u8, 0, 1, 0, 2, 4, 5, 3];
     ///
@@ -917,8 +1277,7 @@ where
     /// assert_eq!(qwt.select(1, 0), Some(0));
     /// assert_eq!(qwt.select(5, 0), Some(6));
     /// assert_eq!(qwt.select(6, 1), None);
-    /// ```    
-
+    /// ```
     #[inline(always)]
     fn select(&self, symbol: Self::Item, i: usize) -> Option<usize> {
         if symbol.as_() >= self.codes_encode.len() || self.codes_encode[symbol.as_()].len == 0 {
@@ -972,7 +1331,6 @@ where
     ///
     /// In the current implementation, there is no efficiency reason to prefer this
     /// unsafe `select` over the safe one.
-
     #[inline(always)]
     unsafe fn select_unchecked(&self, symbol: Self::Item, i: usize) -> usize {
         self.select(symbol, i).unwrap()

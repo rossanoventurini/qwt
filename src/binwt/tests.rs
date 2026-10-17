@@ -49,8 +49,12 @@ fn test_occs_range() {
     assert!(wt.occs_range(data.len() - 1..data.len() + 1).is_none());
 
     // nonsense ranges
-    assert!(wt.occs_range(5..4).is_none());
-    assert!(wt.occs_range(2..0).is_none());
+    assert!(wt
+        .occs_range(std::ops::Range { start: 5, end: 4 })
+        .is_none());
+    assert!(wt
+        .occs_range(std::ops::Range { start: 2, end: 0 })
+        .is_none());
 
     // empty ranges
     assert_eq!(0, wt.occs_range(data.len()..).unwrap().count());
@@ -92,8 +96,12 @@ fn test_occs_range_compressed() {
     assert!(wt.occs_range(data.len() - 1..data.len() + 1).is_none());
 
     // nonsense ranges
-    assert!(wt.occs_range(5..4).is_none());
-    assert!(wt.occs_range(2..0).is_none());
+    assert!(wt
+        .occs_range(std::ops::Range { start: 5, end: 4 })
+        .is_none());
+    assert!(wt
+        .occs_range(std::ops::Range { start: 2, end: 0 })
+        .is_none());
 
     // empty ranges
     assert_eq!(0, wt.occs_range(data.len()..).unwrap().count());

@@ -1,10 +1,50 @@
-use rand::RngExt;
-
+use super::{craft_wm_codes_from_lengths, LenInfo};
+use crate::perf_and_test_utils::{gen_sequence, TimingQueries};
 use crate::{
-    perf_and_test_utils::{gen_sequence, TimingQueries},
     AccessUnsigned, HuffQWaveletTree, OccsRangeUnsigned, RSQVector512, RankUnsigned,
     SelectUnsigned, HQWT256,
 };
+use rand::RngExt;
+
+#[test]
+fn overwide_huffman_lengths_are_limited_without_flattening_common_codes() {
+    // A complete quaternary tree with one internal child at each level: three
+    // leaves at depths 1..=16 and four leaves at depth 17. The old code would
+    // shift by 32 while constructing this valid 34-bit code set.
+    let mut lengths = Vec::new();
+    let mut symbol = 0;
+    for depth in 1..=16 {
+        for _ in 0..3 {
+            lengths.push(LenInfo(symbol, depth * 2, 1 << (17 - depth)));
+            symbol += 1;
+        }
+    }
+    for _ in 0..4 {
+        lengths.push(LenInfo(symbol, 34, 1));
+        symbol += 1;
+    }
+
+    let codes = craft_wm_codes_from_lengths(&mut lengths, symbol - 1);
+    assert!(codes.iter().all(|code| code.len <= 32));
+    assert!(codes.iter().all(|code| code.len.is_multiple_of(2)));
+    assert!(codes.iter().any(|code| code.len == 2));
+
+    let occupied_slots = codes
+        .iter()
+        .map(|code| 1_u64 << (u32::BITS - code.len))
+        .sum::<u64>();
+    assert!(occupied_slots <= 1_u64 << u32::BITS);
+    for (left_index, left) in codes.iter().enumerate() {
+        for right in &codes[left_index + 1..] {
+            let (short, long) = if left.len <= right.len {
+                (left, right)
+            } else {
+                (right, left)
+            };
+            assert_ne!(short.content, long.content >> (long.len - short.len));
+        }
+    }
+}
 
 #[test]
 fn test_small() {
@@ -45,8 +85,12 @@ fn test_occs_range() {
     assert!(qwt.occs_range(data.len() - 1..data.len() + 1).is_none());
 
     // nonsense ranges
-    assert!(qwt.occs_range(5..4).is_none());
-    assert!(qwt.occs_range(2..0).is_none());
+    assert!(qwt
+        .occs_range(std::ops::Range { start: 5, end: 4 })
+        .is_none());
+    assert!(qwt
+        .occs_range(std::ops::Range { start: 2, end: 0 })
+        .is_none());
 
     // empty ranges
     assert_eq!(0, qwt.occs_range(data.len()..).unwrap().count());
